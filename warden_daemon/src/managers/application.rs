@@ -1,5 +1,4 @@
-pub enum ApplicationError {
-}
+pub enum ApplicationError {}
 
 pub trait ApplicationCreator {
     fn create_application(&self, config: ApplicationConfig) -> Box<dyn Application + Send + Sync>;
@@ -11,6 +10,4 @@ pub trait Application {
     fn update(&mut self) -> Result<(), ApplicationError>;
 }
 
-pub struct ApplicationConfig {
-
-}
+pub struct ApplicationConfig {}

@@ -31,15 +31,20 @@ pub trait VmManager {
 pub enum VmManagerError {
     #[error("")]
     LaunchFail(#[from] io::Error),
+    #[error("To stop realm's vm you need to launch it first!")]
+    VmNotLaunched,
+    #[error("Unalbe to stop realm's vm")]
+    StopFail,
 }
 
 pub enum RealmClientError {
     RealmConnectorError,
+    NoConnectionWithRealm,
 }
 
 #[async_trait]
 pub trait RealmClient {
-    async fn acknowledge_client_connection(&self, cid: u32) -> Result<(), RealmClientError>;
+    async fn acknowledge_client_connection(&mut self, cid: u32) -> Result<(), RealmClientError>;
 }
 
 pub struct RealmManager {
@@ -48,7 +53,7 @@ pub struct RealmManager {
     managers_map: HashMap<Uuid, Box<dyn Application + Send + Sync>>,
     vm_manager: Box<dyn VmManager + Send + Sync>,
     realm_client: Box<dyn RealmClient + Send + Sync>,
-    application_fabric: Box<dyn ApplicationCreator + Send + Sync> 
+    application_fabric: Box<dyn ApplicationCreator + Send + Sync>,
 }
 
 impl RealmManager {
@@ -56,7 +61,7 @@ impl RealmManager {
         config: RealmConfig,
         vm_manager: Box<dyn VmManager + Send + Sync>,
         realm_client: Box<dyn RealmClient + Send + Sync>,
-        application_fabric: Box<dyn ApplicationCreator + Send + Sync> 
+        application_fabric: Box<dyn ApplicationCreator + Send + Sync>,
     ) -> Self {
         RealmManager {
             state: State::Halted,
@@ -64,7 +69,7 @@ impl RealmManager {
             config,
             vm_manager,
             realm_client,
-            application_fabric
+            application_fabric,
         }
     }
 }
@@ -129,7 +134,6 @@ impl RealmManager {
         self.vm_manager
             .launch_vm(&self.config.kernel)
             .map_err(|err| RealmError::RealmLaunchFail(err.to_string()))
-
     }
 }
 
@@ -145,7 +149,12 @@ mod test {
         RealmClient, RealmClientError, RealmConfig, RealmError, RealmManager, VmManager,
         VmManagerError,
     };
-    use crate::managers::{application::{Application, ApplicationConfig, ApplicationCreator, ApplicationError}, realm::Realm, realm_configuration::*, realm_manager::State};
+    use crate::managers::{
+        application::{Application, ApplicationConfig, ApplicationCreator, ApplicationError},
+        realm::Realm,
+        realm_configuration::*,
+        realm_manager::State,
+    };
 
     #[test]
     fn initial_state_is_halted() {
@@ -228,13 +237,17 @@ mod test {
         realm_client
             .expect_acknowledge_client_connection()
             .returning(|_| Ok(()));
-        realm_client
-            .expect_send_introduction_data()
-            .returning(|_| Ok(()));
         let app_mock = MockApplication::new();
         let mut creator_mock = MockApplicationFabric::new();
-        creator_mock.expect_create_application().return_once(move |_|Box::new(app_mock));
-        RealmManager::new(config, Box::new(vm_manager), Box::new(realm_client), Box::new(creator_mock))
+        creator_mock
+            .expect_create_application()
+            .return_once(move |_| Box::new(app_mock));
+        RealmManager::new(
+            config,
+            Box::new(vm_manager),
+            Box::new(realm_client),
+            Box::new(creator_mock),
+        )
     }
 
     fn create_example_config() -> RealmConfig {
@@ -280,8 +293,7 @@ mod test {
 
         #[async_trait]
         impl RealmClient for RealmClient {
-            async fn acknowledge_client_connection(&self, cid: u32) -> Result<(), RealmClientError>;
-            async fn send_introduction_data(&self, random: u32) -> Result<(), RealmClientError>;
+            async fn acknowledge_client_connection(&mut self, cid: u32) -> Result<(), RealmClientError>;
         }
     }
 

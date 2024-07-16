@@ -67,7 +67,9 @@ mod test {
     use mockall::mock;
 
     use crate::managers::{
-        application::ApplicationConfig, realm::{Realm, RealmData, RealmError}, realm_configuration::{CpuConfig, DiscConfig, KernelConfig, MemoryConfig, NetworkConfig}
+        application::ApplicationConfig,
+        realm::{Realm, RealmData, RealmError},
+        realm_configuration::{CpuConfig, DiscConfig, KernelConfig, MemoryConfig, NetworkConfig},
     };
 
     use super::*;
