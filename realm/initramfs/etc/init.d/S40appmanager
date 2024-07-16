@@ -1,0 +1,39 @@
+#!/bin/sh
+
+APP_MANAGER=/usr/bin/app-manager
+PID_FILE=/var/run/app-manager.pid
+
+case "$1" in 
+    start)
+        "$APP_MANAGER" &
+        echo $!>"$PID_FILE"
+        ;;
+
+    stop)
+        PID=$(cat "$PID_FILE")
+        if [ -d "/proc/$PID" ]; then
+            kill "$PID";
+            rm "$PID_FILE"
+        else
+            echo app-manager is not running
+        fi
+        ;;
+
+    restart)
+        $0 stop
+        $0 start
+        ;;
+
+    status)
+        if [ -e "$PID_FILE" ] && [ -d /proc/$(cat "$PID_FILE") ]; then
+            echo app-manager is running, pid=$(cat "$PID_FILE")
+        else
+            echo app-manger is not running
+            exit 1
+        fi
+        ;;
+    *)
+    echo "Usage: $0 {start|stop|status|restart}"
+esac
+
+exit 0 
