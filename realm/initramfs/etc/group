@@ -1,0 +1,15 @@
+audio:x:29:
+cdrom:x:24:
+dialout:x:20:
+disk:x:6:
+floppy:x:25:
+input:x:107:
+kmem:x:15:
+kvm:x:108:root
+netdev:x:117:
+root:x:0:
+kvm:x:108:root
+cvdnetwork:x:133:root
+tape:x:26:
+tty:x:5:
+video:x:44:

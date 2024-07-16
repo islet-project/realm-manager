@@ -1,0 +1,16 @@
+#!/bin/sh
+#
+# Run mdev to add /dev/disk/by-uuid etc...
+#
+
+case "$1" in
+  start)
+    echo "Running mdev -s"
+    /sbin/mdev -s
+    ;;
+  *)
+    echo $"Usage: $0 {start}"
+    exit 1
+esac
+
+exit $?
