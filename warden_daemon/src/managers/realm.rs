@@ -25,7 +25,7 @@ pub trait Realm {
 }
 
 pub trait RealmCreator {
-    fn create_realm(&self, config: RealmConfig) -> Box<dyn Realm>;
+    fn create_realm(&self, config: RealmConfig) -> Box<dyn Realm + Send + Sync>;
 }
 
 #[derive(Debug, PartialEq, PartialOrd)]

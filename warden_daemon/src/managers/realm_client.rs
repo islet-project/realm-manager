@@ -1,14 +1,19 @@
 use async_trait::async_trait;
 use serde::{Deserialize, Serialize};
-use std::sync::Arc;
+use std::{cell::RefCell, io, sync::Arc};
+use thiserror::Error;
 use tokio::sync::oneshot::Receiver;
 use tokio::sync::Mutex;
 
 use super::realm_manager::{RealmClient, RealmClientError};
 
-pub enum RealmConnectorError {}
-
-pub enum RealmSenderError {}
+#[derive(Debug, Error)]
+pub enum RealmSenderError {
+    #[error("Failed to parse command")]
+    CommandParsingFail(RealmCommand),
+    #[error("Failed to send command: {0}")]
+    SendFail(#[from] io::Error),
+}
 
 #[derive(Serialize, Deserialize, Debug, Clone)]
 pub enum RealmCommand {
@@ -25,16 +30,16 @@ pub trait RealmConnector {
 
 #[async_trait]
 pub trait RealmSender {
-    async fn send(&mut self, data: RealmCommand) -> Result<(), RealmConnectorError>;
+    async fn send(&mut self, data: RealmCommand) -> Result<(), RealmSenderError>;
 }
 
 pub struct RealmClientHandler {
-    realm_connector: Box<dyn RealmConnector + Send + Sync>,
+    realm_connector: Arc<Mutex<dyn RealmConnector + Send + Sync>>,
     realm_sender: Option<Box<dyn RealmSender + Send + Sync>>,
 }
 
 impl RealmClientHandler {
-    pub fn new(realm_connector: Box<dyn RealmConnector + Send + Sync>) -> Self {
+    pub fn new(realm_connector: Arc<Mutex<dyn RealmConnector + Send + Sync>>) -> Self {
         RealmClientHandler {
             realm_connector,
             realm_sender: None,
@@ -45,7 +50,7 @@ impl RealmClientHandler {
 #[async_trait]
 impl RealmClient for RealmClientHandler {
     async fn acknowledge_client_connection(&mut self, cid: u32) -> Result<(), RealmClientError> {
-        let realm_sender_receiver = self.realm_connector.acquire_realm_sender(cid).await;
+        let realm_sender_receiver = self.realm_connector.lock().await.acquire_realm_sender(cid).await;
         let realm_sender = realm_sender_receiver
             .await
             .map_err(|_| RealmClientError::NoConnectionWithRealm)?;
@@ -56,15 +61,15 @@ impl RealmClient for RealmClientHandler {
 
 #[cfg(test)]
 mod test {
+    use std::sync::Arc;
+
     use async_trait::async_trait;
     use mockall::mock;
-    use tokio::sync::oneshot::{Receiver, Sender};
+    use tokio::sync::{oneshot::{Receiver, Sender}, Mutex};
 
     use crate::managers::realm_manager::RealmClient;
 
-    use super::{
-        RealmClientHandler, RealmCommand, RealmConnector, RealmConnectorError, RealmSender,
-    };
+    use super::{RealmClientHandler, RealmCommand, RealmConnector, RealmSender, RealmSenderError};
 
     #[tokio::test]
     async fn acknowledge_client_connection() {
@@ -111,7 +116,7 @@ mod test {
                 .return_once(move |_| rx);
             realm_connector
         });
-        RealmClientHandler::new(Box::new(realm_connector))
+        RealmClientHandler::new(Arc::new(Mutex::new(realm_connector)))
     }
 
     mock! {
@@ -130,7 +135,7 @@ mod test {
 
         #[async_trait]
         impl RealmSender for RealmSender {
-            async fn send(&mut self, data: RealmCommand) -> Result<(), RealmConnectorError>;
+            async fn send(&mut self, data: RealmCommand) -> Result<(), RealmSenderError>;
         }
     }
 }

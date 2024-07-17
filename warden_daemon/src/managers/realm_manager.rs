@@ -1,6 +1,7 @@
 use async_trait::async_trait;
 use std::collections::HashMap;
 use std::io;
+use std::sync::Arc;
 use thiserror::Error;
 use uuid::Uuid;
 
@@ -53,7 +54,7 @@ pub struct RealmManager {
     managers_map: HashMap<Uuid, Box<dyn Application + Send + Sync>>,
     vm_manager: Box<dyn VmManager + Send + Sync>,
     realm_client: Box<dyn RealmClient + Send + Sync>,
-    application_fabric: Box<dyn ApplicationCreator + Send + Sync>,
+    application_fabric: Arc<Box<dyn ApplicationCreator + Send + Sync>>,
 }
 
 impl RealmManager {
@@ -61,7 +62,7 @@ impl RealmManager {
         config: RealmConfig,
         vm_manager: Box<dyn VmManager + Send + Sync>,
         realm_client: Box<dyn RealmClient + Send + Sync>,
-        application_fabric: Box<dyn ApplicationCreator + Send + Sync>,
+        application_fabric: Arc<Box<dyn ApplicationCreator + Send + Sync>>,
     ) -> Self {
         RealmManager {
             state: State::Halted,
@@ -139,7 +140,7 @@ impl RealmManager {
 
 #[cfg(test)]
 mod test {
-    use std::io::Error;
+    use std::{io::Error, sync::Arc};
 
     use async_trait::async_trait;
     use mockall::mock;
@@ -246,7 +247,7 @@ mod test {
             config,
             Box::new(vm_manager),
             Box::new(realm_client),
-            Box::new(creator_mock),
+            Arc::new(Box::new(creator_mock)),
         )
     }
 

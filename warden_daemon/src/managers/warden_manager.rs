@@ -5,12 +5,12 @@ use std::collections::HashMap;
 use uuid::Uuid;
 
 pub struct WardenDaemon {
-    managers_fabric: Box<dyn RealmCreator>,
-    managers_map: HashMap<Uuid, Box<dyn Realm>>,
+    managers_fabric: Box<dyn RealmCreator + Send + Sync>,
+    managers_map: HashMap<Uuid, Box<dyn Realm + Send + Sync>>,
 }
 
 impl WardenDaemon {
-    pub fn new(rm_fabric: Box<dyn RealmCreator>) -> Self {
+    pub fn new(rm_fabric: Box<dyn RealmCreator + Send + Sync>) -> Self {
         WardenDaemon {
             managers_fabric: rm_fabric,
             managers_map: HashMap::new(),
@@ -54,7 +54,7 @@ impl Warden for WardenDaemon {
         }
     }
 
-    fn get_realm(&mut self, realm_uuid: &Uuid) -> Result<&mut Box<dyn Realm>, WardenError> {
+    fn get_realm(&mut self, realm_uuid: &Uuid) -> Result<&mut Box<dyn Realm + Send + Sync>, WardenError> {
         self.managers_map
             .get_mut(&realm_uuid)
             .ok_or(WardenError::NoSuchRealm(realm_uuid.clone()))
@@ -202,7 +202,7 @@ mod test {
     mock! {
         pub RealmManagerCreator {}
         impl RealmCreator for RealmManagerCreator {
-            fn create_realm(&self, config: RealmConfig) -> Box<dyn Realm>;
+            fn create_realm(&self, config: RealmConfig) -> Box<dyn Realm + Send + Sync>;
         }
     }
 }
