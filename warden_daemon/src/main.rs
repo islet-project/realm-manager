@@ -14,6 +14,7 @@ use tokio_util::sync::CancellationToken;
 use tokio_vsock::VMADDR_CID_HOST;
 use socket::unix_socket_server::UnixSocketServer;
 use socket::vsocket_server::{VSockServer, VSockServerConfig};
+use clap::Parser;
 
 mod managers;
 mod socket;
@@ -21,21 +22,31 @@ mod virtualization;
 mod command_handler;
 mod fabric;
 
+#[derive(Parser)]
+#[command(version, about)]
+struct Cli {
+    #[arg(short, long, value_parser=clap::value_parser!(u32).range(2..), default_value_t = VMADDR_CID_HOST)]
+    cid: u32,
+    #[arg(short, long, value_parser=clap::value_parser!(u32).range(80..), default_value_t = 80)]
+    port: u32,
+    #[arg(short, long)]
+    qemu_path: String
+}
+
 #[tokio::main]
 async fn main() {
     env_logger::init();
+    let cli = Cli::parse();
 
     info!("Starting application!");
-    let cid = VMADDR_CID_HOST; // Can there be other host?
-    let port = 12345;
     let cancel_token = Arc::new(CancellationToken::new());
     let vsock_server = Arc::new(Mutex::new(VSockServer::new(
-        VSockServerConfig { cid, port },
+        VSockServerConfig { cid: cli.cid, port: cli.port },
         cancel_token.clone(),
     )));
 
     let application_fabric: Arc<Box<dyn ApplicationCreator + Send + Sync>> = Arc::new(Box::new(ApplicationFabric::new()));
-    let realm_fabric: Box<dyn RealmCreator + Send + Sync> = Box::new(RealmManagerFabric::new(String::from("qemu-system-x86_64"), vsock_server.clone(), application_fabric)); 
+    let realm_fabric: Box<dyn RealmCreator + Send + Sync> = Box::new(RealmManagerFabric::new(cli.qemu_path, vsock_server.clone(), application_fabric)); 
     let host_daemon: Arc<Mutex<Box<dyn Warden + Send + Sync>>> =
         Arc::new(Mutex::new(Box::new(WardenDaemon::new(
             realm_fabric

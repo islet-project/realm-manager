@@ -4,6 +4,7 @@ version = "0.1.0"
 edition = "2021"
 
 [dependencies]
+clap = { version = "4.5.9", features = ["derive"] }
 uuid = { version = "1.10.0", features = ["v4"] }
 thiserror = "1.0.57"
 tokio = { version = "1.36.0", features = ["net", "macros", "rt", "rt-multi-thread", "io-util", "signal", "time", "sync", "fs", "process"] }
