@@ -1,19 +1,21 @@
+use anyhow::Error;
 use clap::Parser;
 use command_handler::client_command_handler::ClientHandler;
 use fabric::application_fabric::ApplicationFabric;
 use fabric::realm_manager_fabric::RealmManagerFabric;
-use log::info;
+use log::{error, info};
 use managers::application::ApplicationCreator;
 use managers::realm::RealmCreator;
 use managers::warden::Warden;
 use managers::warden_manager::WardenDaemon;
 use socket::unix_socket_server::{UnixSocketServer, UnixSocketServerError};
 use socket::vsocket_server::{VSockServer, VSockServerConfig, VSockServerError};
-use std::path::{Path, PathBuf};
+use tokio::select;
+use tokio::signal::unix::{signal, SignalKind};
+use std::path::PathBuf;
 use std::sync::Arc;
 use tokio::sync::Mutex;
 use tokio::task::JoinHandle;
-use tokio::time::sleep;
 use tokio_util::sync::CancellationToken;
 use tokio_vsock::VMADDR_CID_HOST;
 
@@ -37,7 +39,7 @@ struct Cli {
 }
 
 #[tokio::main]
-async fn main() {
+async fn main() -> anyhow::Result<(), Error>  {
     env_logger::init();
     let cli = Cli::parse();
 
@@ -59,13 +61,46 @@ async fn main() {
         application_fabric,
     ));
     let warden: Box<dyn Warden + Send + Sync> = Box::new(WardenDaemon::new(realm_fabric));
-    let vsock_thread = spawn_vsock_server_thread(vsock_server.clone(), cancel_token.clone());
-    let usock_thread =
-        spawn_unix_socket_server_thread(warden, cancel_token.clone(), cli.unix_sock_path);
-    sleep(tokio::time::Duration::from_secs(100)).await;
-    cancel_token.cancel();
-    let _ = vsock_thread.await.unwrap();
-    let _ = usock_thread.await.unwrap();
+    let mut vsock_thread = spawn_vsock_server_thread(vsock_server.clone(), cancel_token.clone());
+    let mut usock_thread =
+    spawn_unix_socket_server_thread(warden, cancel_token.clone(), cli.unix_sock_path);
+    let mut sigint = signal(SignalKind::interrupt())?;
+    let mut sigterm = signal(SignalKind::terminate())?;
+
+    select! {
+        _ = sigint.recv() => {
+            info!("SIGINT received shutting down");
+            cancel_token.cancel();
+        }
+
+        _ = sigterm.recv() => {
+            info!("SIGTERM recevied shuttding down");
+            cancel_token.cancel();
+        }
+
+        v = &mut vsock_thread => {
+            error!("Error while listening on unixsocket: {:?}", v);
+            cancel_token.cancel();
+        }
+
+        v = &mut usock_thread => {
+            error!("Error while listening on vsock: {:?}", v);
+            cancel_token.cancel();
+        }
+    }
+
+    info!("Shutting down application!");
+
+    if !vsock_thread.is_finished() {
+        vsock_thread.await??;
+    }
+
+    if !usock_thread.is_finished() {
+        usock_thread.await??;
+    }
+
+    info!("Application succesfully shutdown!");
+    Ok(())
 }
 
 fn spawn_vsock_server_thread(

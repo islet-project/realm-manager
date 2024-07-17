@@ -3,6 +3,7 @@ use std::sync::Arc;
 
 use async_trait::async_trait;
 use log::info;
+use thiserror::Error;
 use tokio::io::AsyncWriteExt;
 use tokio::select;
 use tokio::sync::oneshot::{Receiver, Sender};
@@ -17,9 +18,13 @@ pub struct VSockServerConfig {
     pub port: u32,
 }
 
+#[derive(Debug, Error)]
 pub enum VSockServerError {
+    #[error("")]
     AcceptError,
+    #[error("")]
     AwakenError,
+    #[error("")]
     UnexpectedConnection,
 }
 
