@@ -1,3 +1,5 @@
+use serde::{Deserialize, Serialize};
+
 pub enum ApplicationError {}
 
 pub trait ApplicationCreator {
@@ -10,4 +12,5 @@ pub trait Application {
     fn update(&mut self) -> Result<(), ApplicationError>;
 }
 
+#[derive(Debug, Serialize, Deserialize)]
 pub struct ApplicationConfig {}

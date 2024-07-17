@@ -1,16 +1,17 @@
 use super::{application::ApplicationConfig, realm_configuration::RealmConfig};
 use async_trait::async_trait;
+use serde::{Deserialize, Serialize};
 use thiserror::Error;
 use uuid::Uuid;
 
-#[derive(Debug, Error, PartialEq, PartialOrd)]
+#[derive(Debug, Error, PartialEq, PartialOrd, Serialize, Deserialize)]
 pub enum RealmError {
     #[error("")]
     RealmCantStart,
     #[error("")]
     SendCommandIssue,
     #[error("Unsupported action: {0}")]
-    UnsupportedAction(&'static str),
+    UnsupportedAction(String),
     #[error("Can't launch the Realm, error: {0}")]
     RealmLaunchFail(String),
 }

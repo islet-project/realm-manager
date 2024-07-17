@@ -10,10 +10,10 @@ use managers::warden::Warden;
 use managers::warden_manager::WardenDaemon;
 use socket::unix_socket_server::{UnixSocketServer, UnixSocketServerError};
 use socket::vsocket_server::{VSockServer, VSockServerConfig, VSockServerError};
-use tokio::select;
-use tokio::signal::unix::{signal, SignalKind};
 use std::path::PathBuf;
 use std::sync::Arc;
+use tokio::select;
+use tokio::signal::unix::{signal, SignalKind};
 use tokio::sync::Mutex;
 use tokio::task::JoinHandle;
 use tokio_util::sync::CancellationToken;
@@ -39,7 +39,7 @@ struct Cli {
 }
 
 #[tokio::main]
-async fn main() -> anyhow::Result<(), Error>  {
+async fn main() -> anyhow::Result<(), Error> {
     env_logger::init();
     let cli = Cli::parse();
 
@@ -63,7 +63,7 @@ async fn main() -> anyhow::Result<(), Error>  {
     let warden: Box<dyn Warden + Send + Sync> = Box::new(WardenDaemon::new(realm_fabric));
     let mut vsock_thread = spawn_vsock_server_thread(vsock_server.clone(), cancel_token.clone());
     let mut usock_thread =
-    spawn_unix_socket_server_thread(warden, cancel_token.clone(), cli.unix_sock_path);
+        spawn_unix_socket_server_thread(warden, cancel_token.clone(), cli.unix_sock_path);
     let mut sigint = signal(SignalKind::interrupt())?;
     let mut sigterm = signal(SignalKind::terminate())?;
 

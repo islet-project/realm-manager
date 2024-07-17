@@ -79,9 +79,9 @@ impl RealmManager {
 impl Realm for RealmManager {
     async fn start(&mut self) -> Result<(), RealmError> {
         if self.state != State::Halted {
-            return Err(RealmError::UnsupportedAction(
+            return Err(RealmError::UnsupportedAction(String::from(
                 "Can't start realm that is not halted",
-            ));
+            )));
         }
 
         self.setup_vm()?;
@@ -177,9 +177,9 @@ mod test {
         realm_manager.state = state;
         assert_eq!(
             realm_manager.start().await,
-            Err(RealmError::UnsupportedAction(
+            Err(RealmError::UnsupportedAction(String::from(
                 "Can't start realm that is not halted"
-            ))
+            )))
         );
     }
 

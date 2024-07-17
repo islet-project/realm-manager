@@ -1,12 +1,14 @@
 use super::realm::{Realm, RealmCreator, RealmDescription};
 use super::realm_configuration::RealmConfig;
 use super::warden::{Warden, WardenError};
+use async_trait::async_trait;
 use std::collections::HashMap;
+use tokio::sync::Mutex;
 use uuid::Uuid;
 
 pub struct WardenDaemon {
     managers_fabric: Box<dyn RealmCreator + Send + Sync>,
-    managers_map: HashMap<Uuid, Box<dyn Realm + Send + Sync>>,
+    managers_map: HashMap<Uuid, Mutex<Box<dyn Realm + Send + Sync>>>,
 }
 
 impl WardenDaemon {
@@ -18,12 +20,13 @@ impl WardenDaemon {
     }
 }
 
+#[async_trait]
 impl Warden for WardenDaemon {
     fn create_realm(&mut self, config: RealmConfig) -> Result<Uuid, WardenError> {
         let uuid = Uuid::new_v4();
         let _ = self
             .managers_map
-            .insert(uuid, self.managers_fabric.create_realm(config));
+            .insert(uuid, Mutex::new(self.managers_fabric.create_realm(config)));
         Ok(uuid)
     }
 
@@ -34,21 +37,22 @@ impl Warden for WardenDaemon {
         Ok(())
     }
 
-    fn list_realms(&self) -> Vec<RealmDescription> {
-        (&self.managers_map)
-            .into_iter()
-            .map(|(uuid, realm)| RealmDescription {
+    async fn list_realms(&self) -> Vec<RealmDescription> {
+        let mut vec = vec![];
+        for (uuid, realm_manager) in &self.managers_map {
+            vec.push(RealmDescription {
                 uuid: uuid.clone(),
-                realm_data: realm.get_realm_data(),
-            })
-            .collect()
+                realm_data: realm_manager.lock().await.get_realm_data(),
+            });
+        }
+        vec
     }
 
-    fn inspect_realm(&self, realm_uuid: Uuid) -> Result<RealmDescription, WardenError> {
+    async fn inspect_realm(&self, realm_uuid: Uuid) -> Result<RealmDescription, WardenError> {
         match self.managers_map.get(&realm_uuid) {
             Some(realm_manager) => Ok(RealmDescription {
                 uuid: realm_uuid,
-                realm_data: realm_manager.get_realm_data(),
+                realm_data: realm_manager.lock().await.get_realm_data(),
             }),
             None => Err(WardenError::NoSuchRealm(realm_uuid)),
         }
@@ -57,7 +61,7 @@ impl Warden for WardenDaemon {
     fn get_realm(
         &mut self,
         realm_uuid: &Uuid,
-    ) -> Result<&mut Box<dyn Realm + Send + Sync>, WardenError> {
+    ) -> Result<&mut Mutex<Box<dyn Realm + Send + Sync>>, WardenError> {
         self.managers_map
             .get_mut(&realm_uuid)
             .ok_or(WardenError::NoSuchRealm(realm_uuid.clone()))
@@ -103,14 +107,14 @@ mod test {
         );
     }
 
-    #[test]
-    fn inspect_created_realm() {
+    #[tokio::test]
+    async fn inspect_created_realm() {
         let mut realm = MockRealm::new();
         realm.expect_get_realm_data().returning(|| RealmData {});
         let mut daemon = create_host_daemon(Some(realm));
         let uuid = daemon.create_realm(create_example_config()).unwrap();
         assert_eq!(
-            daemon.inspect_realm(uuid),
+            daemon.inspect_realm(uuid).await,
             Ok(RealmDescription {
                 uuid,
                 realm_data: RealmData {}
@@ -118,31 +122,32 @@ mod test {
         );
     }
 
-    #[test]
-    fn inspect_not_existing_realm() {
+    #[tokio::test]
+    async fn inspect_not_existing_realm() {
         let daemon = create_host_daemon(None);
         let uuid = Uuid::new_v4();
         assert_eq!(
-            daemon.inspect_realm(uuid),
+            daemon.inspect_realm(uuid).await,
             Err(WardenError::NoSuchRealm(uuid))
         );
     }
 
-    #[test]
-    fn list_newly_created_warden() {
+    #[tokio::test]
+    async fn list_newly_created_warden() {
         let daemon = create_host_daemon(None);
-        let listed_realms = daemon.list_realms();
+        let listed_realms = daemon.list_realms().await;
         assert!(listed_realms.is_empty());
     }
 
-    #[test]
-    fn list_realms() {
+    #[tokio::test]
+    async fn list_realms() {
         let mut realm = MockRealm::new();
         realm.expect_get_realm_data().returning(|| RealmData {});
         let mut daemon = create_host_daemon(Some(realm));
         let uuid = daemon.create_realm(create_example_config()).unwrap();
         let listed_realm = daemon
             .list_realms()
+            .await
             .into_iter()
             .find(|descriptor| descriptor.uuid == uuid)
             .take()

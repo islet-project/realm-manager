@@ -34,10 +34,11 @@ impl UnixSocketServer {
         loop {
             select! {
                 accepted_connection = listener.accept() => {
-                    let _ = UnixSocketServer::handle_connection::<T>(accepted_connection.map_err(|err| UnixSocketServerError::SocketFail(err))?, &mut clients_set, warden.clone(), token.clone());
+                    info!("Client connected to the server!");
+                    UnixSocketServer::handle_connection::<T>(accepted_connection.map_err(|err| UnixSocketServerError::SocketFail(err))?, &mut clients_set, warden.clone(), token.clone());
                 }
-                exited_client = clients_set.join_next() => {
-                    debug!("Client {:?} has exited", exited_client);
+                exited_client = clients_set.join_next(), if !clients_set.is_empty() => {
+                    debug!("Client has exited with result: {:?}", exited_client);
                 }
                 _ = token.cancelled() => {
                     break;
@@ -53,15 +54,19 @@ impl UnixSocketServer {
     }
 
     fn handle_connection<T: Client>(
-        (stream, _): (UnixStream, SocketAddr),
+        (stream, address): (UnixStream, SocketAddr),
         clients_set: &mut JoinSet<()>,
         warden: Arc<Mutex<Box<dyn Warden + Send + Sync>>>,
         token: Arc<CancellationToken>,
     ) -> AbortHandle {
-        info!("Client connected to the server!");
         clients_set.spawn(async move {
-            if let Err(e) = T::handle_connection(warden, stream, token).await {
-                error!("{e:?}");
+            match T::handle_connection(warden, stream, token).await {
+                Err(err) => {
+                    error!("{err:?}");
+                }
+                Ok(_) => {
+                    debug!("Connection: {:?} ended impeccably!", address);
+                }
             }
         })
     }
