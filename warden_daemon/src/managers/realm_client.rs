@@ -1,6 +1,6 @@
 use async_trait::async_trait;
 use serde::{Deserialize, Serialize};
-use std::{cell::RefCell, io, sync::Arc};
+use std::{io, sync::Arc};
 use thiserror::Error;
 use tokio::sync::oneshot::Receiver;
 use tokio::sync::Mutex;

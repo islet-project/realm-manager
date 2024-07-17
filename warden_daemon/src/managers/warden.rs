@@ -1,3 +1,5 @@
+use std::sync::Arc;
+
 use super::realm::{Realm, RealmDescription};
 use super::realm_configuration::RealmConfig;
 use async_trait::async_trait;
@@ -21,5 +23,5 @@ pub trait Warden {
     fn get_realm(
         &mut self,
         realm_uuid: &Uuid,
-    ) -> Result<&mut Mutex<Box<dyn Realm + Send + Sync>>, WardenError>;
+    ) -> Result<Arc<Mutex<Box<dyn Realm + Send + Sync>>>, WardenError>;
 }

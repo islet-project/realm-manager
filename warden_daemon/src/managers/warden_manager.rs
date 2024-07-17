@@ -3,12 +3,13 @@ use super::realm_configuration::RealmConfig;
 use super::warden::{Warden, WardenError};
 use async_trait::async_trait;
 use std::collections::HashMap;
+use std::sync::Arc;
 use tokio::sync::Mutex;
 use uuid::Uuid;
 
 pub struct WardenDaemon {
     managers_fabric: Box<dyn RealmCreator + Send + Sync>,
-    managers_map: HashMap<Uuid, Mutex<Box<dyn Realm + Send + Sync>>>,
+    managers_map: HashMap<Uuid, Arc<Mutex<Box<dyn Realm + Send + Sync>>>>,
 }
 
 impl WardenDaemon {
@@ -24,9 +25,10 @@ impl WardenDaemon {
 impl Warden for WardenDaemon {
     fn create_realm(&mut self, config: RealmConfig) -> Result<Uuid, WardenError> {
         let uuid = Uuid::new_v4();
-        let _ = self
-            .managers_map
-            .insert(uuid, Mutex::new(self.managers_fabric.create_realm(config)));
+        let _ = self.managers_map.insert(
+            uuid,
+            Arc::new(Mutex::new(self.managers_fabric.create_realm(config))),
+        );
         Ok(uuid)
     }
 
@@ -61,9 +63,10 @@ impl Warden for WardenDaemon {
     fn get_realm(
         &mut self,
         realm_uuid: &Uuid,
-    ) -> Result<&mut Mutex<Box<dyn Realm + Send + Sync>>, WardenError> {
+    ) -> Result<Arc<Mutex<Box<dyn Realm + Send + Sync>>>, WardenError> {
         self.managers_map
-            .get_mut(&realm_uuid)
+            .get(&realm_uuid)
+            .map(|realm| realm.clone())
             .ok_or(WardenError::NoSuchRealm(realm_uuid.clone()))
     }
 }
@@ -74,7 +77,7 @@ mod test {
     use mockall::mock;
 
     use crate::managers::{
-        application::ApplicationConfig,
+        application::{Application, ApplicationConfig},
         realm::{Realm, RealmData, RealmError},
         realm_configuration::{CpuConfig, DiscConfig, KernelConfig, MemoryConfig, NetworkConfig},
     };
@@ -204,6 +207,7 @@ mod test {
             fn reboot(&mut self);
             fn create_application(&mut self, config: ApplicationConfig) -> Uuid;
             fn get_realm_data(& self) -> RealmData;
+            async fn get_application(&self, uuid:& Uuid) -> Result<Arc<tokio::sync::Mutex<Box<dyn Application + Send + Sync>>>, RealmError>;
         }
     }
 

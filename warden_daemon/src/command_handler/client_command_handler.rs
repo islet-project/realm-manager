@@ -3,17 +3,15 @@ use log::{error, info, trace};
 use serde::{Deserialize, Serialize};
 use std::io;
 use std::sync::Arc;
-use std::time::Duration;
 use thiserror::Error;
 use tokio::io::{AsyncBufReadExt, AsyncWriteExt, BufReader};
 use tokio::sync::Mutex;
-use tokio::time::sleep;
 use tokio::{net::UnixStream, select};
 use tokio_util::sync::CancellationToken;
 use uuid::Uuid;
 
-use crate::managers::application::ApplicationConfig;
-use crate::managers::realm::RealmError;
+use crate::managers::application::{Application, ApplicationConfig, ApplicationError};
+use crate::managers::realm::{Realm, RealmData, RealmDescription, RealmError};
 use crate::managers::realm_configuration::RealmConfig;
 
 use crate::managers::warden::{Warden, WardenError};
@@ -61,7 +59,9 @@ pub enum ClientCommand {
 #[derive(Serialize, Deserialize, Debug)]
 pub enum ClientReponse {
     Ok,
-    CreatedRealm { uuid: String },
+    CreatedRealm { uuid: Uuid },
+    InspectedRealm(RealmData),
+    ListedRealms(Vec<RealmDescription>),
     Error(ClientError),
 }
 
@@ -75,10 +75,12 @@ pub enum ClientError {
     InvalidUuid,
     #[error("Can't serialize a response")]
     ParsingResponseFail,
-    #[error("Warden error occured!")]
+    #[error("Warden error occured: {0}")]
     WardenDaemonError(WardenError),
-    #[error("Realm error occured!")]
+    #[error("Realm error occured: {0}")]
     RealmManagerError(RealmError),
+    #[error("Application error occured: {0}")]
+    ApplicationError(ApplicationError),
     #[error("Failed to send response!")]
     SendingResponseFail,
 }
@@ -147,13 +149,8 @@ impl ClientHandler {
         match client_command {
             ClientCommand::StartRealm { uuid } => {
                 info!("Starting realm: {uuid}");
-                let _ = self
-                    .warden
-                    .lock()
-                    .await
-                    .as_mut()
-                    .get_realm(&uuid)
-                    .map_err(|err| ClientError::WardenDaemonError(err))?
+                let realm = self.get_realm(&uuid).await?;
+                realm
                     .lock()
                     .await
                     .start()
@@ -171,19 +168,12 @@ impl ClientHandler {
                     .create_realm(config)
                     .map_err(|err| ClientError::WardenDaemonError(err))?;
                 info!("Realm: {uuid} created!");
-                Ok(ClientReponse::Ok)
+                Ok(ClientReponse::CreatedRealm{uuid})
             }
             ClientCommand::StopRealm { uuid } => {
                 info!("Stopping realm: {uuid}!");
-                let _ = self
-                    .warden
-                    .lock()
-                    .await
-                    .get_realm(&uuid)
-                    .map_err(|err| ClientError::WardenDaemonError(err))?
-                    .lock()
-                    .await
-                    .stop();
+                let realm = self.get_realm(&uuid).await?;
+                realm.lock().await.stop();
                 info!("Realm: {uuid} stopped!");
                 Ok(ClientReponse::Ok)
             }
@@ -195,31 +185,34 @@ impl ClientHandler {
             }
             ClientCommand::RebootRealm { uuid } => {
                 info!("Rebooting realm: {uuid}!");
-                let _realm = self
-                    .warden
+                let realm = self.get_realm(&uuid).await?;
+                realm.lock().await.stop();
+                realm
                     .lock()
                     .await
-                    .get_realm(&uuid)
-                    .map_err(|err| ClientError::WardenDaemonError(err))?;
+                    .start()
+                    .await
+                    .map_err(|err| ClientError::RealmManagerError(err))?;
                 info!("Realm: {uuid} rebooted!");
                 Ok(ClientReponse::Ok)
             }
             ClientCommand::InspectRealm { uuid } => {
                 info!("Inspecting realm: {uuid}!");
+                let realm = self.get_realm(&uuid).await?;
+                let realm_data = realm.lock().await.get_realm_data();
                 info!("Realm: {uuid} inspected!");
-                Ok(ClientReponse::Ok)
+                Ok(ClientReponse::InspectedRealm(realm_data))
             }
             ClientCommand::ListRealms => {
                 info!("Listing realms!");
+                let listed_realms = self.warden.lock().await.list_realms().await;
                 info!("Realms listed!");
-                Ok(ClientReponse::Ok)
+                Ok(ClientReponse::ListedRealms(listed_realms))
             }
-            ClientCommand::CreateApplication {
-                realm_uuid,
-                config: _,
-            } => {
+            ClientCommand::CreateApplication { realm_uuid, config } => {
                 info!("Creating application in realm: {realm_uuid}!");
-                let application_uuid = Uuid::new_v4();
+                let realm = self.get_realm(&realm_uuid).await?;
+                let application_uuid = realm.lock().await.create_application(config);
                 info!("Created application with id: {application_uuid} in realm: {realm_uuid}!");
                 Ok(ClientReponse::Ok)
             }
@@ -228,6 +221,12 @@ impl ClientHandler {
                 application_uuid,
             } => {
                 info!("Starting application: {application_uuid} in realm: {realm_uuid}!");
+                let application = self.get_application(&realm_uuid, &application_uuid).await?;
+                application
+                    .lock()
+                    .await
+                    .start()
+                    .map_err(|err| ClientError::ApplicationError(err))?;
                 info!("Started application: {application_uuid} in realm: {realm_uuid}!");
                 Ok(ClientReponse::Ok)
             }
@@ -236,15 +235,27 @@ impl ClientHandler {
                 application_uuid,
             } => {
                 info!("Stopping application: {application_uuid} in realm: {realm_uuid}!");
+                let application = self.get_application(&realm_uuid, &application_uuid).await?;
+                application
+                    .lock()
+                    .await
+                    .stop()
+                    .map_err(|err| ClientError::ApplicationError(err))?;
                 info!("Stopped application: {application_uuid} in realm: {realm_uuid}!");
                 Ok(ClientReponse::Ok)
             }
             ClientCommand::UpdateApplication {
                 realm_uuid,
                 application_uuid,
-                config: _,
+                config,
             } => {
                 info!("Starting application: {application_uuid} in realm: {realm_uuid}!");
+                let application = self.get_application(&realm_uuid, &application_uuid).await?;
+                application
+                    .lock()
+                    .await
+                    .update(config)
+                    .map_err(|err| ClientError::ApplicationError(err))?;
                 info!("Started application: {application_uuid} in realm: {realm_uuid}!");
                 Ok(ClientReponse::Ok)
             }
@@ -257,6 +268,30 @@ impl ClientHandler {
                 size: serialized_command.len(),
             })?;
         Ok(command)
+    }
+    async fn get_realm(
+        &self,
+        uuid: &Uuid,
+    ) -> Result<Arc<Mutex<Box<dyn Realm + Send + Sync>>>, ClientError> {
+        self.warden
+            .lock()
+            .await
+            .get_realm(&uuid)
+            .map_err(|err| ClientError::WardenDaemonError(err))
+    }
+    async fn get_application(
+        &self,
+        realm_uuid: &Uuid,
+        application_uuid: &Uuid,
+    ) -> Result<Arc<Mutex<Box<dyn Application + Send + Sync>>>, ClientError> {
+        let realm = self.get_realm(realm_uuid).await?;
+        let application = realm
+            .lock()
+            .await
+            .get_application(&application_uuid)
+            .await
+            .map_err(|err| ClientError::RealmManagerError(err));
+        application
     }
 }
 

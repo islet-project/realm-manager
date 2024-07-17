@@ -1,5 +1,7 @@
 use serde::{Deserialize, Serialize};
+use thiserror::Error;
 
+#[derive(Debug, Error, PartialEq, PartialOrd, Serialize, Deserialize)]
 pub enum ApplicationError {}
 
 pub trait ApplicationCreator {
@@ -9,7 +11,7 @@ pub trait ApplicationCreator {
 pub trait Application {
     fn stop(&mut self) -> Result<(), ApplicationError>;
     fn start(&mut self) -> Result<(), ApplicationError>;
-    fn update(&mut self) -> Result<(), ApplicationError>;
+    fn update(&mut self, config: ApplicationConfig) -> Result<(), ApplicationError>;
 }
 
 #[derive(Debug, Serialize, Deserialize)]

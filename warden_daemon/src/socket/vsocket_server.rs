@@ -2,7 +2,7 @@ use std::collections::HashMap;
 use std::sync::Arc;
 
 use async_trait::async_trait;
-use log::info;
+use log::{info, trace};
 use thiserror::Error;
 use tokio::io::AsyncWriteExt;
 use tokio::select;
@@ -60,6 +60,7 @@ impl VSockServer {
                 a_result = listener.accept() => {
                     match a_result {
                         Ok(result) => {
+                            trace!("Accepted connection!");
                             let mut handler = handler.lock().await;
                             handler.handle_accept(result).await?
                         },

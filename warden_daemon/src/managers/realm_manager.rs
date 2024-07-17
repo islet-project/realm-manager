@@ -3,6 +3,7 @@ use std::collections::HashMap;
 use std::io;
 use std::sync::Arc;
 use thiserror::Error;
+use tokio::sync::Mutex;
 use uuid::Uuid;
 
 use super::application::{Application, ApplicationConfig, ApplicationCreator};
@@ -118,6 +119,13 @@ impl Realm for RealmManager {
             .managers_map
             .insert(uuid, self.application_fabric.create_application(config));
         uuid
+    }
+
+    async fn get_application(
+        &self,
+        _uuid: &Uuid,
+    ) -> Result<Arc<Mutex<Box<dyn Application + Send + Sync>>>, RealmError> {
+        todo!()
     }
 
     fn get_realm_data(&self) -> RealmData {
@@ -310,7 +318,7 @@ mod test {
         impl Application for Application {
             fn stop(&mut self) -> Result<(), ApplicationError>;
             fn start(&mut self) -> Result<(), ApplicationError>;
-            fn update(&mut self) -> Result<(), ApplicationError>;
+            fn update(&mut self, config: ApplicationConfig) -> Result<(), ApplicationError>;
         }
     }
 }
