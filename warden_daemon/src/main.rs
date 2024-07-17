@@ -6,7 +6,7 @@ use managers::application::ApplicationCreator;
 use managers::realm::RealmCreator;
 use managers::warden::Warden;
 use managers::warden_manager::WardenDaemon;
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
 use std::sync::Arc;
 use tokio::sync::Mutex;
 use tokio::time::sleep;
@@ -30,7 +30,9 @@ struct Cli {
     #[arg(short, long, value_parser=clap::value_parser!(u32).range(80..), default_value_t = 80)]
     port: u32,
     #[arg(short, long)]
-    qemu_path: String
+    qemu_path: PathBuf,
+    #[arg(short, long)]
+    usock_path: PathBuf,
 }
 
 #[tokio::main]
@@ -60,7 +62,7 @@ async fn main() {
         UnixSocketServer::listen::<ClientHandler>(
             host_daemon.clone(),
             token_clone,
-            PathBuf::from("/tmp/unix-socket"),
+            cli.usock_path,
         )
         .await
     });

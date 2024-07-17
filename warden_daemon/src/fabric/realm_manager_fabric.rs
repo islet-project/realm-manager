@@ -1,3 +1,4 @@
+use std::path::PathBuf;
 use std::sync::Arc;
 
 use tokio::sync::Mutex;
@@ -11,13 +12,13 @@ use crate::virtualization::qemu_runner::QemuRunner;
 use crate::socket::vsocket_server::VSockServer;
 
 pub struct RealmManagerFabric {
-    qemu_path: String,
+    qemu_path: PathBuf,
     vsock_server: Arc<Mutex<VSockServer>>,
     application_fabric: Arc<Box<dyn ApplicationCreator + Send + Sync>>,
 }
 
 impl RealmManagerFabric {
-    pub fn new(qemu_path: String, vsock_server: Arc<Mutex<VSockServer>>, application_fabric: Arc<Box<dyn ApplicationCreator + Send + Sync>>) -> Self {
+    pub fn new(qemu_path: PathBuf, vsock_server: Arc<Mutex<VSockServer>>, application_fabric: Arc<Box<dyn ApplicationCreator + Send + Sync>>) -> Self {
         RealmManagerFabric {
             qemu_path,
             vsock_server,
@@ -28,7 +29,7 @@ impl RealmManagerFabric {
 
 impl RealmCreator for RealmManagerFabric {
     fn create_realm(&self, config: RealmConfig) -> Box<dyn Realm + Send + Sync> {
-        let vm_manager = Box::new(QemuRunner::new(&self.qemu_path));
+        let vm_manager = Box::new(QemuRunner::new(self.qemu_path.clone()));
         let realm_client_handler = Box::new(RealmClientHandler::new(self.vsock_server.clone()));
         Box::new(RealmManager::new(config, vm_manager, realm_client_handler, self.application_fabric.clone()))
     }

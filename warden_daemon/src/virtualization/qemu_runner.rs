@@ -1,3 +1,4 @@
+use std::path::PathBuf;
 use std::process::{Child, Command, Stdio};
 
 use crate::managers::realm_configuration::{
@@ -11,7 +12,7 @@ pub struct QemuRunner {
 }
 
 impl QemuRunner {
-    pub fn new(path_to_qemu: &str) -> Self {
+    pub fn new(path_to_qemu: PathBuf) -> Self {
         QemuRunner {
             command: Command::new(path_to_qemu),
             vm: None,
