@@ -54,7 +54,10 @@ impl Warden for WardenDaemon {
         }
     }
 
-    fn get_realm(&mut self, realm_uuid: &Uuid) -> Result<&mut Box<dyn Realm + Send + Sync>, WardenError> {
+    fn get_realm(
+        &mut self,
+        realm_uuid: &Uuid,
+    ) -> Result<&mut Box<dyn Realm + Send + Sync>, WardenError> {
         self.managers_map
             .get_mut(&realm_uuid)
             .ok_or(WardenError::NoSuchRealm(realm_uuid.clone()))

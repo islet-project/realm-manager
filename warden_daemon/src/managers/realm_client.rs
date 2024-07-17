@@ -50,7 +50,12 @@ impl RealmClientHandler {
 #[async_trait]
 impl RealmClient for RealmClientHandler {
     async fn acknowledge_client_connection(&mut self, cid: u32) -> Result<(), RealmClientError> {
-        let realm_sender_receiver = self.realm_connector.lock().await.acquire_realm_sender(cid).await;
+        let realm_sender_receiver = self
+            .realm_connector
+            .lock()
+            .await
+            .acquire_realm_sender(cid)
+            .await;
         let realm_sender = realm_sender_receiver
             .await
             .map_err(|_| RealmClientError::NoConnectionWithRealm)?;
@@ -65,7 +70,10 @@ mod test {
 
     use async_trait::async_trait;
     use mockall::mock;
-    use tokio::sync::{oneshot::{Receiver, Sender}, Mutex};
+    use tokio::sync::{
+        oneshot::{Receiver, Sender},
+        Mutex,
+    };
 
     use crate::managers::realm_manager::RealmClient;
 

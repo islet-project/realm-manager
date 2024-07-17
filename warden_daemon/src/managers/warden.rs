@@ -14,5 +14,8 @@ pub trait Warden {
     fn destroy_realm(&mut self, realm_uuid: Uuid) -> Result<(), WardenError>;
     fn list_realms(&self) -> Vec<RealmDescription>;
     fn inspect_realm(&self, realm_uuid: Uuid) -> Result<RealmDescription, WardenError>;
-    fn get_realm(&mut self, realm_uuid: &Uuid) -> Result<&mut Box<dyn Realm + Send + Sync>, WardenError>;
+    fn get_realm(
+        &mut self,
+        realm_uuid: &Uuid,
+    ) -> Result<&mut Box<dyn Realm + Send + Sync>, WardenError>;
 }

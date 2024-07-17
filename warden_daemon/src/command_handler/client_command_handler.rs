@@ -87,9 +87,7 @@ impl ClientHandler {
                     .lock()
                     .await
                     .as_mut()
-                    .get_realm(
-                        &Uuid::from_str(&uuid).map_err(|_| ClientError::InvalidUuid)?,
-                    )
+                    .get_realm(&Uuid::from_str(&uuid).map_err(|_| ClientError::InvalidUuid)?)
                     .map_err(|err| ClientError::HostDaemonError(err))?
                     .start()
                     .await
@@ -114,9 +112,7 @@ impl ClientHandler {
                     .host
                     .lock()
                     .await
-                    .get_realm(
-                        &Uuid::from_str(&uuid).map_err(|_| ClientError::InvalidUuid)?,
-                    )
+                    .get_realm(&Uuid::from_str(&uuid).map_err(|_| ClientError::InvalidUuid)?)
                     .map_err(|err| ClientError::HostDaemonError(err))?
                     .stop();
                 info!("Stopped realm: {uuid}");

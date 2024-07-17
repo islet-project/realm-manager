@@ -4,7 +4,7 @@ pub struct ApplicationManager {}
 
 impl ApplicationManager {
     pub fn new(config: ApplicationConfig) -> Self {
-        ApplicationManager {  }
+        ApplicationManager {}
     }
 }
 
@@ -18,5 +18,4 @@ impl Application for ApplicationManager {
     fn update(&mut self) -> Result<(), ApplicationError> {
         todo!()
     }
-
 }

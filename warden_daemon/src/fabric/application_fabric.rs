@@ -1,9 +1,11 @@
-use crate::managers::{application::{Application, ApplicationConfig, ApplicationCreator}, application_manager::ApplicationManager};
-
+use crate::managers::{
+    application::{Application, ApplicationConfig, ApplicationCreator},
+    application_manager::ApplicationManager,
+};
 
 pub struct ApplicationFabric {}
 
-impl ApplicationFabric{
+impl ApplicationFabric {
     pub fn new() -> Self {
         ApplicationFabric {}
     }
