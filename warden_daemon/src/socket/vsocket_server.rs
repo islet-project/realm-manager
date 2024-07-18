@@ -26,7 +26,7 @@ pub enum VSockServerError {
     #[error("Unknown Realm has connected!")]
     UnexpectedConnection,
     #[error("Socket failure has occured: {0}!")]
-    SocketFail(#[from] io::Error)
+    SocketFail(#[from] io::Error),
 }
 
 pub struct VSockServer {
@@ -54,9 +54,10 @@ impl VSockServer {
         handler: Arc<Mutex<VSockServer>>,
         token: Arc<CancellationToken>,
     ) -> Result<(), VSockServerError> {
-        let mut listener =  {
+        let mut listener = {
             let config = &handler.as_ref().lock().await.config;
-            VsockListener::bind(VsockAddr::new(config.cid, config.port)).map_err(|err|VSockServerError::SocketFail(err))?
+            VsockListener::bind(VsockAddr::new(config.cid, config.port))
+                .map_err(|err| VSockServerError::SocketFail(err))?
         };
         loop {
             select! {

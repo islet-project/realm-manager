@@ -1,3 +1,5 @@
+use std::path::PathBuf;
+
 use serde::{Deserialize, Serialize};
 
 #[derive(Serialize, Deserialize, Debug)]
@@ -6,7 +8,6 @@ pub struct RealmConfig {
     pub cpu: CpuConfig,
     pub memory: MemoryConfig,
     pub network: NetworkConfig,
-    pub disc: DiscConfig,
     pub kernel: KernelConfig,
 }
 
@@ -25,16 +26,11 @@ pub struct MemoryConfig {
 pub struct NetworkConfig {
     pub vsock_cid: u32,
     pub tap_device: String,
+    pub mac_address: String,
     pub hardware_device: Option<String>,
 }
 
 #[derive(Serialize, Deserialize, Debug)]
-pub struct DiscConfig {
-    pub drive: Option<String>,
-    pub drive_format: Option<String>,
-}
-
-#[derive(Serialize, Deserialize, Debug)]
 pub struct KernelConfig {
-    pub kernel_path: String,
+    pub kernel_path: PathBuf,
 }

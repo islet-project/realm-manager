@@ -26,7 +26,7 @@ pub enum RealmError {
 pub trait Realm {
     async fn start(&mut self) -> Result<(), RealmError>;
     fn stop(&mut self);
-    fn reboot(&mut self);
+    async fn reboot(&mut self) -> Result<(), RealmError>;
     fn create_application(&mut self, config: ApplicationConfig) -> Uuid;
     fn get_realm_data(&self) -> RealmData;
     async fn get_application(

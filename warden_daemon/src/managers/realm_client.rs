@@ -60,7 +60,10 @@ impl RealmClient for RealmClientHandler {
             .await
             .map_err(|err| RealmClientError::RealmConnectorError(format!("{err}")))?;
         let sender = self.realm_sender.insert(realm_sender);
-        sender.send(RealmCommand::ConnectionConfirmation).await.map_err(|err|RealmClientError::CommunicationFail(format!("{err}")))?;
+        sender
+            .send(RealmCommand::ConnectionConfirmation)
+            .await
+            .map_err(|err| RealmClientError::CommunicationFail(format!("{err}")))?;
         Ok(())
     }
 }
@@ -115,22 +118,30 @@ mod test {
     #[tokio::test]
     async fn acknowledge_client_connection_send_error() {
         let mut realm_sender = MockRealmSender::new();
-        realm_sender.expect_send().return_once(|_|Err(RealmSenderError::SendFail(io::Error::other(""))));
+        realm_sender
+            .expect_send()
+            .return_once(|_| Err(RealmSenderError::SendFail(io::Error::other(""))));
         let mut realm_client = create_realm_client(None, Some(realm_sender));
         let cid = 0;
-        assert_eq!(realm_client
-            .acknowledge_client_connection(cid)
-            .await, Err(RealmClientError::CommunicationFail(RealmSenderError::SendFail(io::Error::other("")).to_string())));
+        assert_eq!(
+            realm_client.acknowledge_client_connection(cid).await,
+            Err(RealmClientError::CommunicationFail(
+                RealmSenderError::SendFail(io::Error::other("")).to_string()
+            ))
+        );
         assert!(realm_client.realm_sender.is_some());
     }
 
-    fn create_realm_client(realm_connector: Option<MockRealmConnector>, realm_sender: Option<MockRealmSender>) -> RealmClientHandler {
+    fn create_realm_client(
+        realm_connector: Option<MockRealmConnector>,
+        realm_sender: Option<MockRealmSender>,
+    ) -> RealmClientHandler {
         let realm_sender = realm_sender.unwrap_or({
             let mut realm_sender = MockRealmSender::new();
-            realm_sender.expect_send().returning(|_|Ok(()));
+            realm_sender.expect_send().returning(|_| Ok(()));
             realm_sender
         });
-        
+
         let realm_connector = realm_connector.unwrap_or({
             let mut realm_connector = MockRealmConnector::new();
             let (tx, rx): (

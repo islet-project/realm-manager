@@ -73,13 +73,15 @@ impl Warden for WardenDaemon {
 
 #[cfg(test)]
 mod test {
+    use std::path::PathBuf;
+
     use async_trait::async_trait;
     use mockall::mock;
 
     use crate::managers::{
         application::{Application, ApplicationConfig},
         realm::{Realm, RealmData, RealmError},
-        realm_configuration::{CpuConfig, DiscConfig, KernelConfig, MemoryConfig, NetworkConfig},
+        realm_configuration::{CpuConfig, KernelConfig, MemoryConfig, NetworkConfig},
     };
 
     use super::*;
@@ -186,14 +188,11 @@ mod test {
             network: NetworkConfig {
                 vsock_cid: 0,
                 tap_device: String::new(),
+                mac_address: String::new(),
                 hardware_device: None,
             },
-            disc: DiscConfig {
-                drive: None,
-                drive_format: None,
-            },
             kernel: KernelConfig {
-                kernel_path: String::new(),
+                kernel_path: PathBuf::new(),
             },
         }
     }
@@ -204,7 +203,7 @@ mod test {
         impl Realm for Realm {
             async fn start(&mut self) -> Result<(), RealmError>;
             fn stop(&mut self);
-            fn reboot(&mut self);
+            async fn reboot(&mut self) -> Result<(), RealmError>;
             fn create_application(&mut self, config: ApplicationConfig) -> Uuid;
             fn get_realm_data(& self) -> RealmData;
             async fn get_application(&self, uuid:& Uuid) -> Result<Arc<tokio::sync::Mutex<Box<dyn Application + Send + Sync>>>, RealmError>;

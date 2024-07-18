@@ -11,7 +11,7 @@ use tokio_util::sync::CancellationToken;
 use uuid::Uuid;
 
 use crate::managers::application::{Application, ApplicationConfig, ApplicationError};
-use crate::managers::realm::{Realm, RealmData, RealmDescription, RealmError};
+use crate::managers::realm::{Realm, RealmDescription, RealmError};
 use crate::managers::realm_configuration::RealmConfig;
 
 use crate::managers::warden::{Warden, WardenError};
@@ -60,7 +60,7 @@ pub enum ClientCommand {
 pub enum ClientReponse {
     Ok,
     CreatedRealm { uuid: Uuid },
-    InspectedRealm(RealmData),
+    InspectedRealm(RealmDescription),
     ListedRealms(Vec<RealmDescription>),
     Error(ClientError),
 }
@@ -168,7 +168,7 @@ impl ClientHandler {
                     .create_realm(config)
                     .map_err(|err| ClientError::WardenDaemonError(err))?;
                 info!("Realm: {uuid} created!");
-                Ok(ClientReponse::CreatedRealm{uuid})
+                Ok(ClientReponse::CreatedRealm { uuid })
             }
             ClientCommand::StopRealm { uuid } => {
                 info!("Stopping realm: {uuid}!");
@@ -186,11 +186,10 @@ impl ClientHandler {
             ClientCommand::RebootRealm { uuid } => {
                 info!("Rebooting realm: {uuid}!");
                 let realm = self.get_realm(&uuid).await?;
-                realm.lock().await.stop();
                 realm
                     .lock()
                     .await
-                    .start()
+                    .reboot()
                     .await
                     .map_err(|err| ClientError::RealmManagerError(err))?;
                 info!("Realm: {uuid} rebooted!");
@@ -198,8 +197,11 @@ impl ClientHandler {
             }
             ClientCommand::InspectRealm { uuid } => {
                 info!("Inspecting realm: {uuid}!");
-                let realm = self.get_realm(&uuid).await?;
-                let realm_data = realm.lock().await.get_realm_data();
+                let warden = self.warden.lock().await;
+                let realm_data = warden
+                    .inspect_realm(uuid)
+                    .await
+                    .map_err(|err| ClientError::WardenDaemonError(err))?;
                 info!("Realm: {uuid} inspected!");
                 Ok(ClientReponse::InspectedRealm(realm_data))
             }

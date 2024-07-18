@@ -21,10 +21,10 @@ enum State {
 pub trait VmManager {
     fn setup_network(&mut self, config: &NetworkConfig);
     fn setup_cpu(&mut self, config: &CpuConfig);
-    fn setup_disc(&mut self, config: &DiscConfig);
+    fn setup_kernel(&mut self, config: &KernelConfig);
     fn setup_memory(&mut self, config: &MemoryConfig);
     fn setup_machine(&mut self, name: &String);
-    fn launch_vm(&mut self, config: &KernelConfig) -> Result<(), VmManagerError>;
+    fn launch_vm(&mut self) -> Result<(), VmManagerError>;
     fn stop_vm(&mut self) -> Result<(), VmManagerError>;
     fn delete_vm(&self);
 }
@@ -112,7 +112,7 @@ impl Realm for RealmManager {
         todo!()
     }
 
-    fn reboot(&mut self) {
+    async fn reboot(&mut self) -> Result<(), RealmError> {
         todo!()
     }
 
@@ -139,19 +139,19 @@ impl Realm for RealmManager {
 impl RealmManager {
     fn setup_vm(&mut self) -> Result<(), RealmError> {
         self.vm_manager.setup_cpu(&self.config.cpu);
-        self.vm_manager.setup_disc(&self.config.disc);
+        self.vm_manager.setup_kernel(&self.config.kernel);
         self.vm_manager.setup_memory(&self.config.memory);
         self.vm_manager.setup_machine(&self.config.machine);
         self.vm_manager.setup_network(&self.config.network);
         self.vm_manager
-            .launch_vm(&self.config.kernel)
+            .launch_vm()
             .map_err(|err| RealmError::RealmLaunchFail(err.to_string()))
     }
 }
 
 #[cfg(test)]
 mod test {
-    use std::{io::Error, sync::Arc};
+    use std::{io::Error, path::PathBuf, sync::Arc};
 
     use async_trait::async_trait;
     use mockall::mock;
@@ -198,18 +198,20 @@ mod test {
     async fn realm_start_launching_vm_error() {
         let mut vm_manager_mock = MockVmManager::new();
         vm_manager_mock.expect_setup_cpu().returning(|_| ());
-        vm_manager_mock.expect_setup_disc().returning(|_| ());
+        vm_manager_mock.expect_setup_kernel().returning(|_| ());
         vm_manager_mock.expect_setup_machine().returning(|_| ());
         vm_manager_mock.expect_setup_memory().returning(|_| ());
         vm_manager_mock.expect_setup_network().returning(|_| ());
         vm_manager_mock
             .expect_launch_vm()
-            .returning(|_| Err(VmManagerError::LaunchFail(Error::other(""))));
+            .returning(|| Err(VmManagerError::LaunchFail(Error::other(""))));
         let mut realm_manager =
             create_realm_manager(create_example_config(), Some(vm_manager_mock), None);
         assert_eq!(
             realm_manager.start().await,
-            Err(RealmError::RealmLaunchFail(String::from("Unable to launch Vm due to: ")))
+            Err(RealmError::RealmLaunchFail(String::from(
+                "Unable to launch Vm due to: "
+            )))
         );
         assert_eq!(realm_manager.state, State::Halted);
     }
@@ -240,11 +242,11 @@ mod test {
     ) -> RealmManager {
         let mut vm_manager = vm_manager.unwrap_or(MockVmManager::new());
         vm_manager.expect_setup_cpu().returning(|_| ());
-        vm_manager.expect_setup_disc().returning(|_| ());
+        vm_manager.expect_setup_kernel().returning(|_| ());
         vm_manager.expect_setup_machine().returning(|_| ());
         vm_manager.expect_setup_memory().returning(|_| ());
         vm_manager.expect_setup_network().returning(|_| ());
-        vm_manager.expect_launch_vm().returning(|_| Ok(()));
+        vm_manager.expect_launch_vm().returning(|| Ok(()));
         let mut realm_client = realm_client.unwrap_or(MockRealmClient::new());
         realm_client
             .expect_acknowledge_client_connection()
@@ -273,14 +275,11 @@ mod test {
             network: NetworkConfig {
                 vsock_cid: 0,
                 tap_device: String::new(),
+                mac_address: String::new(),
                 hardware_device: None,
             },
-            disc: DiscConfig {
-                drive: None,
-                drive_format: None,
-            },
             kernel: KernelConfig {
-                kernel_path: String::new(),
+                kernel_path: PathBuf::new(),
             },
         }
     }
@@ -291,10 +290,10 @@ mod test {
         impl VmManager for VmManager {
             fn setup_network(&mut self, config: &NetworkConfig);
             fn setup_cpu(&mut self, config: &CpuConfig);
-            fn setup_disc(&mut self, config: &DiscConfig);
+            fn setup_kernel(&mut self, config: &KernelConfig);
             fn setup_memory(&mut self, config: &MemoryConfig);
             fn setup_machine(&mut self, name: &String);
-            fn launch_vm(&mut self, config: &KernelConfig) -> Result<(), VmManagerError>;
+            fn launch_vm(&mut self) -> Result<(), VmManagerError>;
             fn stop_vm(&mut self) -> Result<(), VmManagerError>;
             fn delete_vm(&self);
         }
