@@ -21,13 +21,11 @@ pub struct VSockServerConfig {
 
 #[derive(Debug, Error)]
 pub enum VSockServerError {
-    #[error("")]
-    AcceptError,
-    #[error("")]
-    AwakenError,
-    #[error("")]
+    #[error("Error while sending RealmSender through the channel!")]
+    ChannelFail,
+    #[error("Unknown Realm has connected!")]
     UnexpectedConnection,
-    #[error("")]
+    #[error("Socket failure has occured: {0}!")]
     SocketFail(#[from] io::Error)
 }
 
@@ -69,7 +67,7 @@ impl VSockServer {
                             let mut handler = handler.lock().await;
                             handler.handle_accept(result).await?
                         },
-                        Err(_) => return Err(VSockServerError::AcceptError)
+                        Err(err) => return Err(VSockServerError::SocketFail(err))
                     }
                 }
                 _ = token.cancelled() => {return Ok(());}
@@ -87,7 +85,7 @@ impl VSockServer {
             info!("Client has connected succesfully!");
             return tx
                 .send(Box::new(VSockClient { stream }))
-                .map_err(|_| VSockServerError::AwakenError);
+                .map_err(|_| VSockServerError::ChannelFail);
         }
         Err(VSockServerError::UnexpectedConnection)
     }

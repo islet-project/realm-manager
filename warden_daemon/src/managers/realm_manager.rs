@@ -31,7 +31,7 @@ pub trait VmManager {
 
 #[derive(Debug, Error)]
 pub enum VmManagerError {
-    #[error("")]
+    #[error("Unable to launch Vm due to: {0}")]
     LaunchFail(#[from] io::Error),
     #[error("To stop realm's vm you need to launch it first!")]
     VmNotLaunched,
@@ -39,9 +39,12 @@ pub enum VmManagerError {
     StopFail,
 }
 
+#[derive(Debug, Error)]
 pub enum RealmClientError {
-    RealmConnectorError,
-    NoConnectionWithRealm,
+    #[error("Can't connect with the Realm, error: {0}")]
+    RealmConnectorError(String),
+    #[error("Can't communicate with connected Realm, error: {0}")]
+    CommunicationFail(String),
 }
 
 #[async_trait]
@@ -216,7 +219,7 @@ mod test {
         let mut client_mock = MockRealmClient::new();
         client_mock
             .expect_acknowledge_client_connection()
-            .returning(|_| Err(RealmClientError::RealmConnectorError));
+            .returning(|_| Err(RealmClientError::RealmConnectorError(String::new())));
         let mut realm_manager =
             create_realm_manager(create_example_config(), None, Some(client_mock));
         assert_eq!(realm_manager.start().await, Err(RealmError::RealmCantStart));

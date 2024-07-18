@@ -58,8 +58,9 @@ impl RealmClient for RealmClientHandler {
             .await;
         let realm_sender = realm_sender_receiver
             .await
-            .map_err(|_| RealmClientError::NoConnectionWithRealm)?;
-        let _ = self.realm_sender.insert(realm_sender);
+            .map_err(|err| RealmClientError::RealmConnectorError(format!("{err}")))?;
+        let sender = self.realm_sender.insert(realm_sender);
+        sender.send(RealmCommand::ConnectionConfirmation).await.map_err(|err|RealmClientError::CommunicationFail(format!("{err}")))?;
         Ok(())
     }
 }
