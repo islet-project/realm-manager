@@ -173,7 +173,7 @@ impl ClientHandler {
             ClientCommand::StopRealm { uuid } => {
                 info!("Stopping realm: {uuid}!");
                 let realm = self.get_realm(&uuid).await?;
-                realm.lock().await.stop();
+                realm.lock().await.stop().map_err(|err|ClientError::RealmManagerError(err))?;
                 info!("Realm: {uuid} stopped!");
                 Ok(ClientReponse::Ok)
             }
@@ -214,7 +214,7 @@ impl ClientHandler {
             ClientCommand::CreateApplication { realm_uuid, config } => {
                 info!("Creating application in realm: {realm_uuid}!");
                 let realm = self.get_realm(&realm_uuid).await?;
-                let application_uuid = realm.lock().await.create_application(config);
+                let application_uuid = realm.lock().await.create_application(config).map_err(|err|ClientError::RealmManagerError(err))?;
                 info!("Created application with id: {application_uuid} in realm: {realm_uuid}!");
                 Ok(ClientReponse::Ok)
             }

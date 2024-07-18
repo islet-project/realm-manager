@@ -75,8 +75,8 @@ impl VmManager for QemuRunner {
             .map(|child| child.kill().map_err(|_| VmManagerError::StopFail))
             .unwrap_or(Err(VmManagerError::VmNotLaunched))
     }
-    fn delete_vm(&self) {
-        todo!()
+    fn delete_vm(&self) -> Result<(), VmManagerError> {
+        Err(VmManagerError::DestroyFail)
     }
 }
 

@@ -10,12 +10,13 @@ use super::application::{Application, ApplicationConfig, ApplicationCreator};
 use super::realm::{Realm, RealmData, RealmError};
 use super::realm_configuration::*;
 
-#[derive(Debug, PartialEq, PartialOrd)]
+#[derive(Debug, Clone, PartialEq, PartialOrd)]
 enum State {
     Halted,
     Provisioning,
     Running,
     NeedReboot,
+    Destroyed
 }
 
 pub trait VmManager {
@@ -26,7 +27,7 @@ pub trait VmManager {
     fn setup_machine(&mut self, name: &String);
     fn launch_vm(&mut self) -> Result<(), VmManagerError>;
     fn stop_vm(&mut self) -> Result<(), VmManagerError>;
-    fn delete_vm(&self);
+    fn delete_vm(&self) -> Result<(), VmManagerError>;
 }
 
 #[derive(Debug, Error)]
@@ -35,8 +36,10 @@ pub enum VmManagerError {
     LaunchFail(#[from] io::Error),
     #[error("To stop realm's vm you need to launch it first!")]
     VmNotLaunched,
-    #[error("Unalbe to stop realm's vm")]
+    #[error("Unable to stop realm's vm")]
     StopFail,
+    #[error("Unable to destroy realm's vm")]
+    DestroyFail,
 }
 
 #[derive(Debug, Clone, Error, PartialEq, PartialOrd)]
@@ -108,20 +111,38 @@ impl Realm for RealmManager {
         }
     }
 
-    fn stop(&mut self) {
-        todo!()
+    fn stop(&mut self) -> Result<(), RealmError> {
+        if self.state != State::NeedReboot && self.state != State::Running {
+            return Err(RealmError::UnsupportedAction(format!("Can't stop realm that is in {:#?} state!", self.state)));
+        }
+        self.vm_manager.stop_vm().map_err(|err|RealmError::VmStopFail(format!("{}", err)))?;
+        self.state = State::Halted;
+        Ok(())
+    }
+
+    fn destroy(&mut self) -> Result<(), RealmError> {
+        if self.state != State::Halted {
+            return Err(RealmError::UnsupportedAction(format!("Can't delete realm that isn't halted!")));
+        }
+        self.vm_manager.delete_vm().map_err(|err|RealmError::VmDestroyFail(format!("{}", err)))?;
+        self.state = State::Destroyed;
+        Ok(())
     }
 
     async fn reboot(&mut self) -> Result<(), RealmError> {
-        todo!()
+        self.stop()?;
+        self.start().await
     }
 
-    fn create_application(&mut self, config: ApplicationConfig) -> Uuid {
+    fn create_application(&mut self, config: ApplicationConfig) -> Result<Uuid, RealmError> {
+        if self.state == State::Destroyed {
+            return Err(RealmError::UnsupportedAction(String::from("Can't create application!")));
+        }
         let uuid = Uuid::new_v4();
         let _ = self
             .managers_map
             .insert(uuid, self.application_fabric.create_application(config));
-        uuid
+        Ok(uuid)
     }
 
     async fn get_application(
@@ -238,7 +259,75 @@ mod test {
     fn create_application() {
         let mut realm_manager = create_realm_manager(create_example_config(), None, None);
         let uuid = realm_manager.create_application(ApplicationConfig {});
-        assert!(realm_manager.managers_map.contains_key(&uuid));
+        assert!(uuid.is_ok());
+        assert!(realm_manager.managers_map.contains_key(&uuid.unwrap()));
+    }
+
+    #[tokio::test]
+    #[parameterized(state = {State::Running, State::NeedReboot})]
+    async fn stop_realm(state: State) {
+        let mut realm_manager = create_realm_manager(create_example_config(), None, None);
+        realm_manager.state = state;
+        assert_eq!(realm_manager.stop(), Ok(()));
+        assert_eq!(realm_manager.state, State::Halted);
+    }
+
+    #[tokio::test]
+    #[parameterized(state = {State::Halted, State::Provisioning})]
+    async fn stop_realm_invalid_state(state: State) {
+        let mut realm_manager = create_realm_manager(create_example_config(), None, None);
+        realm_manager.state = state.clone();
+        assert_eq!(realm_manager.stop(), Err(RealmError::UnsupportedAction(format!("Can't stop realm that is in {:#?} state!", state))));
+    }
+
+    #[tokio::test]
+    #[parameterized(state = {State::Running, State::NeedReboot})]
+    async fn stop_realm_vm_error(state: State) {
+        let mut vm_manager = MockVmManager::new();
+        vm_manager.expect_stop_vm().return_once(|| Err(VmManagerError::StopFail));
+        let mut realm_manager = create_realm_manager(create_example_config(), Some(vm_manager), None);
+        realm_manager.state = state.clone();
+        assert_eq!(realm_manager.stop(), Err(RealmError::VmStopFail(format!("{}", VmManagerError::StopFail))));
+        assert_eq!(realm_manager.state, state);
+    }
+
+    #[test]
+    fn destroy_realm() {
+        let mut realm_manager = create_realm_manager(create_example_config(), None, None);
+        realm_manager.state = State::Halted;
+        assert!(realm_manager.destroy().is_ok());
+        assert_eq!(realm_manager.state, State::Destroyed);
+    }
+
+    #[tokio::test]
+    #[parameterized(state = {State::Running, State::NeedReboot, State::Provisioning})]
+    async fn destroy_realm_invalid_state(state: State) {
+        let mut realm_manager = create_realm_manager(create_example_config(), None, None);
+        realm_manager.state = state.clone();
+        assert_eq!(realm_manager.destroy(), Err(RealmError::UnsupportedAction(String::from("Can't delete realm that isn't halted!"))));
+        assert_eq!(realm_manager.state, state);
+    }
+
+    #[test]
+    fn destroy_realm_vm_error() {
+        const STATE: State = State::Halted;
+        let mut vm_manager = MockVmManager::new();
+        vm_manager.expect_delete_vm().returning(||Err(VmManagerError::DestroyFail));
+        let mut realm_manager = create_realm_manager(create_example_config(), Some(vm_manager), None);
+        realm_manager.state = STATE;
+        assert_eq!(realm_manager.destroy(), Err(RealmError::VmDestroyFail(format!("{}", VmManagerError::DestroyFail))));
+        assert_eq!(realm_manager.state, STATE);
+    }
+
+    #[tokio::test]
+    async fn destroyed_state() {
+        let mut realm_manager = create_realm_manager(create_example_config(), None, None);
+        realm_manager.state = State::Destroyed;
+        assert!(realm_manager.start().await.is_err());
+        assert!(realm_manager.reboot().await.is_err());
+        assert!(realm_manager.stop().is_err());
+        assert!(realm_manager.destroy().is_err());
+        assert!(realm_manager.create_application(ApplicationConfig{}).is_err());
     }
 
     fn create_realm_manager(
@@ -253,6 +342,8 @@ mod test {
         vm_manager.expect_setup_memory().returning(|_| ());
         vm_manager.expect_setup_network().returning(|_| ());
         vm_manager.expect_launch_vm().returning(|| Ok(()));
+        vm_manager.expect_stop_vm().returning(||Ok(()));
+        vm_manager.expect_delete_vm().returning(||Ok(()));
         let mut realm_client = realm_client.unwrap_or(MockRealmClient::new());
         realm_client
             .expect_acknowledge_client_connection()
@@ -302,7 +393,7 @@ mod test {
             fn setup_machine(&mut self, name: &String);
             fn launch_vm(&mut self) -> Result<(), VmManagerError>;
             fn stop_vm(&mut self) -> Result<(), VmManagerError>;
-            fn delete_vm(&self);
+            fn delete_vm(&self) -> Result<(), VmManagerError>;
         }
     }
 

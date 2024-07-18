@@ -12,12 +12,14 @@ use uuid::Uuid;
 pub enum WardenError {
     #[error("Realm with uuid: '{0}' doesn't exist")]
     NoSuchRealm(Uuid),
+    #[error("Can't destroy the realm: {0}")]
+    DestroyFail(String),
 }
 
 #[async_trait]
 pub trait Warden {
     fn create_realm(&mut self, config: RealmConfig) -> Result<Uuid, WardenError>;
-    fn destroy_realm(&mut self, realm_uuid: Uuid) -> Result<(), WardenError>;
+    async fn destroy_realm(&mut self, realm_uuid: Uuid) -> Result<(), WardenError>;
     async fn list_realms(&self) -> Vec<RealmDescription>;
     async fn inspect_realm(&self, realm_uuid: Uuid) -> Result<RealmDescription, WardenError>;
     fn get_realm(

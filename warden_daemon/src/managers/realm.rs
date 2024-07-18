@@ -18,19 +18,24 @@ pub enum RealmError {
     UnsupportedAction(String),
     #[error("Can't launch the Realm, error: {0}")]
     RealmLaunchFail(String),
+    #[error("Realm's vm can't be stopped because {0}")]
+    VmStopFail(String),
+    #[error("Realm's vm can't be destroyed because {0}")]
+    VmDestroyFail(String),
 }
 
 #[async_trait]
 pub trait Realm {
     async fn start(&mut self) -> Result<(), RealmError>;
-    fn stop(&mut self);
     async fn reboot(&mut self) -> Result<(), RealmError>;
-    fn create_application(&mut self, config: ApplicationConfig) -> Uuid;
-    fn get_realm_data(&self) -> RealmData;
     async fn get_application(
         &self,
         uuid: &Uuid,
     ) -> Result<Arc<Mutex<Box<dyn Application + Send + Sync>>>, RealmError>;
+    fn stop(&mut self) -> Result<(), RealmError>;
+    fn create_application(&mut self, config: ApplicationConfig) -> Result<Uuid, RealmError>;
+    fn get_realm_data(&self) -> RealmData;
+    fn destroy(&mut self) -> Result<(), RealmError>;
 }
 
 pub trait RealmCreator {
