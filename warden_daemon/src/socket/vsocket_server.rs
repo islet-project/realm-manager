@@ -1,4 +1,5 @@
 use std::collections::HashMap;
+use std::io;
 use std::sync::Arc;
 
 use async_trait::async_trait;
@@ -26,12 +27,14 @@ pub enum VSockServerError {
     AwakenError,
     #[error("")]
     UnexpectedConnection,
+    #[error("")]
+    SocketFail(#[from] io::Error)
 }
 
 pub struct VSockServer {
     pub config: VSockServerConfig,
     cancel_token: Arc<CancellationToken>,
-    waiting: Mutex<HashMap<u32, Sender<Box<dyn RealmSender + Send + Sync>>>>,
+    waiting: HashMap<u32, Sender<Box<dyn RealmSender + Send + Sync>>>,
 }
 
 impl Drop for VSockServer {
@@ -45,7 +48,7 @@ impl VSockServer {
         VSockServer {
             config,
             cancel_token,
-            waiting: Mutex::new(HashMap::new()),
+            waiting: HashMap::new(),
         }
     }
 
@@ -53,8 +56,10 @@ impl VSockServer {
         handler: Arc<Mutex<VSockServer>>,
         token: Arc<CancellationToken>,
     ) -> Result<(), VSockServerError> {
-        let config = &handler.as_ref().lock().await.config;
-        let mut listener = VsockListener::bind(VsockAddr::new(config.cid, config.port)).unwrap();
+        let mut listener =  {
+            let config = &handler.as_ref().lock().await.config;
+            VsockListener::bind(VsockAddr::new(config.cid, config.port)).map_err(|err|VSockServerError::SocketFail(err))?
+        };
         loop {
             select! {
                 a_result = listener.accept() => {
@@ -78,8 +83,7 @@ impl VSockServer {
         accept_result: (VsockStream, VsockAddr),
     ) -> Result<(), VSockServerError> {
         let (stream, addr) = accept_result;
-        let mut waiting = self.waiting.lock().await;
-        if let Some(tx) = waiting.remove(&addr.cid()) {
+        if let Some(tx) = self.waiting.remove(&addr.cid()) {
             info!("Client has connected succesfully!");
             return tx
                 .send(Box::new(VSockClient { stream }))
@@ -112,9 +116,9 @@ impl RealmConnector for VSockServer {
         &mut self,
         cid: u32,
     ) -> Receiver<Box<dyn RealmSender + Send + Sync>> {
-        let mut waiting = self.waiting.lock().await;
+        info!("Waiting for realm to connect to the server!");
         let (tx, rx) = oneshot::channel();
-        waiting.insert(cid, tx);
+        self.waiting.insert(cid, tx);
         rx
     }
 }
