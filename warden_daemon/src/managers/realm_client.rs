@@ -2,8 +2,9 @@ use async_trait::async_trait;
 use serde::{Deserialize, Serialize};
 use std::{io, sync::Arc};
 use thiserror::Error;
-use tokio::sync::oneshot::Receiver;
 use tokio::sync::Mutex;
+use tokio::time::{sleep, Duration};
+use tokio::{select, sync::oneshot::Receiver};
 
 use super::realm_manager::{RealmClient, RealmClientError};
 
@@ -50,21 +51,27 @@ impl RealmClientHandler {
 #[async_trait]
 impl RealmClient for RealmClientHandler {
     async fn acknowledge_client_connection(&mut self, cid: u32) -> Result<(), RealmClientError> {
+        const WAITING_TIME: Duration = Duration::from_secs(10);
         let realm_sender_receiver = self
             .realm_connector
             .lock()
             .await
             .acquire_realm_sender(cid)
             .await;
-        let realm_sender = realm_sender_receiver
-            .await
-            .map_err(|err| RealmClientError::RealmConnectorError(format!("{err}")))?;
-        let sender = self.realm_sender.insert(realm_sender);
-        sender
-            .send(RealmCommand::ConnectionConfirmation)
-            .await
-            .map_err(|err| RealmClientError::CommunicationFail(format!("{err}")))?;
-        Ok(())
+
+        select! {
+            realm_sender = realm_sender_receiver => {
+                let realm_sender = realm_sender.map_err(|err| RealmClientError::RealmConnectorError(format!("{err}")))?;
+                let sender = self.realm_sender.insert(realm_sender);
+                sender
+                    .send(RealmCommand::ConnectionConfirmation)
+                    .await
+                    .map_err(|err| RealmClientError::CommunicationFail(format!("{err}")))
+            }
+            _ = sleep(WAITING_TIME) => {
+                Err(RealmClientError::RealmConnectorError(String::from("Timeout on listening for realm connection!")))
+            }
+        }
     }
 }
 

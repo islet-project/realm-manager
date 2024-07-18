@@ -190,6 +190,7 @@ mod test {
                 tap_device: String::new(),
                 mac_address: String::new(),
                 hardware_device: None,
+                remote_terminal_uri: None,
             },
             kernel: KernelConfig {
                 kernel_path: PathBuf::new(),

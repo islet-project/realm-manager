@@ -28,6 +28,7 @@ pub struct NetworkConfig {
     pub tap_device: String,
     pub mac_address: String,
     pub hardware_device: Option<String>,
+    pub remote_terminal_uri: Option<String>,
 }
 
 #[derive(Serialize, Deserialize, Debug)]

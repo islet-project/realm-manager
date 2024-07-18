@@ -12,10 +12,8 @@ use uuid::Uuid;
 
 #[derive(Debug, Error, PartialEq, PartialOrd, Serialize, Deserialize)]
 pub enum RealmError {
-    #[error("")]
-    RealmCantStart,
-    #[error("")]
-    SendCommandIssue,
+    #[error("Error occured while starting realm. Error information: {0}")]
+    RealmCantStart(String),
     #[error("Unsupported action: {0}")]
     UnsupportedAction(String),
     #[error("Can't launch the Realm, error: {0}")]

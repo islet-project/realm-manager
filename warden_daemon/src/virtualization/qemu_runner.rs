@@ -1,6 +1,8 @@
 use std::path::PathBuf;
 use std::process::{Child, Command, Stdio};
 
+use log::trace;
+
 use crate::managers::realm_configuration::{CpuConfig, KernelConfig, MemoryConfig, NetworkConfig};
 use crate::managers::realm_manager::{VmManager, VmManagerError};
 
@@ -36,6 +38,10 @@ impl VmManager for QemuRunner {
             "vhost-vsock-pci,id=vhost-vsock-pci0,guest-cid={}",
             config.vsock_cid
         ));
+        if let Some(terminal_uri) = &config.remote_terminal_uri {
+            // Setup access terminal
+            self.command.arg("-serial").arg(terminal_uri);
+        }
     }
     fn setup_kernel(&mut self, config: &KernelConfig) {
         self.command.arg("-kernel").arg(&config.kernel_path);
@@ -53,10 +59,8 @@ impl VmManager for QemuRunner {
         self.command.arg("-machine").arg(&name);
     }
     fn launch_vm(&mut self) -> Result<(), VmManagerError> {
-        self.command.stdin(Stdio::null());
-        self.command.stdout(Stdio::piped());
-        self.command.stderr(Stdio::piped());
-
+        self.control_output();
+        trace!("Spawning realm with command: {:?}", self.command);
         match self.command.spawn() {
             Ok(vm) => {
                 self.vm = Some(vm);
@@ -73,5 +77,16 @@ impl VmManager for QemuRunner {
     }
     fn delete_vm(&self) {
         todo!()
+    }
+}
+
+impl QemuRunner {
+    fn control_output(&mut self) {
+        self.command.arg("-nographic");
+        self.command.arg("-append").arg("console=ttyAMA0");
+
+        self.command.stdin(Stdio::null());
+        self.command.stdout(Stdio::piped());
+        self.command.stderr(Stdio::piped());
     }
 }

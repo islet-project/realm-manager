@@ -39,7 +39,7 @@ pub enum VmManagerError {
     StopFail,
 }
 
-#[derive(Debug, Error, PartialEq, PartialOrd)]
+#[derive(Debug, Clone, Error, PartialEq, PartialOrd)]
 pub enum RealmClientError {
     #[error("Can't connect with the Realm, error: {0}")]
     RealmConnectorError(String),
@@ -101,9 +101,9 @@ impl Realm for RealmManager {
                 self.state = State::Running;
                 Ok(())
             }
-            Err(_) => {
+            Err(err) => {
                 self.state = State::Halted;
-                Err(RealmError::RealmCantStart)
+                Err(RealmError::RealmCantStart(format!("{err}")))
             }
         }
     }
@@ -221,10 +221,16 @@ mod test {
         let mut client_mock = MockRealmClient::new();
         client_mock
             .expect_acknowledge_client_connection()
-            .returning(|_| Err(RealmClientError::RealmConnectorError(String::new())));
+            .return_once(move |_| Err(RealmClientError::RealmConnectorError(String::new())));
         let mut realm_manager =
             create_realm_manager(create_example_config(), None, Some(client_mock));
-        assert_eq!(realm_manager.start().await, Err(RealmError::RealmCantStart));
+        assert_eq!(
+            realm_manager.start().await,
+            Err(RealmError::RealmCantStart(format!(
+                "{}",
+                RealmClientError::RealmConnectorError(String::new())
+            )))
+        );
         assert_eq!(realm_manager.state, State::Halted);
     }
 
@@ -277,6 +283,7 @@ mod test {
                 tap_device: String::new(),
                 mac_address: String::new(),
                 hardware_device: None,
+                remote_terminal_uri: None,
             },
             kernel: KernelConfig {
                 kernel_path: PathBuf::new(),
