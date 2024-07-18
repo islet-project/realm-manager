@@ -4,3 +4,20 @@ version = "0.1.0"
 edition = "2021"
 
 [dependencies]
+devicemapper = { path = "../../../devicemapper-rs", default-features = false }
+anyhow = "*"
+env_logger = "*"
+log = "*"
+serde = { version = "*", features = ["derive", "alloc"] }
+serde_json = { version = "*", features = ["alloc"] }
+thiserror = "*"
+uuid = { version = "*", features = ["serde"] }
+hex = "*"
+nix = "*"
+tokio-serde = { version = "*", features = ["json"] }
+tokio-util = { version = "*", features = ["codec"] }
+tokio = { version = "*", features = ["io-util", "sync", "rt", "rt-multi-thread", "fs", "macros", "process"] }
+tokio-vsock = "*"
+futures-util = "*"
+serde_yaml = "*"
+futures = "*"
