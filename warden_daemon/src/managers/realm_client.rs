@@ -67,7 +67,7 @@ impl RealmClient for RealmClientHandler {
 
 #[cfg(test)]
 mod test {
-    use std::sync::Arc;
+    use std::{io, sync::Arc};
 
     use async_trait::async_trait;
     use mockall::mock;
@@ -76,13 +76,13 @@ mod test {
         Mutex,
     };
 
-    use crate::managers::realm_manager::RealmClient;
+    use crate::managers::realm_manager::{RealmClient, RealmClientError};
 
     use super::{RealmClientHandler, RealmCommand, RealmConnector, RealmSender, RealmSenderError};
 
     #[tokio::test]
     async fn acknowledge_client_connection() {
-        let mut realm_client = create_realm_client(None);
+        let mut realm_client = create_realm_client(None, None);
         let cid = 0;
         assert!(realm_client.realm_sender.is_none());
         assert!(realm_client
@@ -103,7 +103,7 @@ mod test {
         realm_connector
             .expect_acquire_realm_sender()
             .return_once(|_| rx);
-        let mut realm_client = create_realm_client(Some(realm_connector));
+        let mut realm_client = create_realm_client(Some(realm_connector), None);
         let cid = 0;
         assert!(realm_client
             .acknowledge_client_connection(cid)
@@ -112,14 +112,32 @@ mod test {
         assert!(realm_client.realm_sender.is_none());
     }
 
-    fn create_realm_client(realm_connector: Option<MockRealmConnector>) -> RealmClientHandler {
+    #[tokio::test]
+    async fn acknowledge_client_connection_send_error() {
+        let mut realm_sender = MockRealmSender::new();
+        realm_sender.expect_send().return_once(|_|Err(RealmSenderError::SendFail(io::Error::other(""))));
+        let mut realm_client = create_realm_client(None, Some(realm_sender));
+        let cid = 0;
+        assert_eq!(realm_client
+            .acknowledge_client_connection(cid)
+            .await, Err(RealmClientError::CommunicationFail(RealmSenderError::SendFail(io::Error::other("")).to_string())));
+        assert!(realm_client.realm_sender.is_some());
+    }
+
+    fn create_realm_client(realm_connector: Option<MockRealmConnector>, realm_sender: Option<MockRealmSender>) -> RealmClientHandler {
+        let realm_sender = realm_sender.unwrap_or({
+            let mut realm_sender = MockRealmSender::new();
+            realm_sender.expect_send().returning(|_|Ok(()));
+            realm_sender
+        });
+        
         let realm_connector = realm_connector.unwrap_or({
             let mut realm_connector = MockRealmConnector::new();
             let (tx, rx): (
                 Sender<Box<dyn RealmSender + Send + Sync>>,
                 Receiver<Box<dyn RealmSender + Send + Sync>>,
             ) = tokio::sync::oneshot::channel();
-            let _ = tx.send(Box::new(MockRealmSender::new()));
+            let _ = tx.send(Box::new(realm_sender));
             realm_connector
                 .expect_acquire_realm_sender()
                 .return_once(move |_| rx);

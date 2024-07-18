@@ -39,7 +39,7 @@ pub enum VmManagerError {
     StopFail,
 }
 
-#[derive(Debug, Error)]
+#[derive(Debug, Error, PartialEq, PartialOrd)]
 pub enum RealmClientError {
     #[error("Can't connect with the Realm, error: {0}")]
     RealmConnectorError(String),
@@ -209,7 +209,7 @@ mod test {
             create_realm_manager(create_example_config(), Some(vm_manager_mock), None);
         assert_eq!(
             realm_manager.start().await,
-            Err(RealmError::RealmLaunchFail(String::new()))
+            Err(RealmError::RealmLaunchFail(String::from("Unable to launch Vm due to: ")))
         );
         assert_eq!(realm_manager.state, State::Halted);
     }
