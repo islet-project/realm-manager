@@ -61,19 +61,19 @@ impl VmManager for QemuRunner {
     fn launch_vm(&mut self) -> Result<(), VmManagerError> {
         self.control_output();
         trace!("Spawning realm with command: {:?}", self.command);
-        match self.command.spawn() {
-            Ok(vm) => {
-                self.vm = Some(vm);
-                Ok(())
-            }
-            Err(err) => Err(VmManagerError::LaunchFail(err)),
-        }
+        self.command
+            .spawn()
+            .map(|child| {
+                self.vm = Some(child);
+                ()
+            })
+            .map_err(|err| VmManagerError::LaunchFail(err))
     }
     fn stop_vm(&mut self) -> Result<(), VmManagerError> {
-        match &mut self.vm {
-            Some(child) => child.kill().map_err(|_| VmManagerError::StopFail),
-            None => Err(VmManagerError::VmNotLaunched),
-        }
+        self.vm
+            .as_mut()
+            .map(|child| child.kill().map_err(|_| VmManagerError::StopFail))
+            .unwrap_or(Err(VmManagerError::VmNotLaunched))
     }
     fn delete_vm(&self) {
         todo!()
