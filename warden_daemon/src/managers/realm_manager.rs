@@ -204,12 +204,13 @@ mod test {
     use tokio::sync::Mutex;
     use uuid::Uuid;
 
-    use super::{
-        RealmClient, RealmConfig, RealmError, RealmManager, VmManager,
-        VmManagerError,
-    };
+    use super::{RealmClient, RealmConfig, RealmError, RealmManager, VmManager, VmManagerError};
     use crate::managers::{
-        application::{Application, ApplicationConfig, ApplicationCreator, ApplicationError}, realm::Realm, realm_client::RealmClientError, realm_configuration::*, realm_manager::State
+        application::{Application, ApplicationConfig, ApplicationCreator, ApplicationError},
+        realm::Realm,
+        realm_client::RealmClientError,
+        realm_configuration::*,
+        realm_manager::State,
     };
 
     #[test]
@@ -460,7 +461,9 @@ mod test {
         realm_client_handler
             .expect_start_application()
             .returning(|_| Ok(()));
-        realm_client_handler.expect_stop_application().returning(|_| Ok(()));
+        realm_client_handler
+            .expect_stop_application()
+            .returning(|_| Ok(()));
 
         let app_mock = MockApplication::new();
         let mut creator_mock = MockApplicationFabric::new();

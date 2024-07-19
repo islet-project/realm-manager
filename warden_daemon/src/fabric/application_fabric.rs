@@ -4,7 +4,8 @@ use tokio::sync::Mutex;
 
 use crate::managers::{
     application::{Application, ApplicationConfig, ApplicationCreator},
-    application_manager::ApplicationManager, realm_client::RealmClient,
+    application_manager::ApplicationManager,
+    realm_client::RealmClient,
 };
 
 pub struct ApplicationFabric {}

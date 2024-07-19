@@ -1,8 +1,7 @@
-use async_trait::async_trait;
-use uuid::Uuid;
-use thiserror::Error;
 use super::application::ApplicationConfig;
-
+use async_trait::async_trait;
+use thiserror::Error;
+use uuid::Uuid;
 
 #[derive(Debug, Clone, Error, PartialEq, PartialOrd)]
 pub enum RealmClientError {

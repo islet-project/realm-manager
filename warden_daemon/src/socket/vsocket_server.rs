@@ -12,7 +12,9 @@ use tokio::sync::{oneshot, Mutex};
 use tokio_util::sync::CancellationToken;
 use tokio_vsock::{VsockAddr, VsockListener, VsockStream};
 
-use crate::client_handler::realm_client_handler::{RealmCommand, RealmConnector, RealmSender, RealmSenderError};
+use crate::client_handler::realm_client_handler::{
+    RealmCommand, RealmConnector, RealmSender, RealmSenderError,
+};
 
 pub struct VSockServerConfig {
     pub cid: u32,

@@ -7,7 +7,6 @@ use uuid::Uuid;
 
 use super::realm_client::RealmClient;
 
-
 #[derive(Debug, Error, PartialEq, PartialOrd, Serialize, Deserialize)]
 pub enum ApplicationError {
     #[error("Can't start the application due to: {0}")]

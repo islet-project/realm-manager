@@ -3,7 +3,8 @@ use std::sync::Arc;
 use tokio::sync::Mutex;
 
 use super::{
-    application::{Application, ApplicationConfig, ApplicationError}, realm_client::RealmClient
+    application::{Application, ApplicationConfig, ApplicationError},
+    realm_client::RealmClient,
 };
 
 pub struct ApplicationManager {
