@@ -1,4 +1,5 @@
 use async_trait::async_trait;
+use log::{debug, error};
 use std::collections::HashMap;
 use std::io;
 use std::process::ExitStatus;
@@ -8,18 +9,9 @@ use tokio::sync::Mutex;
 use uuid::Uuid;
 
 use super::application::{Application, ApplicationConfig, ApplicationCreator};
-use super::realm::{Realm, RealmData, RealmError};
-use super::realm_client::RealmClient;
+use super::realm::{Realm, RealmData, RealmError, State};
+use super::realm_client::{RealmClient, RealmProvisioningConfig};
 use super::realm_configuration::*;
-
-#[derive(Debug, Clone, PartialEq, PartialOrd)]
-enum State {
-    Halted,
-    Provisioning,
-    Running,
-    NeedReboot,
-    Destroyed,
-}
 
 pub trait VmManager {
     fn setup_network(&mut self, config: &NetworkConfig);
@@ -70,6 +62,25 @@ impl RealmManager {
             application_fabric,
         }
     }
+
+    fn create_provisioning_config(&self) -> RealmProvisioningConfig {
+        RealmProvisioningConfig {}
+    }
+}
+
+impl Drop for RealmManager {
+    fn drop(&mut self) {
+        debug!("Called destructor for RealmManager");
+        if let Err(error) = self.vm_manager.delete_vm() {
+            error!(
+                "{}",
+                format!(
+                    "Error occured while dropping RealmManager: {:#?}",
+                    RealmError::VmDestroyFail(format!("{}", error))
+                )
+            );
+        }
+    }
 }
 
 #[async_trait]
@@ -89,7 +100,10 @@ impl Realm for RealmManager {
             .realm_client_handler
             .lock()
             .await
-            .acknowledge_client_connection(self.config.network.vsock_cid)
+            .send_realm_provisioning_config(
+                self.create_provisioning_config(),
+                self.config.network.vsock_cid,
+            )
             .await
         {
             Ok(_) => {
@@ -121,37 +135,18 @@ impl Realm for RealmManager {
         Ok(())
     }
 
-    fn destroy(&mut self) -> Result<(), RealmError> {
-        if self.state != State::Halted {
-            return Err(RealmError::UnsupportedAction(format!(
-                "Can't delete realm that isn't halted!"
-            )));
-        }
-        self.vm_manager
-            .delete_vm()
-            .map_err(|err| RealmError::VmDestroyFail(format!("{}", err)))?;
-        self.state = State::Destroyed;
-        Ok(())
-    }
-
     async fn reboot(&mut self) -> Result<(), RealmError> {
         self.stop()?;
         self.start().await
     }
 
     async fn create_application(&mut self, config: ApplicationConfig) -> Result<Uuid, RealmError> {
-        if self.state == State::Destroyed {
-            return Err(RealmError::UnsupportedAction(String::from(
-                "Can't create application!",
+        if self.state != State::Halted {
+            return Err(RealmError::UnsupportedAction(format!(
+                "Can't create application when realm that is not halted",
             )));
         }
         let uuid = Uuid::new_v4();
-        self.realm_client_handler
-            .lock()
-            .await
-            .create_application(&config)
-            .await
-            .map_err(|err| RealmError::ApplicationCreationFail(format!("{}", err)))?;
         let application = self.application_fabric.create_application(
             uuid,
             config,
@@ -164,6 +159,25 @@ impl Realm for RealmManager {
             .await
             .insert(uuid, Arc::new(Mutex::new(application)));
         Ok(uuid)
+    }
+
+    async fn update_application(
+        &mut self,
+        uuid: Uuid,
+        new_config: ApplicationConfig,
+    ) -> Result<(), RealmError> {
+        if self.state != State::Running && self.state != State::NeedReboot {
+            return Err(RealmError::UnsupportedAction(format!(
+                "Can't update application when realm that is not halted",
+            )));
+        }
+        match self.apps_map.lock().await.get(&uuid) {
+            Some(app_manager) => {
+                app_manager.lock().await.update(new_config);
+                Ok(())
+            }
+            None => Err(RealmError::ApplicationMissing(uuid)),
+        }
     }
 
     async fn get_application(
@@ -180,12 +194,11 @@ impl Realm for RealmManager {
             None => Err(RealmError::ApplicationMissing(uuid)),
         }
     }
-    fn signal_reboot(&mut self) {
-        self.state = State::NeedReboot;
-    }
 
     fn get_realm_data(&self) -> RealmData {
-        RealmData {}
+        RealmData {
+            state: self.state.clone(),
+        }
     }
 }
 
@@ -216,7 +229,7 @@ mod test {
     use crate::managers::{
         application::{Application, ApplicationConfig, ApplicationCreator, ApplicationError},
         realm::Realm,
-        realm_client::RealmClientError,
+        realm_client::{RealmClientError, RealmProvisioningConfig},
         realm_configuration::*,
         realm_manager::State,
     };
@@ -273,8 +286,8 @@ mod test {
     async fn realm_start_launching_acknowledgment_error() {
         let mut client_mock = MockRealmClient::new();
         client_mock
-            .expect_acknowledge_client_connection()
-            .return_once(move |_| Err(RealmClientError::RealmConnectorError(String::new())));
+            .expect_send_realm_provisioning_config()
+            .return_once(move |_, _| Err(RealmClientError::RealmConnectorError(String::new())));
         let mut realm_manager =
             create_realm_manager(create_example_realm_config(), None, Some(client_mock));
         assert_eq!(
@@ -293,12 +306,74 @@ mod test {
         let uuid = realm_manager
             .create_application(create_example_application_config())
             .await;
+        assert_eq!(realm_manager.state, State::Halted);
         assert!(uuid.is_ok());
         assert!(realm_manager
             .apps_map
             .lock()
             .await
             .contains_key(&uuid.unwrap()));
+    }
+
+    #[tokio::test]
+    #[parameterized(state = {State::Running, State::Provisioning, State::NeedReboot})]
+    async fn create_application_invalid_state(state: State) {
+        let mut realm_manager = create_realm_manager(create_example_realm_config(), None, None);
+        realm_manager.state = state;
+        let uuid_res = realm_manager
+            .create_application(create_example_application_config())
+            .await;
+        assert_eq!(
+            uuid_res,
+            Err(RealmError::UnsupportedAction(format!(
+                "Can't create application when realm that is not halted",
+            )))
+        );
+    }
+
+    #[tokio::test]
+    async fn update_application() {
+        let mut realm_manager = create_realm_manager(create_example_realm_config(), None, None);
+        let uuid = realm_manager
+            .create_application(create_example_application_config())
+            .await
+            .unwrap();
+        realm_manager.state = State::Running;
+        let uuid_res = realm_manager
+            .update_application(uuid, create_example_application_config())
+            .await;
+        assert_eq!(uuid_res, Ok(()));
+    }
+
+    #[tokio::test]
+    #[parameterized(state = {State::Halted, State::Provisioning})]
+    async fn update_application_invalid_state(state: State) {
+        let mut realm_manager = create_realm_manager(create_example_realm_config(), None, None);
+        let uuid = realm_manager
+            .create_application(create_example_application_config())
+            .await
+            .unwrap();
+        realm_manager.state = state;
+        let uuid_res = realm_manager
+            .update_application(uuid, create_example_application_config())
+            .await;
+        assert_eq!(
+            uuid_res,
+            Err(RealmError::UnsupportedAction(format!(
+                "Can't update application when realm that is not halted",
+            )))
+        );
+    }
+
+    #[tokio::test]
+    async fn update_missing_application() {
+        let mut realm_manager = create_realm_manager(create_example_realm_config(), None, None);
+        let uuid = Uuid::new_v4();
+        realm_manager.state = State::Running;
+        let uuid_res = realm_manager
+            .update_application(uuid, create_example_application_config())
+            .await;
+        assert_eq!(uuid_res, Err(RealmError::ApplicationMissing(uuid)));
     }
 
     #[tokio::test]
@@ -344,69 +419,6 @@ mod test {
         assert_eq!(realm_manager.state, state);
     }
 
-    #[test]
-    fn destroy_realm() {
-        let mut realm_manager = create_realm_manager(create_example_realm_config(), None, None);
-        realm_manager.state = State::Halted;
-        assert!(realm_manager.destroy().is_ok());
-        assert_eq!(realm_manager.state, State::Destroyed);
-    }
-
-    #[tokio::test]
-    #[parameterized(state = {State::Running, State::NeedReboot, State::Provisioning})]
-    async fn destroy_realm_invalid_state(state: State) {
-        let mut realm_manager = create_realm_manager(create_example_realm_config(), None, None);
-        realm_manager.state = state.clone();
-        assert_eq!(
-            realm_manager.destroy(),
-            Err(RealmError::UnsupportedAction(String::from(
-                "Can't delete realm that isn't halted!"
-            )))
-        );
-        assert_eq!(realm_manager.state, state);
-    }
-
-    #[test]
-    fn destroy_realm_vm_error() {
-        const STATE: State = State::Halted;
-        let mut vm_manager = MockVmManager::new();
-        vm_manager
-            .expect_delete_vm()
-            .returning(|| Err(VmManagerError::DestroyFail));
-        let mut realm_manager =
-            create_realm_manager(create_example_realm_config(), Some(vm_manager), None);
-        realm_manager.state = STATE;
-        assert_eq!(
-            realm_manager.destroy(),
-            Err(RealmError::VmDestroyFail(format!(
-                "{}",
-                VmManagerError::DestroyFail
-            )))
-        );
-        assert_eq!(realm_manager.state, STATE);
-    }
-
-    #[test]
-    fn signal_reboot() {
-        let mut realm_manager = create_realm_manager(create_example_realm_config(), None, None);
-        realm_manager.signal_reboot();
-        assert_eq!(realm_manager.state, State::NeedReboot);
-    }
-
-    #[tokio::test]
-    async fn destroyed_state() {
-        let mut realm_manager = create_realm_manager(create_example_realm_config(), None, None);
-        realm_manager.state = State::Destroyed;
-        assert!(realm_manager.start().await.is_err());
-        assert!(realm_manager.reboot().await.is_err());
-        assert!(realm_manager.stop().is_err());
-        assert!(realm_manager.destroy().is_err());
-        assert!(realm_manager
-            .create_application(create_example_application_config())
-            .await
-            .is_err());
-    }
-
     #[tokio::test]
     #[parameterized(state = {State::Halted, State::Provisioning})]
     async fn get_application_invalid_command(state: State) {
@@ -437,11 +449,11 @@ mod test {
     #[parameterized(state = {State::Running, State::NeedReboot})]
     async fn get_application(state: State) {
         let mut realm_manager = create_realm_manager(create_example_realm_config(), None, None);
-        realm_manager.state = state;
         let uuid = realm_manager
             .create_application(create_example_application_config())
             .await
             .unwrap();
+        realm_manager.state = state;
         assert!(realm_manager.get_application(uuid).await.is_ok());
     }
 
@@ -461,11 +473,8 @@ mod test {
         vm_manager.expect_delete_vm().returning(|| Ok(()));
         let mut realm_client_handler = realm_client_handler.unwrap_or(MockRealmClient::new());
         realm_client_handler
-            .expect_acknowledge_client_connection()
-            .returning(|_| Ok(()));
-        realm_client_handler
-            .expect_create_application()
-            .returning(|_| Ok(()));
+            .expect_send_realm_provisioning_config()
+            .returning(|_, _| Ok(()));
         realm_client_handler
             .expect_start_application()
             .returning(|_| Ok(()));
@@ -474,7 +483,9 @@ mod test {
             .returning(|_| Ok(()));
         vm_manager.expect_get_exit_status().returning(|| None);
 
-        let app_mock = MockApplication::new();
+        let mut app_mock = MockApplication::new();
+        app_mock.expect_update().returning(|_| ());
+
         let mut creator_mock = MockApplicationFabric::new();
         creator_mock
             .expect_create_application()
@@ -533,8 +544,7 @@ mod test {
 
         #[async_trait]
         impl RealmClient for RealmClient {
-            async fn acknowledge_client_connection(&mut self, cid: u32) -> Result<(), RealmClientError>;
-            async fn create_application(&mut self, config:& ApplicationConfig) -> Result<(), RealmClientError>;
+            async fn send_realm_provisioning_config(&mut self, realm_provisioning_config: RealmProvisioningConfig, cid: u32) -> Result<(), RealmClientError>;
             async fn start_application(&mut self, application_uuid:& Uuid) -> Result<(), RealmClientError>;
             async fn stop_application(&mut self, application_uuid:& Uuid)-> Result<(), RealmClientError>;
         }

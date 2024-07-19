@@ -31,16 +31,19 @@ pub enum RealmError {
 #[async_trait]
 pub trait Realm {
     async fn start(&mut self) -> Result<(), RealmError>;
+    fn stop(&mut self) -> Result<(), RealmError>;
     async fn reboot(&mut self) -> Result<(), RealmError>;
     async fn get_application(
         &self,
         uuid: Uuid,
     ) -> Result<Arc<Mutex<Box<dyn Application + Send + Sync>>>, RealmError>;
     async fn create_application(&mut self, config: ApplicationConfig) -> Result<Uuid, RealmError>;
-    fn stop(&mut self) -> Result<(), RealmError>;
+    async fn update_application(
+        &mut self,
+        uuid: Uuid,
+        new_config: ApplicationConfig,
+    ) -> Result<(), RealmError>;
     fn get_realm_data(&self) -> RealmData;
-    fn destroy(&mut self) -> Result<(), RealmError>;
-    fn signal_reboot(&mut self);
 }
 
 pub trait RealmCreator {
@@ -53,5 +56,15 @@ pub struct RealmDescription {
     pub realm_data: RealmData,
 }
 
+#[derive(Debug, Clone, PartialEq, PartialOrd, Serialize, Deserialize)]
+pub enum State {
+    Halted,
+    Provisioning,
+    Running,
+    NeedReboot,
+}
+
 #[derive(Debug, PartialEq, PartialOrd, Serialize, Deserialize)]
-pub struct RealmData {}
+pub struct RealmData {
+    pub state: State,
+}

@@ -1,5 +1,5 @@
-use super::application::ApplicationConfig;
 use async_trait::async_trait;
+use serde::{Deserialize, Serialize};
 use thiserror::Error;
 use uuid::Uuid;
 
@@ -13,12 +13,15 @@ pub enum RealmClientError {
     MissingConnection,
 }
 
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct RealmProvisioningConfig {}
+
 #[async_trait]
 pub trait RealmClient {
-    async fn acknowledge_client_connection(&mut self, cid: u32) -> Result<(), RealmClientError>;
-    async fn create_application(
+    async fn send_realm_provisioning_config(
         &mut self,
-        config: &ApplicationConfig,
+        realm_provisioning_config: RealmProvisioningConfig,
+        cid: u32,
     ) -> Result<(), RealmClientError>;
     async fn start_application(&mut self, application_uuid: &Uuid) -> Result<(), RealmClientError>;
     async fn stop_application(&mut self, application_uuid: &Uuid) -> Result<(), RealmClientError>;

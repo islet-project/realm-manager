@@ -1,4 +1,4 @@
-use super::realm::{Realm, RealmCreator, RealmDescription};
+use super::realm::{Realm, RealmCreator, RealmDescription, State};
 use super::realm_configuration::RealmConfig;
 use super::warden::{Warden, WardenError};
 use async_trait::async_trait;
@@ -33,14 +33,20 @@ impl Warden for WardenDaemon {
     }
 
     async fn destroy_realm(&mut self, realm_uuid: Uuid) -> Result<(), WardenError> {
-        match self.managers_map.remove(&realm_uuid) {
-            None => Err(WardenError::NoSuchRealm(realm_uuid)),
-            Some(realm_manager) => realm_manager
-                .lock()
-                .await
-                .destroy()
-                .map_err(|err| WardenError::DestroyFail(format!("{}", err))),
+        let realm = self
+            .managers_map
+            .get(&realm_uuid)
+            .ok_or(WardenError::NoSuchRealm(realm_uuid))?;
+        let realm_state = realm.lock().await.get_realm_data();
+        if realm_state.state != State::Halted {
+            return Err(WardenError::DestroyFail(String::from(
+                "Can't destroy realm that isn't stopped!",
+            )));
         }
+        self.managers_map
+            .remove(&realm_uuid)
+            .ok_or(WardenError::NoSuchRealm(realm_uuid))
+            .map(|_| ())
     }
 
     async fn list_realms(&self) -> Vec<RealmDescription> {
@@ -84,7 +90,7 @@ mod test {
 
     use crate::managers::{
         application::{Application, ApplicationConfig},
-        realm::{Realm, RealmData, RealmError},
+        realm::{Realm, RealmData, RealmError, State},
         realm_configuration::{CpuConfig, KernelConfig, MemoryConfig, NetworkConfig},
     };
 
@@ -117,18 +123,17 @@ mod test {
     }
 
     #[tokio::test]
-    async fn destroy_realm_fail() {
-        let mut realm_mock = MockRealm::new();
-        realm_mock
-            .expect_destroy()
-            .return_once(|| Err(RealmError::VmDestroyFail(String::new())));
-        let mut daemon = create_host_daemon(Some(realm_mock));
+    async fn destroy_not_halted_realm() {
+        let mut mock_realm = MockRealm::new();
+        mock_realm.expect_get_realm_data().returning(|| RealmData {
+            state: State::Running,
+        });
+        let mut daemon = create_host_daemon(Some(mock_realm));
         let uuid = daemon.create_realm(create_example_config()).unwrap();
         assert_eq!(
             daemon.destroy_realm(uuid.clone()).await,
-            Err(WardenError::DestroyFail(format!(
-                "{}",
-                RealmError::VmDestroyFail(String::new())
+            Err(WardenError::DestroyFail(String::from(
+                "Can't destroy realm that isn't stopped!"
             )))
         );
     }
@@ -136,14 +141,16 @@ mod test {
     #[tokio::test]
     async fn inspect_created_realm() {
         let mut realm = MockRealm::new();
-        realm.expect_get_realm_data().returning(|| RealmData {});
+        realm
+            .expect_get_realm_data()
+            .returning(|| create_realm_data());
         let mut daemon = create_host_daemon(Some(realm));
         let uuid = daemon.create_realm(create_example_config()).unwrap();
         assert_eq!(
             daemon.inspect_realm(uuid).await,
             Ok(RealmDescription {
                 uuid,
-                realm_data: RealmData {}
+                realm_data: create_realm_data()
             })
         );
     }
@@ -168,7 +175,9 @@ mod test {
     #[tokio::test]
     async fn list_realms() {
         let mut realm = MockRealm::new();
-        realm.expect_get_realm_data().returning(|| RealmData {});
+        realm
+            .expect_get_realm_data()
+            .returning(|| create_realm_data());
         let mut daemon = create_host_daemon(Some(realm));
         let uuid = daemon.create_realm(create_example_config()).unwrap();
         let listed_realm = daemon
@@ -192,7 +201,9 @@ mod test {
     fn create_host_daemon(realm_mock: Option<MockRealm>) -> WardenDaemon {
         let realm_mock = Box::new(realm_mock.unwrap_or({
             let mut realm_mock = MockRealm::new();
-            realm_mock.expect_destroy().returning(|| Ok(()));
+            realm_mock.expect_get_realm_data().returning(|| RealmData {
+                state: State::Halted,
+            });
             realm_mock
         }));
         let mut creator_mock = MockRealmManagerCreator::new();
@@ -223,6 +234,12 @@ mod test {
         }
     }
 
+    fn create_realm_data() -> RealmData {
+        RealmData {
+            state: State::Halted,
+        }
+    }
+
     mock! {
         pub Realm{}
         #[async_trait]
@@ -233,8 +250,7 @@ mod test {
             async fn create_application(&mut self, config: ApplicationConfig) -> Result<Uuid, RealmError>;
             fn get_realm_data(& self) -> RealmData;
             async fn get_application(&self, uuid: Uuid) -> Result<Arc<tokio::sync::Mutex<Box<dyn Application + Send + Sync>>>, RealmError>;
-            fn destroy(&mut self) -> Result<(), RealmError>;
-            fn signal_reboot(&mut self);
+            async fn update_application(&mut self, uuid: Uuid, new_config: ApplicationConfig) -> Result<(), RealmError>;
         }
     }
 

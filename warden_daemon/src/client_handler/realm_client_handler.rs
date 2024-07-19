@@ -7,8 +7,7 @@ use tokio::time::{sleep, Duration};
 use tokio::{select, sync::oneshot::Receiver};
 use uuid::Uuid;
 
-use crate::managers::application::ApplicationConfig;
-use crate::managers::realm_client::{RealmClient, RealmClientError};
+use crate::managers::realm_client::{RealmClient, RealmClientError, RealmProvisioningConfig};
 
 #[derive(Debug, Error)]
 pub enum RealmSenderError {
@@ -18,10 +17,9 @@ pub enum RealmSenderError {
 
 #[derive(Serialize, Deserialize, Debug, Clone)]
 pub enum RealmCommand {
-    ConnectionConfirmation,
+    ProvisioningConfig(RealmProvisioningConfig),
     StartApplication(Uuid),
     StopApplication(Uuid),
-    CreateApplication(ApplicationConfig),
 }
 
 #[async_trait]
@@ -53,7 +51,11 @@ impl RealmClientHandler {
 
 #[async_trait]
 impl RealmClient for RealmClientHandler {
-    async fn acknowledge_client_connection(&mut self, cid: u32) -> Result<(), RealmClientError> {
+    async fn send_realm_provisioning_config(
+        &mut self,
+        realm_provisioning_config: RealmProvisioningConfig,
+        cid: u32,
+    ) -> Result<(), RealmClientError> {
         const WAITING_TIME: Duration = Duration::from_secs(10);
         let realm_sender_receiver = self
             .realm_connector
@@ -67,7 +69,7 @@ impl RealmClient for RealmClientHandler {
                 let realm_sender = realm_sender.map_err(|err| RealmClientError::RealmConnectorError(format!("{err}")))?;
                 let sender = self.realm_sender.insert(realm_sender);
                 sender
-                    .send(RealmCommand::ConnectionConfirmation)
+                    .send(RealmCommand::ProvisioningConfig(realm_provisioning_config))
                     .await
                     .map_err(|err| RealmClientError::CommunicationFail(format!("{err}")))
             }
@@ -75,20 +77,6 @@ impl RealmClient for RealmClientHandler {
                 Err(RealmClientError::RealmConnectorError(String::from("Timeout on listening for realm connection!")))
             }
         }
-    }
-
-    async fn create_application(
-        &mut self,
-        config: &ApplicationConfig,
-    ) -> Result<(), RealmClientError> {
-        let realm_sender = self
-            .realm_sender
-            .as_mut()
-            .ok_or(RealmClientError::MissingConnection)?;
-        realm_sender
-            .send(RealmCommand::CreateApplication(config.clone()))
-            .await
-            .map_err(|err| RealmClientError::CommunicationFail(format!("{err}")))
     }
     async fn start_application(&mut self, application_uuid: &Uuid) -> Result<(), RealmClientError> {
         let realm_sender = self
@@ -127,7 +115,7 @@ mod test {
     };
     use uuid::Uuid;
 
-    use crate::managers::{application::ApplicationConfig, realm_client::RealmClientError};
+    use crate::managers::realm_client::{RealmClientError, RealmProvisioningConfig};
 
     use super::{
         RealmClient, RealmClientHandler, RealmCommand, RealmConnector, RealmSender,
@@ -140,7 +128,7 @@ mod test {
         let cid = 0;
         assert!(realm_client_handler.realm_sender.is_none());
         assert!(realm_client_handler
-            .acknowledge_client_connection(cid)
+            .send_realm_provisioning_config(create_realm_provisioning_config(), cid)
             .await
             .is_ok());
         assert!(realm_client_handler.realm_sender.is_some());
@@ -155,7 +143,7 @@ mod test {
         });
         let mut realm_client_handler = create_realm_client_handler(None, Some(sender));
         realm_client_handler
-            .acknowledge_client_connection(0)
+            .send_realm_provisioning_config(create_realm_provisioning_config(), 0)
             .await
             .unwrap();
         assert_eq!(
@@ -172,7 +160,7 @@ mod test {
     async fn start_application() {
         let mut realm_client_handler = create_realm_client_handler(None, None);
         realm_client_handler
-            .acknowledge_client_connection(0)
+            .send_realm_provisioning_config(create_realm_provisioning_config(), 0)
             .await
             .unwrap();
         assert!(realm_client_handler
@@ -190,7 +178,7 @@ mod test {
         });
         let mut realm_client_handler = create_realm_client_handler(None, Some(sender));
         realm_client_handler
-            .acknowledge_client_connection(0)
+            .send_realm_provisioning_config(create_realm_provisioning_config(), 0)
             .await
             .unwrap();
         assert_eq!(
@@ -210,49 +198,10 @@ mod test {
             Err(RealmClientError::MissingConnection)
         );
         realm_client_handler
-            .acknowledge_client_connection(0)
+            .send_realm_provisioning_config(create_realm_provisioning_config(), 0)
             .await
             .unwrap();
         assert!(realm_client_handler.stop_application(&uuid).await.is_ok());
-    }
-
-    #[tokio::test]
-    async fn create_application() {
-        let mut realm_client_handler = create_realm_client_handler(None, None);
-        let config = create_application_struct();
-        assert_eq!(
-            realm_client_handler.create_application(&config).await,
-            Err(RealmClientError::MissingConnection)
-        );
-        realm_client_handler
-            .acknowledge_client_connection(0)
-            .await
-            .unwrap();
-        assert!(realm_client_handler
-            .create_application(&config)
-            .await
-            .is_ok());
-    }
-
-    #[tokio::test]
-    async fn create_application_sender_error() {
-        let mut sender = MockRealmSender::new();
-        sender.expect_send().returning(|command| match command {
-            RealmCommand::CreateApplication(_) => Err(RealmSenderError::SendFail(Error::other(""))),
-            _ => Ok(()),
-        });
-        let mut realm_client_handler = create_realm_client_handler(None, Some(sender));
-        realm_client_handler
-            .acknowledge_client_connection(0)
-            .await
-            .unwrap();
-        let config = create_application_struct();
-        assert_eq!(
-            realm_client_handler.create_application(&config).await,
-            Err(RealmClientError::CommunicationFail(format!(
-                "Failed to send command: "
-            )))
-        );
     }
 
     #[tokio::test]
@@ -269,7 +218,7 @@ mod test {
         let mut realm_client_handler = create_realm_client_handler(Some(realm_connector), None);
         let cid = 0;
         assert!(realm_client_handler
-            .acknowledge_client_connection(cid)
+            .send_realm_provisioning_config(create_realm_provisioning_config(), cid)
             .await
             .is_err());
         assert!(realm_client_handler.realm_sender.is_none());
@@ -285,7 +234,7 @@ mod test {
         let cid = 0;
         assert_eq!(
             realm_client_handler
-                .acknowledge_client_connection(cid)
+                .send_realm_provisioning_config(create_realm_provisioning_config(), cid)
                 .await,
             Err(RealmClientError::CommunicationFail(
                 RealmSenderError::SendFail(io::Error::other("")).to_string()
@@ -319,8 +268,8 @@ mod test {
         RealmClientHandler::new(Arc::new(Mutex::new(realm_connector)))
     }
 
-    fn create_application_struct() -> ApplicationConfig {
-        ApplicationConfig {}
+    fn create_realm_provisioning_config() -> RealmProvisioningConfig {
+        RealmProvisioningConfig {}
     }
 
     mock! {

@@ -183,7 +183,12 @@ impl ClientHandler {
             }
             ClientCommand::DestroyRealm { uuid } => {
                 info!("Destroying realm: {uuid}!");
-                let _ = self.warden.lock().await.destroy_realm(uuid);
+                self.warden
+                    .lock()
+                    .await
+                    .destroy_realm(uuid)
+                    .await
+                    .map_err(|err| ClientError::WardenDaemonError(err))?;
                 info!("Realm: {uuid} destroyed!");
                 Ok(ClientReponse::Ok)
             }
@@ -263,10 +268,13 @@ impl ClientHandler {
                 config,
             } => {
                 info!("Starting application: {application_uuid} in realm: {realm_uuid}!");
-                let application = self.get_application(&realm_uuid, &application_uuid).await?;
-                application.lock().await.update(config);
-                let realm = self.get_realm(&realm_uuid).await?;
-                realm.lock().await.signal_reboot();
+                self.get_realm(&realm_uuid)
+                    .await?
+                    .lock()
+                    .await
+                    .update_application(application_uuid, config)
+                    .await
+                    .map_err(|err| ClientError::RealmManagerError(err))?;
                 info!("Started application: {application_uuid} in realm: {realm_uuid}!");
                 Ok(ClientReponse::Ok)
             }
