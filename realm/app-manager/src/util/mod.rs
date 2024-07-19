@@ -1,7 +1,9 @@
 use std::{ffi::{CString, FromVecWithNulError, NulError}, path::Path};
 
+use disk::DiskError;
 use thiserror::Error;
 
+mod disk;
 mod fs;
 mod serde;
 
@@ -12,6 +14,9 @@ pub enum UtilsError {
 
     #[error("Serde error")]
     SerdeError(#[from] serde::JsonFramedError),
+
+    #[error("Disk error")]
+    DiskError(#[from] DiskError),
 
     #[error("String conversion error to CString")]
     CstringConvError(#[from] NulError),
