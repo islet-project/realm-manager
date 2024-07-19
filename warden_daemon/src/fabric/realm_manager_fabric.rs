@@ -5,7 +5,7 @@ use tokio::sync::Mutex;
 
 use crate::managers::application::ApplicationCreator;
 use crate::managers::realm::{Realm, RealmCreator};
-use crate::managers::realm_client::RealmClientHandler;
+use crate::client_handler::realm_client_handler::RealmClientHandler;
 use crate::managers::realm_configuration::RealmConfig;
 use crate::managers::realm_manager::RealmManager;
 use crate::socket::vsocket_server::VSockServer;

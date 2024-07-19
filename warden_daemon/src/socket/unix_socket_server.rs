@@ -10,7 +10,7 @@ use tokio::task::AbortHandle;
 use tokio::{select, task::JoinSet};
 use tokio_util::sync::CancellationToken;
 
-use crate::command_handler::client_command_handler::Client;
+use crate::client_handler::client_command_handler::Client;
 use crate::managers::warden::Warden;
 
 #[derive(Error, Debug)]

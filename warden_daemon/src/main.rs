@@ -1,6 +1,6 @@
 use anyhow::Error;
 use clap::Parser;
-use command_handler::client_command_handler::ClientHandler;
+use client_handler::client_command_handler::ClientHandler;
 use fabric::application_fabric::ApplicationFabric;
 use fabric::realm_manager_fabric::RealmManagerFabric;
 use log::{error, info};
@@ -19,7 +19,7 @@ use tokio::task::JoinHandle;
 use tokio_util::sync::CancellationToken;
 use tokio_vsock::VMADDR_CID_HOST;
 
-mod command_handler;
+mod client_handler;
 mod fabric;
 mod managers;
 mod socket;

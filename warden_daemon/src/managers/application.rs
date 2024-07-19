@@ -5,7 +5,8 @@ use thiserror::Error;
 use tokio::sync::Mutex;
 use uuid::Uuid;
 
-use super::realm_manager::RealmClient;
+use super::realm_client::RealmClient;
+
 
 #[derive(Debug, Error, PartialEq, PartialOrd, Serialize, Deserialize)]
 pub enum ApplicationError {
@@ -22,7 +23,7 @@ pub trait ApplicationCreator {
     fn create_application(
         &self,
         config: ApplicationConfig,
-        realm_client: Arc<Mutex<Box<dyn RealmClient + Send + Sync>>>,
+        realm_client_handler: Arc<Mutex<Box<dyn RealmClient + Send + Sync>>>,
     ) -> Box<dyn Application + Send + Sync>;
 }
 

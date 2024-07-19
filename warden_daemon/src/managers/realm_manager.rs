@@ -8,6 +8,7 @@ use uuid::Uuid;
 
 use super::application::{Application, ApplicationConfig, ApplicationCreator};
 use super::realm::{Realm, RealmData, RealmError};
+use super::realm_client::RealmClient;
 use super::realm_configuration::*;
 
 #[derive(Debug, Clone, PartialEq, PartialOrd)]
@@ -42,33 +43,12 @@ pub enum VmManagerError {
     DestroyFail,
 }
 
-#[derive(Debug, Clone, Error, PartialEq, PartialOrd)]
-pub enum RealmClientError {
-    #[error("Can't connect with the Realm, error: {0}")]
-    RealmConnectorError(String),
-    #[error("Can't communicate with connected Realm, error: {0}")]
-    CommunicationFail(String),
-    #[error("Not connected to the realm!")]
-    MissingConnection,
-}
-
-#[async_trait]
-pub trait RealmClient {
-    async fn acknowledge_client_connection(&mut self, cid: u32) -> Result<(), RealmClientError>;
-    async fn create_application(
-        &mut self,
-        config: &ApplicationConfig,
-    ) -> Result<(), RealmClientError>;
-    async fn start_application(&mut self, application_uuid: &Uuid) -> Result<(), RealmClientError>;
-    async fn stop_application(&mut self, application_uuid: &Uuid) -> Result<(), RealmClientError>;
-}
-
 pub struct RealmManager {
     state: State,
     config: RealmConfig,
     apps_map: Mutex<HashMap<Uuid, Arc<Mutex<Box<dyn Application + Send + Sync>>>>>,
     vm_manager: Box<dyn VmManager + Send + Sync>,
-    realm_client: Arc<Mutex<Box<dyn RealmClient + Send + Sync>>>,
+    realm_client_handler: Arc<Mutex<Box<dyn RealmClient + Send + Sync>>>,
     application_fabric: Arc<Box<dyn ApplicationCreator + Send + Sync>>,
 }
 
@@ -76,7 +56,7 @@ impl RealmManager {
     pub fn new(
         config: RealmConfig,
         vm_manager: Box<dyn VmManager + Send + Sync>,
-        realm_client: Arc<Mutex<Box<dyn RealmClient + Send + Sync>>>,
+        realm_client_handler: Arc<Mutex<Box<dyn RealmClient + Send + Sync>>>,
         application_fabric: Arc<Box<dyn ApplicationCreator + Send + Sync>>,
     ) -> Self {
         RealmManager {
@@ -84,7 +64,7 @@ impl RealmManager {
             apps_map: Mutex::new(HashMap::new()),
             config,
             vm_manager,
-            realm_client,
+            realm_client_handler,
             application_fabric,
         }
     }
@@ -104,7 +84,7 @@ impl Realm for RealmManager {
         self.state = State::Provisioning;
 
         match self
-            .realm_client
+            .realm_client_handler
             .lock()
             .await
             .acknowledge_client_connection(self.config.network.vsock_cid)
@@ -160,7 +140,7 @@ impl Realm for RealmManager {
             )));
         }
         let uuid = Uuid::new_v4();
-        self.realm_client
+        self.realm_client_handler
             .lock()
             .await
             .create_application(&config)
@@ -168,7 +148,7 @@ impl Realm for RealmManager {
             .map_err(|err| RealmError::ApplicationCreationFail(format!("{}", err)))?;
         let application = self
             .application_fabric
-            .create_application(config, self.realm_client.clone());
+            .create_application(config, self.realm_client_handler.clone());
 
         let _ = self
             .apps_map
@@ -225,14 +205,11 @@ mod test {
     use uuid::Uuid;
 
     use super::{
-        RealmClient, RealmClientError, RealmConfig, RealmError, RealmManager, VmManager,
+        RealmClient, RealmConfig, RealmError, RealmManager, VmManager,
         VmManagerError,
     };
     use crate::managers::{
-        application::{Application, ApplicationConfig, ApplicationCreator, ApplicationError},
-        realm::Realm,
-        realm_configuration::*,
-        realm_manager::State,
+        application::{Application, ApplicationConfig, ApplicationCreator, ApplicationError}, realm::Realm, realm_client::RealmClientError, realm_configuration::*, realm_manager::State
     };
 
     #[test]
@@ -462,7 +439,7 @@ mod test {
     fn create_realm_manager(
         config: RealmConfig,
         vm_manager: Option<MockVmManager>,
-        realm_client: Option<MockRealmClient>,
+        realm_client_handler: Option<MockRealmClient>,
     ) -> RealmManager {
         let mut vm_manager = vm_manager.unwrap_or(MockVmManager::new());
         vm_manager.expect_setup_cpu().returning(|_| ());
@@ -473,17 +450,17 @@ mod test {
         vm_manager.expect_launch_vm().returning(|| Ok(()));
         vm_manager.expect_stop_vm().returning(|| Ok(()));
         vm_manager.expect_delete_vm().returning(|| Ok(()));
-        let mut realm_client = realm_client.unwrap_or(MockRealmClient::new());
-        realm_client
+        let mut realm_client_handler = realm_client_handler.unwrap_or(MockRealmClient::new());
+        realm_client_handler
             .expect_acknowledge_client_connection()
             .returning(|_| Ok(()));
-        realm_client
+        realm_client_handler
             .expect_create_application()
             .returning(|_| Ok(()));
-        realm_client
+        realm_client_handler
             .expect_start_application()
             .returning(|_| Ok(()));
-        realm_client.expect_stop_application().returning(|_| Ok(()));
+        realm_client_handler.expect_stop_application().returning(|_| Ok(()));
 
         let app_mock = MockApplication::new();
         let mut creator_mock = MockApplicationFabric::new();
@@ -493,7 +470,7 @@ mod test {
         RealmManager::new(
             config,
             Box::new(vm_manager),
-            Arc::new(Mutex::new(Box::new(realm_client))),
+            Arc::new(Mutex::new(Box::new(realm_client_handler))),
             Arc::new(Box::new(creator_mock)),
         )
     }
@@ -555,7 +532,7 @@ mod test {
     mock! {
         pub ApplicationFabric {}
         impl ApplicationCreator for ApplicationFabric {
-            fn create_application(&self, config: ApplicationConfig, realm_client: Arc<tokio::sync::Mutex<Box<dyn RealmClient + Send + Sync>>>) -> Box<dyn Application + Send + Sync>;
+            fn create_application(&self, config: ApplicationConfig, realm_client_handler: Arc<tokio::sync::Mutex<Box<dyn RealmClient + Send + Sync>>>) -> Box<dyn Application + Send + Sync>;
         }
     }
 
