@@ -97,22 +97,32 @@ impl VSockServer {
 }
 
 struct VSockClient {
-    stream: tokio_serde::Framed<FramedWrite<VsockStream, LengthDelimitedCodec>, RealmCommand, RealmCommand, tokio_serde::formats::Json<RealmCommand, RealmCommand>>
+    stream: tokio_serde::Framed<
+        FramedWrite<VsockStream, LengthDelimitedCodec>,
+        RealmCommand,
+        RealmCommand,
+        tokio_serde::formats::Json<RealmCommand, RealmCommand>,
+    >,
 }
 
 impl VSockClient {
     fn new(stream: VsockStream) -> Self {
         let length_delimited = FramedWrite::new(stream, LengthDelimitedCodec::new());
-        let serialized = tokio_serde::SymmetricallyFramed::new(length_delimited, SymmetricalJson::<RealmCommand>::default());
-        VSockClient { stream: serialized}
+        let serialized = tokio_serde::SymmetricallyFramed::new(
+            length_delimited,
+            SymmetricalJson::<RealmCommand>::default(),
+        );
+        VSockClient { stream: serialized }
     }
 }
-
 
 #[async_trait]
 impl RealmSender for VSockClient {
     async fn send(&mut self, data: RealmCommand) -> Result<(), RealmSenderError> {
-        self.stream.send(data).await.map_err(|err|RealmSenderError::SendFail(err))
+        self.stream
+            .send(data)
+            .await
+            .map_err(|err| RealmSenderError::SendFail(err))
     }
 }
 

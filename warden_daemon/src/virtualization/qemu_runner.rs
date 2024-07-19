@@ -1,5 +1,5 @@
 use std::path::PathBuf;
-use std::process::{Child, Command, Stdio};
+use std::process::{Child, Command, ExitStatus, Stdio};
 
 use log::trace;
 
@@ -77,6 +77,12 @@ impl VmManager for QemuRunner {
     }
     fn delete_vm(&self) -> Result<(), VmManagerError> {
         Err(VmManagerError::DestroyFail)
+    }
+    fn get_exit_status(&mut self) -> Option<ExitStatus> {
+        if let Some(vm) = &mut self.vm {
+            return vm.try_wait().ok()?;
+        }
+        None
     }
 }
 

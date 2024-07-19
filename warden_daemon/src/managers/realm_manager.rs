@@ -1,6 +1,7 @@
 use async_trait::async_trait;
 use std::collections::HashMap;
 use std::io;
+use std::process::ExitStatus;
 use std::sync::Arc;
 use thiserror::Error;
 use tokio::sync::Mutex;
@@ -29,6 +30,7 @@ pub trait VmManager {
     fn launch_vm(&mut self) -> Result<(), VmManagerError>;
     fn stop_vm(&mut self) -> Result<(), VmManagerError>;
     fn delete_vm(&self) -> Result<(), VmManagerError>;
+    fn get_exit_status(&mut self) -> Option<ExitStatus>;
 }
 
 #[derive(Debug, Error)]
@@ -96,7 +98,11 @@ impl Realm for RealmManager {
             }
             Err(err) => {
                 self.state = State::Halted;
-                Err(RealmError::RealmCantStart(format!("{err}")))
+                let mut error = format!("{err}");
+                if let Some(runner_error) = self.vm_manager.get_exit_status() {
+                    error = format!("{error}, {}", runner_error);
+                }
+                Err(RealmError::RealmCantStart(error))
             }
         }
     }
@@ -198,7 +204,7 @@ impl RealmManager {
 
 #[cfg(test)]
 mod test {
-    use std::{io::Error, path::PathBuf, sync::Arc};
+    use std::{io::Error, path::PathBuf, process::ExitStatus, sync::Arc};
 
     use async_trait::async_trait;
     use mockall::mock;
@@ -466,6 +472,7 @@ mod test {
         realm_client_handler
             .expect_stop_application()
             .returning(|_| Ok(()));
+        vm_manager.expect_get_exit_status().returning(|| None);
 
         let app_mock = MockApplication::new();
         let mut creator_mock = MockApplicationFabric::new();
@@ -517,6 +524,7 @@ mod test {
             fn launch_vm(&mut self) -> Result<(), VmManagerError>;
             fn stop_vm(&mut self) -> Result<(), VmManagerError>;
             fn delete_vm(&self) -> Result<(), VmManagerError>;
+            fn get_exit_status(&mut self) -> Option<ExitStatus>;
         }
     }
 
