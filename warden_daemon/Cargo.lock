@@ -863,6 +863,7 @@ dependencies = [
  "async-trait",
  "clap",
  "env_logger",
+ "futures",
  "futures-util",
  "log",
  "mockall",

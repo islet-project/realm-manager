@@ -12,8 +12,6 @@ use crate::managers::realm_client::{RealmClient, RealmClientError};
 
 #[derive(Debug, Error)]
 pub enum RealmSenderError {
-    #[error("Failed to parse command")]
-    CommandParsingFail(RealmCommand),
     #[error("Failed to send command: {0}")]
     SendFail(#[from] io::Error),
 }

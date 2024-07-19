@@ -3,12 +3,14 @@ use std::io;
 use std::sync::Arc;
 
 use async_trait::async_trait;
+use futures::SinkExt;
 use log::{info, trace};
 use thiserror::Error;
-use tokio::io::AsyncWriteExt;
 use tokio::select;
 use tokio::sync::oneshot::{Receiver, Sender};
 use tokio::sync::{oneshot, Mutex};
+use tokio_serde::formats::SymmetricalJson;
+use tokio_util::codec::{FramedWrite, LengthDelimitedCodec};
 use tokio_util::sync::CancellationToken;
 use tokio_vsock::{VsockAddr, VsockListener, VsockStream};
 
@@ -87,7 +89,7 @@ impl VSockServer {
         if let Some(tx) = self.waiting.remove(&addr.cid()) {
             info!("Client has connected succesfully!");
             return tx
-                .send(Box::new(VSockClient { stream }))
+                .send(Box::new(VSockClient::new(stream)))
                 .map_err(|_| VSockServerError::ChannelFail);
         }
         Err(VSockServerError::UnexpectedConnection)
@@ -95,19 +97,22 @@ impl VSockServer {
 }
 
 struct VSockClient {
-    stream: VsockStream,
+    stream: tokio_serde::Framed<FramedWrite<VsockStream, LengthDelimitedCodec>, RealmCommand, RealmCommand, tokio_serde::formats::Json<RealmCommand, RealmCommand>>
 }
+
+impl VSockClient {
+    fn new(stream: VsockStream) -> Self {
+        let length_delimited = FramedWrite::new(stream, LengthDelimitedCodec::new());
+        let serialized = tokio_serde::SymmetricallyFramed::new(length_delimited, SymmetricalJson::<RealmCommand>::default());
+        VSockClient { stream: serialized}
+    }
+}
+
 
 #[async_trait]
 impl RealmSender for VSockClient {
     async fn send(&mut self, data: RealmCommand) -> Result<(), RealmSenderError> {
-        let serialized_data =
-            serde_json::to_vec(&data).map_err(|_| RealmSenderError::CommandParsingFail(data))?;
-        self.stream
-            .write_all(&serialized_data)
-            .await
-            .map_err(|err| RealmSenderError::SendFail(err))
-            .map(|_| ())
+        self.stream.send(data).await.map_err(|err|RealmSenderError::SendFail(err))
     }
 }
 
