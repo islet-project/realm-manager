@@ -1,6 +1,7 @@
 use std::sync::Arc;
 
 use tokio::sync::Mutex;
+use uuid::Uuid;
 
 use crate::managers::{
     application::{Application, ApplicationConfig, ApplicationCreator},
@@ -19,9 +20,10 @@ impl ApplicationFabric {
 impl ApplicationCreator for ApplicationFabric {
     fn create_application(
         &self,
+        uuid: Uuid,
         config: ApplicationConfig,
         realm_client_handler: Arc<Mutex<Box<dyn RealmClient + Send + Sync>>>,
     ) -> Box<dyn Application + Send + Sync> {
-        Box::new(ApplicationManager::new(config, realm_client_handler))
+        Box::new(ApplicationManager::new(uuid, config, realm_client_handler))
     }
 }

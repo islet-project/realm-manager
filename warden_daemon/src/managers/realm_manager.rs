@@ -146,9 +146,11 @@ impl Realm for RealmManager {
             .create_application(&config)
             .await
             .map_err(|err| RealmError::ApplicationCreationFail(format!("{}", err)))?;
-        let application = self
-            .application_fabric
-            .create_application(config, self.realm_client_handler.clone());
+        let application = self.application_fabric.create_application(
+            uuid,
+            config,
+            self.realm_client_handler.clone(),
+        );
 
         let _ = self
             .apps_map
@@ -469,7 +471,7 @@ mod test {
         let mut creator_mock = MockApplicationFabric::new();
         creator_mock
             .expect_create_application()
-            .return_once(move |_, _| Box::new(app_mock));
+            .return_once(move |_, _, _| Box::new(app_mock));
         RealmManager::new(
             config,
             Box::new(vm_manager),
@@ -500,9 +502,7 @@ mod test {
     }
 
     fn create_example_application_config() -> ApplicationConfig {
-        ApplicationConfig {
-            uuid: Uuid::new_v4(),
-        }
+        ApplicationConfig {}
     }
 
     mock! {
@@ -535,7 +535,8 @@ mod test {
     mock! {
         pub ApplicationFabric {}
         impl ApplicationCreator for ApplicationFabric {
-            fn create_application(&self, config: ApplicationConfig, realm_client_handler: Arc<tokio::sync::Mutex<Box<dyn RealmClient + Send + Sync>>>) -> Box<dyn Application + Send + Sync>;
+            fn create_application(&self,
+                uuid: Uuid,  config: ApplicationConfig, realm_client_handler: Arc<tokio::sync::Mutex<Box<dyn RealmClient + Send + Sync>>>) -> Box<dyn Application + Send + Sync>;
         }
     }
 

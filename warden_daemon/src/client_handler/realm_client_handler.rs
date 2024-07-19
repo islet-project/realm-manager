@@ -322,9 +322,7 @@ mod test {
     }
 
     fn create_application_struct() -> ApplicationConfig {
-        ApplicationConfig {
-            uuid: Uuid::new_v4(),
-        }
+        ApplicationConfig {}
     }
 
     mock! {

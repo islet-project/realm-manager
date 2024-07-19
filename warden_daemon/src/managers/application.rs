@@ -21,6 +21,7 @@ pub enum ApplicationClientError {}
 pub trait ApplicationCreator {
     fn create_application(
         &self,
+        uuid: Uuid,
         config: ApplicationConfig,
         realm_client_handler: Arc<Mutex<Box<dyn RealmClient + Send + Sync>>>,
     ) -> Box<dyn Application + Send + Sync>;
@@ -34,6 +35,4 @@ pub trait Application {
 }
 
 #[derive(Debug, Serialize, Deserialize, Clone)]
-pub struct ApplicationConfig {
-    pub uuid: Uuid,
-}
+pub struct ApplicationConfig {}

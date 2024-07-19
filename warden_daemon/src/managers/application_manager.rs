@@ -1,6 +1,7 @@
 use async_trait::async_trait;
 use std::sync::Arc;
 use tokio::sync::Mutex;
+use uuid::Uuid;
 
 use super::{
     application::{Application, ApplicationConfig, ApplicationError},
@@ -8,18 +9,21 @@ use super::{
 };
 
 pub struct ApplicationManager {
-    config: ApplicationConfig,
+    uuid: Uuid,
+    _config: ApplicationConfig,
     realm_client_handler: Arc<Mutex<Box<dyn RealmClient + Send + Sync>>>,
     new_config: Option<ApplicationConfig>,
 }
 
 impl ApplicationManager {
     pub fn new(
+        uuid: Uuid,
         config: ApplicationConfig,
         realm_client_handler: Arc<Mutex<Box<dyn RealmClient + Send + Sync>>>,
     ) -> Self {
         ApplicationManager {
-            config,
+            uuid,
+            _config: config,
             realm_client_handler,
             new_config: None,
         }
@@ -32,7 +36,7 @@ impl Application for ApplicationManager {
         self.realm_client_handler
             .lock()
             .await
-            .stop_application(&self.config.uuid)
+            .stop_application(&self.uuid)
             .await
             .map_err(|err| ApplicationError::ApplicationStopError(format!("{}", err)))?;
         Ok(())
@@ -41,7 +45,7 @@ impl Application for ApplicationManager {
         self.realm_client_handler
             .lock()
             .await
-            .start_application(&self.config.uuid)
+            .start_application(&self.uuid)
             .await
             .map_err(|err| ApplicationError::ApplicationStartFail(format!("{}", err)))?;
         Ok(())
