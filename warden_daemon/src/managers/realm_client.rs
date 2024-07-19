@@ -5,7 +5,9 @@ use thiserror::Error;
 use tokio::sync::Mutex;
 use tokio::time::{sleep, Duration};
 use tokio::{select, sync::oneshot::Receiver};
+use uuid::Uuid;
 
+use super::application::ApplicationConfig;
 use super::realm_manager::{RealmClient, RealmClientError};
 
 #[derive(Debug, Error)]
@@ -19,6 +21,9 @@ pub enum RealmSenderError {
 #[derive(Serialize, Deserialize, Debug, Clone)]
 pub enum RealmCommand {
     ConnectionConfirmation,
+    StartApplication(Uuid),
+    StopApplication(Uuid),
+    CreateApplication(ApplicationConfig),
 }
 
 #[async_trait]
@@ -72,6 +77,40 @@ impl RealmClient for RealmClientHandler {
                 Err(RealmClientError::RealmConnectorError(String::from("Timeout on listening for realm connection!")))
             }
         }
+    }
+
+    async fn create_application(
+        &mut self,
+        config: &ApplicationConfig,
+    ) -> Result<(), RealmClientError> {
+        let realm_sender = self
+            .realm_sender
+            .as_mut()
+            .ok_or(RealmClientError::MissingConnection)?;
+        realm_sender
+            .send(RealmCommand::CreateApplication(config.clone()))
+            .await
+            .map_err(|err| RealmClientError::CommunicationFail(format!("{err}")))
+    }
+    async fn start_application(&mut self, application_uuid: &Uuid) -> Result<(), RealmClientError> {
+        let realm_sender = self
+            .realm_sender
+            .as_mut()
+            .ok_or(RealmClientError::MissingConnection)?;
+        realm_sender
+            .send(RealmCommand::StartApplication(application_uuid.clone()))
+            .await
+            .map_err(|err| RealmClientError::CommunicationFail(format!("{err}")))
+    }
+    async fn stop_application(&mut self, application_uuid: &Uuid) -> Result<(), RealmClientError> {
+        let realm_sender = self
+            .realm_sender
+            .as_mut()
+            .ok_or(RealmClientError::MissingConnection)?;
+        realm_sender
+            .send(RealmCommand::StopApplication(application_uuid.clone()))
+            .await
+            .map_err(|err| RealmClientError::CommunicationFail(format!("{err}")))
     }
 }
 

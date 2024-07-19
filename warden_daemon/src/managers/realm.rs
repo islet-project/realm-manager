@@ -12,6 +12,8 @@ use uuid::Uuid;
 
 #[derive(Debug, Error, PartialEq, PartialOrd, Serialize, Deserialize)]
 pub enum RealmError {
+    #[error("No such application with this uuid: {0} isinde requested realm!")]
+    ApplicationMissing(Uuid),
     #[error("Error occured while starting realm. Error information: {0}")]
     RealmCantStart(String),
     #[error("Unsupported action: {0}")]
@@ -22,6 +24,8 @@ pub enum RealmError {
     VmStopFail(String),
     #[error("Realm's vm can't be destroyed because {0}")]
     VmDestroyFail(String),
+    #[error("Can't create application because {0}")]
+    ApplicationCreationFail(String),
 }
 
 #[async_trait]
@@ -30,12 +34,13 @@ pub trait Realm {
     async fn reboot(&mut self) -> Result<(), RealmError>;
     async fn get_application(
         &self,
-        uuid: &Uuid,
+        uuid: Uuid,
     ) -> Result<Arc<Mutex<Box<dyn Application + Send + Sync>>>, RealmError>;
+    async fn create_application(&mut self, config: ApplicationConfig) -> Result<Uuid, RealmError>;
     fn stop(&mut self) -> Result<(), RealmError>;
-    fn create_application(&mut self, config: ApplicationConfig) -> Result<Uuid, RealmError>;
     fn get_realm_data(&self) -> RealmData;
     fn destroy(&mut self) -> Result<(), RealmError>;
+    fn signal_reboot(&mut self);
 }
 
 pub trait RealmCreator {

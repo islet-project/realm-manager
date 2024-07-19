@@ -33,12 +33,12 @@ impl RealmManagerFabric {
 
 impl RealmCreator for RealmManagerFabric {
     fn create_realm(&self, config: RealmConfig) -> Box<dyn Realm + Send + Sync> {
-        let vm_manager = Box::new(QemuRunner::new(self.qemu_path.clone()));
-        let realm_client_handler = Box::new(RealmClientHandler::new(self.vsock_server.clone()));
         Box::new(RealmManager::new(
             config,
-            vm_manager,
-            realm_client_handler,
+            Box::new(QemuRunner::new(self.qemu_path.clone())),
+            Arc::new(Mutex::new(Box::new(RealmClientHandler::new(
+                self.vsock_server.clone(),
+            )))),
             self.application_fabric.clone(),
         ))
     }
