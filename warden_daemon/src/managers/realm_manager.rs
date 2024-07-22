@@ -187,9 +187,9 @@ impl Realm for RealmManager {
         uuid: Uuid,
     ) -> Result<Arc<Mutex<Box<dyn Application + Send + Sync>>>, RealmError> {
         if self.state != State::Running && self.state != State::NeedReboot {
-            return Err(RealmError::UnsupportedAction(String::from(
-                "Can't get application while realm isn't running",
-            )));
+            return Err(RealmError::UnsupportedAction(
+                "Can't get application while realm isn't running".to_string(),
+            ));
         }
         match self.apps_map.lock().await.get(&uuid) {
             Some(app_manager) => Ok(app_manager.clone()),

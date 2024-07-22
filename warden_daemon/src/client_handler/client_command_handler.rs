@@ -33,19 +33,19 @@ pub enum ClientCommand {
     DestroyRealm {
         uuid: Uuid,
     },
-    ListRealms,
     InspectRealm {
         uuid: Uuid,
     },
+    ListRealms,
     CreateApplication {
         realm_uuid: Uuid,
         config: ApplicationConfig,
     },
-    StopApplication {
+    StartApplication {
         realm_uuid: Uuid,
         application_uuid: Uuid,
     },
-    StartApplication {
+    StopApplication {
         realm_uuid: Uuid,
         application_uuid: Uuid,
     },
@@ -65,12 +65,12 @@ pub enum ClientReponse {
     Error(ClientError),
 }
 
-#[derive(Debug, Error, Serialize, Deserialize)]
+#[derive(Debug, Error, Serialize, Deserialize, PartialEq, PartialOrd)]
 pub enum ClientError {
     #[error("Failed to read request!")]
     ReadingRequestFail,
     #[error("Can't recognise a command!")]
-    UnknownCommand { size: usize },
+    UnknownCommand { length: usize },
     #[error("Provided Uuid is invalid!")]
     InvalidUuid,
     #[error("Can't serialize a response!")]
@@ -103,12 +103,13 @@ pub struct ClientHandler {
 impl ClientHandler {
     pub async fn handle_requests(&mut self) -> Result<(), ClientError> {
         loop {
+            // TODO! Refactor command reading using tokio_serde
             let mut request_data = String::new();
             select! {
                 readed_bytes = self.socket.read_line(&mut request_data) => {
                     if let Err(err) = self.handle_request(readed_bytes, request_data).await {
                         match err {
-                            ClientError::UnknownCommand{size: 0} => { break; }, // Client disconnected
+                            ClientError::UnknownCommand{length: 0} => { break; }, // Client disconnected
                             _ => {
                                 error!("Error has occured while handling client command: {}", err);
                                 let _ = self.socket.write_all(&serde_json::to_vec(&err).map_err(|_|ClientError::ParsingResponseFail)?).await;
@@ -283,7 +284,7 @@ impl ClientHandler {
     fn resolve_command(&self, serialized_command: String) -> Result<ClientCommand, ClientError> {
         let command: ClientCommand =
             serde_json::from_str(&serialized_command).map_err(|_| ClientError::UnknownCommand {
-                size: serialized_command.len(),
+                length: serialized_command.len(),
             })?;
         Ok(command)
     }
@@ -325,5 +326,334 @@ impl Client for ClientHandler {
             token,
         };
         handler.handle_requests().await
+    }
+}
+
+#[cfg(test)]
+mod test {
+    use crate::managers::{
+        application::{Application, ApplicationConfig, ApplicationError},
+        realm::{Realm, RealmData, RealmDescription, RealmError, State},
+        realm_configuration::{CpuConfig, KernelConfig, MemoryConfig, NetworkConfig, RealmConfig},
+        warden::{Warden, WardenError},
+    };
+    use mockall::mock;
+    use parameterized::parameterized;
+    use std::{path::PathBuf, str::FromStr, sync::Arc};
+    use tokio::{
+        io::{AsyncReadExt, AsyncWriteExt, BufReader},
+        net::UnixStream,
+        sync::Mutex,
+    };
+    use tokio_util::sync::CancellationToken;
+    use uuid::Uuid;
+
+    use super::{async_trait, ClientCommand, ClientError, ClientHandler, ClientReponse};
+
+    #[tokio::test]
+    async fn handle_requests_and_disconnect() {
+        const INPUT: ClientCommand = ClientCommand::ListRealms;
+        let (mut client_socket, mut client_handler) = create_client_handler(None).await;
+        let task = tokio::spawn(async move {
+            client_socket
+                .write_all(&serde_json::to_vec(&INPUT).unwrap())
+                .await
+                .unwrap();
+            client_socket.write(&vec![0xA]).await.unwrap(); //  New line char
+            let mut buffer = [0; 2048];
+            client_socket.read(&mut buffer).await.unwrap();
+            client_socket.shutdown().await.unwrap(); // Testing shutdown
+        });
+        assert_eq!(client_handler.handle_requests().await, Ok(()));
+        task.await.unwrap();
+    }
+
+    #[tokio::test]
+    async fn handle_requests_token_cancellation() {
+        let (mut _client_socket, mut client_handler) = create_client_handler(None).await;
+        client_handler.token.cancel();
+        assert_eq!(client_handler.handle_requests().await, Ok(()));
+    }
+
+    #[tokio::test]
+    async fn get_realm() {
+        let mut warden_daemon = MockWardenDaemon::new();
+        warden_daemon
+            .expect_get_realm()
+            .return_once(|_| Ok(Arc::new(Mutex::new(Box::new(MockRealm::new())))));
+        let (mut _client_socket, client_handler) = create_client_handler(Some(warden_daemon)).await;
+        assert!(client_handler.get_realm(&Uuid::new_v4()).await.is_ok());
+    }
+
+    #[tokio::test]
+    async fn get_realm_fail() {
+        let mut warden_daemon = MockWardenDaemon::new();
+        let uuid = Uuid::new_v4();
+        warden_daemon
+            .expect_get_realm()
+            .return_once(|uuid| Err(WardenError::NoSuchRealm(*uuid)));
+        let (mut _client_socket, client_handler) = create_client_handler(Some(warden_daemon)).await;
+        assert_eq!(
+            client_handler.get_realm(&uuid).await.err().unwrap(),
+            ClientError::WardenDaemonError(WardenError::NoSuchRealm(uuid))
+        );
+    }
+
+    #[tokio::test]
+    async fn get_application() {
+        let mut realm_manager = MockRealm::new();
+        realm_manager
+            .expect_get_application()
+            .return_once(|_| Ok(Arc::new(Mutex::new(Box::new(MockApplication::new())))));
+        let mut warden_daemon = MockWardenDaemon::new();
+        warden_daemon
+            .expect_get_realm()
+            .return_once(|_| Ok(Arc::new(Mutex::new(Box::new(realm_manager)))));
+        let (mut _client_socket, client_handler) = create_client_handler(Some(warden_daemon)).await;
+        assert!(client_handler
+            .get_application(&Uuid::new_v4(), &Uuid::new_v4())
+            .await
+            .is_ok());
+    }
+
+    #[tokio::test]
+    async fn get_application_realm_fail() {
+        let mut warden_daemon = MockWardenDaemon::new();
+        let uuid = Uuid::new_v4();
+        warden_daemon
+            .expect_get_realm()
+            .return_once(|uuid| Err(WardenError::NoSuchRealm(*uuid)));
+        let (mut _client_socket, client_handler) = create_client_handler(Some(warden_daemon)).await;
+        assert_eq!(
+            client_handler
+                .get_application(&uuid, &Uuid::new_v4())
+                .await
+                .err()
+                .unwrap(),
+            ClientError::WardenDaemonError(WardenError::NoSuchRealm(uuid))
+        );
+    }
+
+    #[tokio::test]
+    async fn get_application_fail() {
+        let mut realm_manager = MockRealm::new();
+        realm_manager
+            .expect_get_application()
+            .return_once(|uuid| Err(RealmError::ApplicationMissing(uuid)));
+        let mut warden_daemon = MockWardenDaemon::new();
+        warden_daemon
+            .expect_get_realm()
+            .return_once(|_| Ok(Arc::new(Mutex::new(Box::new(realm_manager)))));
+        let (mut _client_socket, client_handler) = create_client_handler(Some(warden_daemon)).await;
+        let app_uuid = Uuid::new_v4();
+        assert_eq!(
+            client_handler
+                .get_application(&Uuid::new_v4(), &app_uuid)
+                .await
+                .err()
+                .unwrap(),
+            ClientError::RealmManagerError(RealmError::ApplicationMissing(app_uuid))
+        );
+    }
+
+    #[tokio::test]
+    async fn handle_requests_invalid_command() {
+        const MESSAGE: &str = "{}";
+        let mut data = serde_json::to_vec(MESSAGE).unwrap();
+        data.push(0xA); // new line
+        let length = data.len();
+        let (mut client_socket, mut client_handler) = create_client_handler(None).await;
+        let task = tokio::spawn(async move {
+            client_socket.write_all(&data).await.unwrap();
+            let mut buffer = [0; 2048];
+            client_socket.read(&mut buffer).await.unwrap();
+            client_socket.shutdown().await.unwrap();
+            buffer
+        });
+        assert_eq!(client_handler.handle_requests().await, Ok(()));
+        let mut request_response = std::str::from_utf8(&task.await.unwrap())
+            .unwrap()
+            .to_string();
+        request_response.retain(|c| c != '\0');
+        assert_eq!(
+            request_response,
+            serde_json::to_string(&ClientError::UnknownCommand { length }).unwrap()
+        );
+    }
+
+    #[tokio::test]
+    #[parameterized(input = {
+        (ClientCommand::CreateRealm { config: create_example_realm_config() }, ClientReponse::CreatedRealm{uuid: create_example_uuid()}),
+        (ClientCommand::StartRealm { uuid: create_example_uuid()}, ClientReponse::Ok),
+        (ClientCommand::StopRealm { uuid: create_example_uuid() }, ClientReponse::Ok),
+        (ClientCommand::DestroyRealm { uuid: create_example_uuid() }, ClientReponse::Ok),
+        (ClientCommand::RebootRealm { uuid: create_example_uuid() }, ClientReponse::Ok),
+        (ClientCommand::InspectRealm { uuid: create_example_uuid() }, ClientReponse::InspectedRealm(create_example_realm_description())),
+        (ClientCommand::ListRealms, ClientReponse::ListedRealms(vec![create_example_realm_description()])),
+        (ClientCommand::CreateApplication { realm_uuid: create_example_uuid(), config: create_example_app_config() }, ClientReponse::Ok),
+        (ClientCommand::StartApplication { realm_uuid: create_example_uuid(), application_uuid: create_example_uuid() }, ClientReponse::Ok),
+        (ClientCommand::StopApplication { realm_uuid: create_example_uuid(), application_uuid: create_example_uuid() }, ClientReponse::Ok),
+        (ClientCommand::UpdateApplication { realm_uuid: create_example_uuid(), application_uuid: create_example_uuid(), config: create_example_app_config() }, ClientReponse::Ok),
+    })]
+    async fn handle_request(input: (ClientCommand, ClientReponse)) {
+        let (request, response) = input;
+        let (mut receive_socket, mut client_handler) = create_client_handler(None).await;
+        let reader = tokio::spawn(async move {
+            let mut buffer = [0; 2048];
+            receive_socket.read(&mut buffer).await.unwrap();
+            buffer
+        });
+        assert_eq!(
+            client_handler
+                .handle_request(Ok(0), serde_json::to_string(&request).unwrap())
+                .await,
+            Ok(())
+        );
+        let mut request_response = std::str::from_utf8(&reader.await.unwrap())
+            .unwrap()
+            .to_string();
+        request_response.retain(|c| c != '\0');
+        assert_eq!(request_response, serde_json::to_string(&response).unwrap());
+    }
+
+    async fn create_client_handler(
+        warden_daemon: Option<MockWardenDaemon>,
+    ) -> (UnixStream, ClientHandler) {
+        let application_manager: Arc<Mutex<Box<dyn Application + Send + Sync>>> =
+            Arc::new(Mutex::new(Box::new({
+                let mut realm_manager = MockApplication::new();
+                realm_manager.expect_start().returning(|| Ok(()));
+                realm_manager.expect_stop().returning(|| Ok(()));
+                realm_manager.expect_update().returning(|_| ());
+                realm_manager
+            })));
+
+        let realm_manager: Arc<Mutex<Box<dyn Realm + Send + Sync>>> =
+            Arc::new(Mutex::new(Box::new({
+                let mut realm_manager = MockRealm::new();
+                realm_manager.expect_start().returning(|| Ok(()));
+                realm_manager.expect_stop().returning(|| Ok(()));
+                realm_manager.expect_reboot().returning(|| Ok(()));
+                realm_manager
+                    .expect_get_realm_data()
+                    .returning(|| RealmData {
+                        state: State::Halted,
+                    });
+                realm_manager
+                    .expect_get_application()
+                    .return_once(|_| Ok(application_manager));
+                realm_manager
+                    .expect_update_application()
+                    .returning(|_, _| Ok(()));
+                realm_manager
+                    .expect_create_application()
+                    .returning(|_| Ok(create_example_uuid()));
+                realm_manager
+            })));
+
+        let warden_daemon = warden_daemon.unwrap_or({
+            let mut warden_daemon = MockWardenDaemon::new();
+            warden_daemon
+                .expect_create_realm()
+                .returning(|_| Ok(create_example_uuid()));
+            warden_daemon.expect_destroy_realm().returning(|_| Ok(()));
+            warden_daemon
+                .expect_list_realms()
+                .returning(|| vec![create_example_realm_description()]);
+            warden_daemon
+                .expect_inspect_realm()
+                .returning(|_| Ok(create_example_realm_description()));
+            warden_daemon
+                .expect_get_realm()
+                .return_once(|_| Ok(realm_manager));
+            warden_daemon
+        });
+        let (receive_socket, client_socket) = UnixStream::pair().unwrap();
+        (
+            receive_socket,
+            ClientHandler {
+                warden: Arc::new(Mutex::new(Box::new(warden_daemon))),
+                socket: BufReader::new(client_socket),
+                token: Arc::new(CancellationToken::new()),
+            },
+        )
+    }
+
+    fn create_example_realm_description() -> RealmDescription {
+        RealmDescription {
+            uuid: create_example_uuid(),
+            realm_data: RealmData {
+                state: State::Halted,
+            },
+        }
+    }
+
+    fn create_example_uuid() -> Uuid {
+        Uuid::from_str("a46289a4-5902-4586-81a3-908bdd62e7a1").unwrap()
+    }
+
+    fn create_example_realm_config() -> RealmConfig {
+        RealmConfig {
+            machine: String::new(),
+            cpu: CpuConfig {
+                cpu: String::new(),
+                cores_number: 0,
+            },
+            memory: MemoryConfig { ram_size: 0 },
+            network: NetworkConfig {
+                vsock_cid: 0,
+                tap_device: String::new(),
+                mac_address: String::new(),
+                hardware_device: None,
+                remote_terminal_uri: None,
+            },
+            kernel: KernelConfig {
+                kernel_path: PathBuf::new(),
+            },
+        }
+    }
+
+    fn create_example_app_config() -> ApplicationConfig {
+        ApplicationConfig {}
+    }
+
+    mock! {
+        pub WardenDaemon {}
+
+        #[async_trait]
+        impl Warden for WardenDaemon {
+            fn create_realm(&mut self, config: RealmConfig) -> Result<Uuid, WardenError>;
+            async fn destroy_realm(&mut self, realm_uuid: Uuid) -> Result<(), WardenError>;
+            async fn list_realms(&self) -> Vec<RealmDescription>;
+            async fn inspect_realm(&self, realm_uuid: Uuid) -> Result<RealmDescription, WardenError>;
+            fn get_realm(
+                &mut self,
+                realm_uuid: &Uuid,
+            ) -> Result<Arc<tokio::sync::Mutex<Box<dyn Realm + Send + Sync>>>, WardenError>;
+        }
+    }
+
+    mock! {
+        pub Realm{}
+        #[async_trait]
+        impl Realm for Realm {
+            async fn start(&mut self) -> Result<(), RealmError>;
+            fn stop(&mut self) -> Result<(), RealmError>;
+            async fn reboot(&mut self) -> Result<(), RealmError>;
+            async fn create_application(&mut self, config: ApplicationConfig) -> Result<Uuid, RealmError>;
+            fn get_realm_data(& self) -> RealmData;
+            async fn get_application(&self, uuid: Uuid) -> Result<Arc<tokio::sync::Mutex<Box<dyn Application + Send + Sync>>>, RealmError>;
+            async fn update_application(&mut self, uuid: Uuid, new_config: ApplicationConfig) -> Result<(), RealmError>;
+        }
+    }
+
+    mock! {
+        pub Application {}
+        #[async_trait]
+        impl Application for Application {
+            async fn stop(&mut self) -> Result<(), ApplicationError>;
+            async fn start(&mut self) -> Result<(), ApplicationError>;
+            fn update(&mut self, config: ApplicationConfig);
+        }
     }
 }
