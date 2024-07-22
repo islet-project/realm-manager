@@ -3,7 +3,7 @@ use serde::{Deserialize, Serialize};
 use thiserror::Error;
 use uuid::Uuid;
 
-#[derive(Debug, Clone, Error, PartialEq, PartialOrd)]
+#[derive(Debug, Error, PartialEq, PartialOrd)]
 pub enum RealmClientError {
     #[error("Can't connect with the Realm, error: {0}")]
     RealmConnectorError(String),
@@ -13,7 +13,7 @@ pub enum RealmClientError {
     MissingConnection,
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Serialize, Deserialize)]
 pub struct RealmProvisioningConfig {}
 
 #[async_trait]

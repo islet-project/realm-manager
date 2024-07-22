@@ -53,7 +53,7 @@ impl Warden for WardenDaemon {
         let mut vec = vec![];
         for (uuid, realm_manager) in &self.managers_map {
             vec.push(RealmDescription {
-                uuid: uuid.clone(),
+                uuid: *uuid,
                 realm_data: realm_manager.lock().await.get_realm_data(),
             });
         }
@@ -75,9 +75,9 @@ impl Warden for WardenDaemon {
         realm_uuid: &Uuid,
     ) -> Result<Arc<Mutex<Box<dyn Realm + Send + Sync>>>, WardenError> {
         self.managers_map
-            .get(&realm_uuid)
-            .map(|realm| realm.clone())
-            .ok_or(WardenError::NoSuchRealm(realm_uuid.clone()))
+            .get(realm_uuid)
+            .cloned()
+            .ok_or(WardenError::NoSuchRealm(*realm_uuid))
     }
 }
 

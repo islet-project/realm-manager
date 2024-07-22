@@ -55,8 +55,8 @@ impl VmManager for QemuRunner {
     fn setup_memory(&mut self, config: &MemoryConfig) {
         self.command.arg("-m").arg(config.ram_size.to_string());
     }
-    fn setup_machine(&mut self, name: &String) {
-        self.command.arg("-machine").arg(&name);
+    fn setup_machine(&mut self, name: &str) {
+        self.command.arg("-machine").arg(name);
     }
     fn launch_vm(&mut self) -> Result<(), VmManagerError> {
         self.control_output();
@@ -67,7 +67,7 @@ impl VmManager for QemuRunner {
                 self.vm = Some(child);
                 self.command = Command::new(self.command.get_program());
             })
-            .map_err(|err| VmManagerError::LaunchFail(err))
+            .map_err(VmManagerError::LaunchFail)
     }
     fn stop_vm(&mut self) -> Result<(), VmManagerError> {
         self.vm
@@ -75,8 +75,9 @@ impl VmManager for QemuRunner {
             .map(|child| child.kill().map_err(|_| VmManagerError::StopFail))
             .unwrap_or(Err(VmManagerError::VmNotLaunched))
     }
-    fn delete_vm(&self) -> Result<(), VmManagerError> {
-        Err(VmManagerError::DestroyFail)
+    fn delete_vm(&mut self) -> Result<(), VmManagerError> {
+        self.stop_vm()
+            .map_err(|err| VmManagerError::DestroyFail(err.to_string()))
     }
     fn get_exit_status(&mut self) -> Option<ExitStatus> {
         if let Some(vm) = &mut self.vm {

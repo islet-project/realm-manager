@@ -18,10 +18,10 @@ pub trait VmManager {
     fn setup_cpu(&mut self, config: &CpuConfig);
     fn setup_kernel(&mut self, config: &KernelConfig);
     fn setup_memory(&mut self, config: &MemoryConfig);
-    fn setup_machine(&mut self, name: &String);
+    fn setup_machine(&mut self, name: &str);
     fn launch_vm(&mut self) -> Result<(), VmManagerError>;
     fn stop_vm(&mut self) -> Result<(), VmManagerError>;
-    fn delete_vm(&self) -> Result<(), VmManagerError>;
+    fn delete_vm(&mut self) -> Result<(), VmManagerError>;
     fn get_exit_status(&mut self) -> Option<ExitStatus>;
 }
 
@@ -33,14 +33,16 @@ pub enum VmManagerError {
     VmNotLaunched,
     #[error("Unable to stop realm's vm")]
     StopFail,
-    #[error("Unable to destroy realm's vm")]
-    DestroyFail,
+    #[error("Unable to destroy realm's vm: {0}")]
+    DestroyFail(String),
 }
+
+type RealmsMap = HashMap<Uuid, Arc<Mutex<Box<dyn Application + Send + Sync>>>>;
 
 pub struct RealmManager {
     state: State,
     config: RealmConfig,
-    apps_map: Mutex<HashMap<Uuid, Arc<Mutex<Box<dyn Application + Send + Sync>>>>>,
+    apps_map: Mutex<RealmsMap>,
     vm_manager: Box<dyn VmManager + Send + Sync>,
     realm_client_handler: Arc<Mutex<Box<dyn RealmClient + Send + Sync>>>,
     application_fabric: Arc<Box<dyn ApplicationCreator + Send + Sync>>,
@@ -112,7 +114,7 @@ impl Realm for RealmManager {
             }
             Err(err) => {
                 self.state = State::Halted;
-                let mut error = format!("{err}");
+                let mut error = err.to_string();
                 if let Some(runner_error) = self.vm_manager.get_exit_status() {
                     error = format!("{error}, {}", runner_error);
                 }
@@ -130,7 +132,7 @@ impl Realm for RealmManager {
         }
         self.vm_manager
             .stop_vm()
-            .map_err(|err| RealmError::VmStopFail(format!("{}", err)))?;
+            .map_err(|err| RealmError::VmStopFail(err.to_string()))?;
         self.state = State::Halted;
         Ok(())
     }
@@ -142,9 +144,9 @@ impl Realm for RealmManager {
 
     async fn create_application(&mut self, config: ApplicationConfig) -> Result<Uuid, RealmError> {
         if self.state != State::Halted {
-            return Err(RealmError::UnsupportedAction(format!(
-                "Can't create application when realm that is not halted",
-            )));
+            return Err(RealmError::UnsupportedAction(
+                "Can't create application when realm that is not halted".to_string(),
+            ));
         }
         let uuid = Uuid::new_v4();
         let application = self.application_fabric.create_application(
@@ -167,9 +169,9 @@ impl Realm for RealmManager {
         new_config: ApplicationConfig,
     ) -> Result<(), RealmError> {
         if self.state != State::Running && self.state != State::NeedReboot {
-            return Err(RealmError::UnsupportedAction(format!(
-                "Can't update application when realm that is not halted",
-            )));
+            return Err(RealmError::UnsupportedAction(
+                "Can't update application when realm that is not halted".to_string(),
+            ));
         }
         match self.apps_map.lock().await.get(&uuid) {
             Some(app_manager) => {
@@ -531,10 +533,10 @@ mod test {
             fn setup_cpu(&mut self, config: &CpuConfig);
             fn setup_kernel(&mut self, config: &KernelConfig);
             fn setup_memory(&mut self, config: &MemoryConfig);
-            fn setup_machine(&mut self, name: &String);
+            fn setup_machine(&mut self, name: &str);
             fn launch_vm(&mut self) -> Result<(), VmManagerError>;
             fn stop_vm(&mut self) -> Result<(), VmManagerError>;
-            fn delete_vm(&self) -> Result<(), VmManagerError>;
+            fn delete_vm(&mut self) -> Result<(), VmManagerError>;
             fn get_exit_status(&mut self) -> Option<ExitStatus>;
         }
     }

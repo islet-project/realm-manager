@@ -61,7 +61,7 @@ impl VSockServer {
         let mut listener = {
             let config = &handler.as_ref().lock().await.config;
             VsockListener::bind(VsockAddr::new(config.cid, config.port))
-                .map_err(|err| VSockServerError::SocketFail(err))?
+                .map_err(VSockServerError::SocketFail)?
         };
         loop {
             select! {
@@ -122,7 +122,7 @@ impl RealmSender for VSockClient {
         self.stream
             .send(data)
             .await
-            .map_err(|err| RealmSenderError::SendFail(err))
+            .map_err(RealmSenderError::SendFail)
     }
 }
 

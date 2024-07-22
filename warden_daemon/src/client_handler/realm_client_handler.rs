@@ -11,11 +11,11 @@ use crate::managers::realm_client::{RealmClient, RealmClientError, RealmProvisio
 
 #[derive(Debug, Error)]
 pub enum RealmSenderError {
-    #[error("Failed to send command: {0}")]
+    #[error("Failed to send command: {0}!")]
     SendFail(#[from] io::Error),
 }
 
-#[derive(Serialize, Deserialize, Debug, Clone)]
+#[derive(Debug, Deserialize, Serialize)]
 pub enum RealmCommand {
     ProvisioningConfig(RealmProvisioningConfig),
     StartApplication(Uuid),
@@ -66,12 +66,12 @@ impl RealmClient for RealmClientHandler {
 
         select! {
             realm_sender = realm_sender_receiver => {
-                let realm_sender = realm_sender.map_err(|err| RealmClientError::RealmConnectorError(format!("{err}")))?;
+                let realm_sender = realm_sender.map_err(|err| RealmClientError::RealmConnectorError(err.to_string()))?;
                 let sender = self.realm_sender.insert(realm_sender);
                 sender
                     .send(RealmCommand::ProvisioningConfig(realm_provisioning_config))
                     .await
-                    .map_err(|err| RealmClientError::CommunicationFail(format!("{err}")))
+                    .map_err(|err| RealmClientError::CommunicationFail(err.to_string()))
             }
             _ = sleep(WAITING_TIME) => {
                 Err(RealmClientError::RealmConnectorError(String::from("Timeout on listening for realm connection!")))
@@ -84,9 +84,9 @@ impl RealmClient for RealmClientHandler {
             .as_mut()
             .ok_or(RealmClientError::MissingConnection)?;
         realm_sender
-            .send(RealmCommand::StartApplication(application_uuid.clone()))
+            .send(RealmCommand::StartApplication(*application_uuid))
             .await
-            .map_err(|err| RealmClientError::CommunicationFail(format!("{err}")))
+            .map_err(|err| RealmClientError::CommunicationFail(err.to_string()))
     }
     async fn stop_application(&mut self, application_uuid: &Uuid) -> Result<(), RealmClientError> {
         let realm_sender = self
@@ -94,9 +94,9 @@ impl RealmClient for RealmClientHandler {
             .as_mut()
             .ok_or(RealmClientError::MissingConnection)?;
         realm_sender
-            .send(RealmCommand::StopApplication(application_uuid.clone()))
+            .send(RealmCommand::StopApplication(*application_uuid))
             .await
-            .map_err(|err| RealmClientError::CommunicationFail(format!("{err}")))
+            .map_err(|err| RealmClientError::CommunicationFail(err.to_string()))
     }
 }
 
@@ -151,7 +151,7 @@ mod test {
                 .start_application(&Uuid::new_v4())
                 .await,
             Err(RealmClientError::CommunicationFail(format!(
-                "Failed to send command: "
+                "Failed to send command: !"
             )))
         );
     }
@@ -184,7 +184,7 @@ mod test {
         assert_eq!(
             realm_client_handler.stop_application(&Uuid::new_v4()).await,
             Err(RealmClientError::CommunicationFail(format!(
-                "Failed to send command: "
+                "Failed to send command: !"
             )))
         );
     }
