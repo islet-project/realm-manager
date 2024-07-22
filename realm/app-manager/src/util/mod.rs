@@ -3,9 +3,9 @@ use std::{ffi::{CString, FromVecWithNulError, NulError}, path::Path};
 use disk::DiskError;
 use thiserror::Error;
 
-mod disk;
-mod fs;
-mod serde;
+pub mod disk;
+pub mod fs;
+pub mod serde;
 
 #[derive(Debug, Error)]
 pub enum UtilsError {

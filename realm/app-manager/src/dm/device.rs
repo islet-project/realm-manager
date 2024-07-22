@@ -1,6 +1,7 @@
 use std::sync::Arc;
 
 use devicemapper::{DevId, DeviceInfo, DmError, DmFlags, DmOptions, DM};
+use nix::libc::dev_t;
 use thiserror::Error;
 
 use super::Result;
@@ -71,6 +72,12 @@ pub trait DeviceHandleWrapperExt: DeviceHandleWrapper {
             .map_err(DeviceHandleError::SuspendError)?;
 
         Ok(())
+    }
+
+    fn get_major_minor(&self) -> (u32, u32) {
+        let handle = self.handle();
+        let device = handle.info.device();
+        ( device.major, device.minor )
     }
 }
 

@@ -6,8 +6,8 @@ use devicemapper::{DmError, DmName, DmOptions, DmUuid, DmUuidBuf, DM};
 use thiserror::Error;
 use uuid::Uuid;
 
-mod crypt;
-mod device;
+pub mod crypt;
+pub mod device;
 
 #[derive(Debug, Error)]
 pub enum DeviceMapperError {

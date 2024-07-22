@@ -1,8 +1,8 @@
-use std::{ffi::c_void, fmt, os::unix::ffi::OsStrExt, path::Path};
+use std::{ffi::c_void, fmt, fs::Metadata, os::unix::ffi::OsStrExt, path::{Path, PathBuf}};
 use nix::{errno::Errno, libc::{c_char, dev_t, mode_t}};
 use thiserror::Error;
-use tokio::process::Command;
-use super::{cstring_from_path, cstring_from_str, cstring_from_vec, Result};
+use tokio::{fs, process::Command};
+use super::{cstring_from_path, cstring_from_str, cstring_from_vec, Result, UtilsError};
 
 #[derive(Debug, Error)]
 pub enum FsError {
@@ -16,7 +16,19 @@ pub enum FsError {
     MountError(#[source] Errno),
 
     #[error("Error creating device file")]
-    MknodError(#[source] Errno)
+    MknodError(#[source] Errno),
+
+    #[error("Failed to create all directories")]
+    MkdirpError(#[source] std::io::Error),
+
+    #[error("Error while reading link")]
+    ReadLinkError(#[source] std::io::Error),
+
+    #[error("Stat error")]
+    StatError(#[source] std::io::Error),
+
+    #[error("File read error")]
+    FileReadError(#[source] std::io::Error)
 }
 
 pub enum Filesystem {
@@ -43,7 +55,7 @@ fn check_libc_error(result: i32, f: impl FnOnce(Errno) -> FsError) -> Result<()>
     }
 }
 
-pub async fn format(ty: Filesystem, device: impl AsRef<Path>, label: Option<impl AsRef<str>>) -> Result<()> {
+pub async fn format(ty: &Filesystem, device: impl AsRef<Path>, label: Option<impl AsRef<str>>) -> Result<()> {
     let mut cmd = Command::new(format!("/sbin/mkfs.{}", ty));
 
     if let Some(l) = label.as_ref() {
@@ -62,7 +74,7 @@ pub async fn format(ty: Filesystem, device: impl AsRef<Path>, label: Option<impl
     Ok(())
 }
 
-pub fn mount(fs: Filesystem, src: impl AsRef<Path>, dst: impl AsRef<Path>, opt: Option<impl AsRef<str>>) -> Result<()> {
+pub fn mount(fs: &Filesystem, src: impl AsRef<Path>, dst: impl AsRef<Path>, opt: Option<impl AsRef<str>>) -> Result<()> {
     let fs = cstring_from_str(fs.to_string())?;
     let src = cstring_from_path(src)?;
     let dst = cstring_from_path(dst)?;
@@ -117,3 +129,31 @@ pub fn mknod(path: impl AsRef<Path>, mode: mode_t, dev: dev_t) -> Result<()> {
     check_libc_error(result, FsError::MknodError)
 }
 
+pub async fn mkdirp(path: impl AsRef<Path>) -> Result<()> {
+    let _ = fs::create_dir_all(path)
+        .await
+        .map_err(FsError::MkdirpError)?;
+
+    Ok(())
+}
+
+pub async fn readlink(path: impl AsRef<Path>) -> Result<PathBuf> {
+    Ok(fs::read_link(path)
+        .await
+        .map_err(FsError::ReadLinkError)?
+    )
+}
+
+pub async fn stat(path: impl AsRef<Path>) -> Result<Metadata> {
+    Ok(fs::metadata(path)
+        .await
+        .map_err(FsError::StatError)?
+    )
+}
+
+pub async fn read_to_string(path: impl AsRef<Path>) -> Result<String> {
+    Ok(fs::read_to_string(path)
+        .await
+        .map_err(FsError::FileReadError)?
+    )
+}
