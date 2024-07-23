@@ -77,7 +77,9 @@ impl VmManager for QemuRunner {
     }
     fn delete_vm(&mut self) -> Result<(), VmManagerError> {
         self.stop_vm()
-            .map_err(|err| VmManagerError::DestroyFail(err.to_string()))
+            .map_err(|err| VmManagerError::DestroyFail(err.to_string()))?;
+        self.get_exit_status();
+        Ok(())
     }
     fn get_exit_status(&mut self) -> Option<ExitStatus> {
         if let Some(vm) = &mut self.vm {

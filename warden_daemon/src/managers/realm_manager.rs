@@ -141,6 +141,7 @@ impl Realm for RealmManager {
         self.vm_manager
             .stop_vm()
             .map_err(|err| RealmError::VmStopFail(err.to_string()))?;
+        self.vm_manager.get_exit_status();
         self.state = State::Halted;
         Ok(())
     }
