@@ -1,13 +1,12 @@
-use std::sync::Arc;
-
-use tokio::sync::Mutex;
-use uuid::Uuid;
-
 use crate::managers::{
     application::{Application, ApplicationConfig, ApplicationCreator},
     application_manager::ApplicationManager,
     realm_client::RealmClient,
 };
+
+use std::sync::Arc;
+use tokio::sync::Mutex;
+use uuid::Uuid;
 
 pub struct ApplicationFabric {}
 
