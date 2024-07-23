@@ -8,15 +8,15 @@ use tokio::sync::Mutex;
 use uuid::Uuid;
 
 pub struct WardenDaemon {
-    managers_fabric: Box<dyn RealmCreator + Send + Sync>,
-    managers_map: HashMap<Uuid, Arc<Mutex<Box<dyn Realm + Send + Sync>>>>,
+    realm_fabric: Box<dyn RealmCreator + Send + Sync>,
+    realms_managers: HashMap<Uuid, Arc<Mutex<Box<dyn Realm + Send + Sync>>>>,
 }
 
 impl WardenDaemon {
     pub fn new(rm_fabric: Box<dyn RealmCreator + Send + Sync>) -> Self {
         WardenDaemon {
-            managers_fabric: rm_fabric,
-            managers_map: HashMap::new(),
+            realm_fabric: rm_fabric,
+            realms_managers: HashMap::new(),
         }
     }
 }
@@ -25,33 +25,33 @@ impl WardenDaemon {
 impl Warden for WardenDaemon {
     fn create_realm(&mut self, config: RealmConfig) -> Result<Uuid, WardenError> {
         let uuid = Uuid::new_v4();
-        let _ = self.managers_map.insert(
+        let _ = self.realms_managers.insert(
             uuid,
-            Arc::new(Mutex::new(self.managers_fabric.create_realm(config))),
+            Arc::new(Mutex::new(self.realm_fabric.create_realm(config))),
         );
         Ok(uuid)
     }
 
-    async fn destroy_realm(&mut self, realm_uuid: Uuid) -> Result<(), WardenError> {
+    async fn destroy_realm(&mut self, realm_uuid: &Uuid) -> Result<(), WardenError> {
         let realm = self
-            .managers_map
-            .get(&realm_uuid)
-            .ok_or(WardenError::NoSuchRealm(realm_uuid))?;
+            .realms_managers
+            .get(realm_uuid)
+            .ok_or(WardenError::NoSuchRealm(*realm_uuid))?;
         let realm_state = realm.lock().await.get_realm_data();
         if realm_state.state != State::Halted {
             return Err(WardenError::DestroyFail(String::from(
-                "Can't destroy realm that isn't stopped!",
+                "Can't destroy realm that isn't stopped.",
             )));
         }
-        self.managers_map
-            .remove(&realm_uuid)
-            .ok_or(WardenError::NoSuchRealm(realm_uuid))
+        self.realms_managers
+            .remove(realm_uuid)
+            .ok_or(WardenError::NoSuchRealm(*realm_uuid))
             .map(|_| ())
     }
 
     async fn list_realms(&self) -> Vec<RealmDescription> {
         let mut vec = vec![];
-        for (uuid, realm_manager) in &self.managers_map {
+        for (uuid, realm_manager) in &self.realms_managers {
             vec.push(RealmDescription {
                 uuid: *uuid,
                 realm_data: realm_manager.lock().await.get_realm_data(),
@@ -60,13 +60,13 @@ impl Warden for WardenDaemon {
         vec
     }
 
-    async fn inspect_realm(&self, realm_uuid: Uuid) -> Result<RealmDescription, WardenError> {
-        match self.managers_map.get(&realm_uuid) {
+    async fn inspect_realm(&self, realm_uuid: &Uuid) -> Result<RealmDescription, WardenError> {
+        match self.realms_managers.get(realm_uuid) {
             Some(realm_manager) => Ok(RealmDescription {
-                uuid: realm_uuid,
+                uuid: *realm_uuid,
                 realm_data: realm_manager.lock().await.get_realm_data(),
             }),
-            None => Err(WardenError::NoSuchRealm(realm_uuid)),
+            None => Err(WardenError::NoSuchRealm(*realm_uuid)),
         }
     }
 
@@ -74,7 +74,7 @@ impl Warden for WardenDaemon {
         &mut self,
         realm_uuid: &Uuid,
     ) -> Result<Arc<Mutex<Box<dyn Realm + Send + Sync>>>, WardenError> {
-        self.managers_map
+        self.realms_managers
             .get(realm_uuid)
             .cloned()
             .ok_or(WardenError::NoSuchRealm(*realm_uuid))
@@ -91,19 +91,40 @@ mod test {
     use super::*;
 
     #[test]
-    fn test_create_realm() {
+    fn new() {
+        let daemon = create_host_daemon(None);
+        assert_eq!(daemon.realms_managers.len(), 0);
+    }
+
+    #[test]
+    fn create_realm() {
         let mut daemon = create_host_daemon(None);
         let uuid = daemon.create_realm(create_example_realm_config()).unwrap();
-        assert!(daemon.managers_map.contains_key(&uuid));
+        assert!(daemon.realms_managers.contains_key(&uuid));
+    }
+
+    #[test]
+    fn get_realm() {
+        let mut daemon = create_host_daemon(None);
+        let uuid = daemon.create_realm(create_example_realm_config()).unwrap();
+        assert!(daemon.realms_managers.contains_key(&uuid));
+        assert!(daemon.get_realm(&uuid).is_ok());
+    }
+
+    #[test]
+    fn get_none_existing_realm() {
+        let mut daemon = create_host_daemon(None);
+        let uuid = Uuid::new_v4();
+        let res = daemon.get_realm(&uuid);
+        assert_eq!(res.err(), Some(WardenError::NoSuchRealm(uuid)));
     }
 
     #[tokio::test]
     async fn destroy_created_realm() {
         let mut daemon = create_host_daemon(None);
         let uuid = daemon.create_realm(create_example_realm_config()).unwrap();
-        assert!(daemon.managers_map.contains_key(&uuid));
-
-        assert_eq!(daemon.destroy_realm(uuid).await, Ok(()));
+        assert!(daemon.realms_managers.contains_key(&uuid));
+        assert_eq!(daemon.destroy_realm(&uuid).await, Ok(()));
     }
 
     #[tokio::test]
@@ -111,7 +132,7 @@ mod test {
         let mut daemon = create_host_daemon(None);
         let uuid = Uuid::new_v4();
         assert_eq!(
-            daemon.destroy_realm(uuid.clone()).await,
+            daemon.destroy_realm(&uuid).await,
             Err(WardenError::NoSuchRealm(uuid))
         );
     }
@@ -125,9 +146,9 @@ mod test {
         let mut daemon = create_host_daemon(Some(mock_realm));
         let uuid = daemon.create_realm(create_example_realm_config()).unwrap();
         assert_eq!(
-            daemon.destroy_realm(uuid.clone()).await,
+            daemon.destroy_realm(&uuid).await,
             Err(WardenError::DestroyFail(String::from(
-                "Can't destroy realm that isn't stopped!"
+                "Can't destroy realm that isn't stopped."
             )))
         );
     }
@@ -141,7 +162,7 @@ mod test {
         let mut daemon = create_host_daemon(Some(realm));
         let uuid = daemon.create_realm(create_example_realm_config()).unwrap();
         assert_eq!(
-            daemon.inspect_realm(uuid).await,
+            daemon.inspect_realm(&uuid).await,
             Ok(RealmDescription {
                 uuid,
                 realm_data: create_example_realm_data()
@@ -154,7 +175,7 @@ mod test {
         let daemon = create_host_daemon(None);
         let uuid = Uuid::new_v4();
         assert_eq!(
-            daemon.inspect_realm(uuid).await,
+            daemon.inspect_realm(&uuid).await,
             Err(WardenError::NoSuchRealm(uuid))
         );
     }
@@ -182,14 +203,6 @@ mod test {
             .take()
             .unwrap();
         assert_eq!(listed_realm.uuid, uuid);
-    }
-
-    #[test]
-    fn get_none_existing_realm() {
-        let mut daemon = create_host_daemon(None);
-        let uuid = Uuid::new_v4();
-        let res = daemon.get_realm(&uuid);
-        assert_eq!(res.err(), Some(WardenError::NoSuchRealm(uuid)));
     }
 
     fn create_host_daemon(realm_mock: Option<MockRealm>) -> WardenDaemon {

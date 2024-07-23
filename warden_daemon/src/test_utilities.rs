@@ -70,9 +70,9 @@ mock! {
     #[async_trait]
     impl Warden for WardenDaemon {
         fn create_realm(&mut self, config: RealmConfig) -> Result<Uuid, WardenError>;
-        async fn destroy_realm(&mut self, realm_uuid: Uuid) -> Result<(), WardenError>;
+        async fn destroy_realm(&mut self, realm_uuid:& Uuid) -> Result<(), WardenError>;
         async fn list_realms(&self) -> Vec<RealmDescription>;
-        async fn inspect_realm(&self, realm_uuid: Uuid) -> Result<RealmDescription, WardenError>;
+        async fn inspect_realm(&self, realm_uuid:& Uuid) -> Result<RealmDescription, WardenError>;
         fn get_realm(
             &mut self,
             realm_uuid: &Uuid,

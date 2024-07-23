@@ -186,7 +186,7 @@ impl ClientHandler {
                 self.warden
                     .lock()
                     .await
-                    .destroy_realm(uuid)
+                    .destroy_realm(&uuid)
                     .await
                     .map_err(ClientError::WardenDaemonError)?;
                 info!("Realm: {uuid} destroyed!");
@@ -208,7 +208,7 @@ impl ClientHandler {
                 info!("Inspecting realm: {uuid}!");
                 let warden = self.warden.lock().await;
                 let realm_data = warden
-                    .inspect_realm(uuid)
+                    .inspect_realm(&uuid)
                     .await
                     .map_err(ClientError::WardenDaemonError)?;
                 info!("Realm: {uuid} inspected!");

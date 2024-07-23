@@ -230,10 +230,11 @@ mod test {
     use tokio::sync::Mutex;
     use uuid::Uuid;
 
-    #[test]
-    fn initial_state_is_halted() {
+    #[tokio::test]
+    async fn new() {
         let realm_manager = create_realm_manager(create_example_realm_config(), None, None);
         assert_eq!(realm_manager.state, State::Halted);
+        assert_eq!(realm_manager.apps_map.lock().await.len(), 0);
     }
 
     #[tokio::test]
