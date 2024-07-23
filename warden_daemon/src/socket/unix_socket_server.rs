@@ -35,7 +35,12 @@ impl UnixSocketServer {
             select! {
                 accepted_connection = listener.accept() => {
                     info!("Client connected to the server.");
-                    UnixSocketServer::handle_connection::<T>(accepted_connection.map_err(UnixSocketServerError::SocketFail)?, &mut clients_set, warden.clone(), token.clone());
+                    UnixSocketServer::handle_connection::<T>(
+                        accepted_connection.map_err(UnixSocketServerError::SocketFail)?,
+                        &mut clients_set,
+                        warden.clone(),
+                        token.clone()
+                    );
                 }
                 exited_client = clients_set.join_next(), if !clients_set.is_empty() => {
                     debug!("Client has exited with result: {:?}.", exited_client);
