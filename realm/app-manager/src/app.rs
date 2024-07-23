@@ -85,15 +85,7 @@ impl Application {
         Ok(())
     }
 
-    pub async fn install(&self, oci_name: impl AsRef<str>) -> Result<()> {
-        todo!()
-    }
-
-    pub async fn update(&self, oci_name: impl AsRef<str>) -> Result<()> {
-        todo!()
-    }
-
-    pub async fn launch(&self) -> Result<()> {
+    pub async fn setup(&self) {
         todo!()
     }
 }

@@ -1,7 +1,10 @@
+use std::path::Path;
+
 use app::ApplicationError;
 use config::{Config, ConfigError};
 use dm::DeviceMapperError;
 use key::KeyError;
+use launcher::{dummy::DummyLauncher, Launcher, LauncherError};
 use manager::{Manager, ManagerError};
 use thiserror::Error;
 use util::UtilsError;
@@ -11,6 +14,7 @@ mod app;
 mod config;
 mod dm;
 mod key;
+mod launcher;
 mod manager;
 mod util;
 
@@ -24,6 +28,9 @@ pub enum Error {
 
     #[error("Key error")]
     KeyError(#[from] KeyError),
+
+    #[error("Launcher error")]
+    LauncherError(#[from] LauncherError),
 
     #[error("Device mapper error")]
     DMError(#[from] DeviceMapperError),

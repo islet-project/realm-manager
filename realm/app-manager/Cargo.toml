@@ -13,7 +13,7 @@ serde_json = { version = "*", features = ["alloc"] }
 thiserror = "*"
 uuid = { version = "*", features = ["serde"] }
 hex = "*"
-nix = "*"
+nix = { version = "*", features = ["process", "signal"] }
 tokio-serde = { version = "*", features = ["json"] }
 tokio-util = { version = "*", features = ["codec"] }
 tokio = { version = "*", features = ["io-util", "sync", "rt", "rt-multi-thread", "fs", "macros", "process"] }
@@ -21,4 +21,5 @@ tokio-vsock = "*"
 futures-util = "*"
 serde_yaml = "*"
 futures = "*"
-keyutils = "0.4.0"
+keyutils = "*"
+async-trait = "*"
