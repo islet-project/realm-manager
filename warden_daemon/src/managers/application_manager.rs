@@ -59,16 +59,14 @@ impl Application for ApplicationManager {
 #[cfg(test)]
 mod test {
     use std::sync::Arc;
-
-    use async_trait::async_trait;
-    use mockall::mock;
     use tokio::sync::Mutex;
     use uuid::Uuid;
 
     use crate::managers::{
         application::{Application, ApplicationConfig, ApplicationError},
-        realm_client::{RealmClient, RealmClientError, RealmProvisioningConfig},
+        realm_client::RealmClientError,
     };
+    use crate::test_utilities::MockRealmClient;
 
     use super::ApplicationManager;
 
@@ -135,20 +133,5 @@ mod test {
             ApplicationConfig {},
             Arc::new(Mutex::new(Box::new(realm_client))),
         )
-    }
-
-    mock! {
-        pub RealmClient {}
-
-        #[async_trait]
-        impl RealmClient for RealmClient {
-            async fn send_realm_provisioning_config(
-                &mut self,
-                realm_provisioning_config: RealmProvisioningConfig,
-                cid: u32,
-            ) -> Result<(), RealmClientError>;
-            async fn start_application(&mut self, application_uuid: &Uuid) -> Result<(), RealmClientError>;
-            async fn stop_application(&mut self, application_uuid: &Uuid) -> Result<(), RealmClientError>;
-        }
     }
 }

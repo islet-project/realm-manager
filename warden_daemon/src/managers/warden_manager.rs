@@ -83,15 +83,9 @@ impl Warden for WardenDaemon {
 
 #[cfg(test)]
 mod test {
-    use std::path::PathBuf;
-
-    use async_trait::async_trait;
-    use mockall::mock;
-
-    use crate::managers::{
-        application::{Application, ApplicationConfig},
-        realm::{Realm, RealmData, RealmError, State},
-        realm_configuration::{CpuConfig, KernelConfig, MemoryConfig, NetworkConfig},
+    use crate::managers::realm::{RealmData, State};
+    use crate::test_utilities::{
+        create_example_realm_config, create_example_realm_data, MockRealm, MockRealmManagerCreator,
     };
 
     use super::*;
@@ -99,14 +93,14 @@ mod test {
     #[test]
     fn test_create_realm() {
         let mut daemon = create_host_daemon(None);
-        let uuid = daemon.create_realm(create_example_config()).unwrap();
+        let uuid = daemon.create_realm(create_example_realm_config()).unwrap();
         assert!(daemon.managers_map.contains_key(&uuid));
     }
 
     #[tokio::test]
     async fn destroy_created_realm() {
         let mut daemon = create_host_daemon(None);
-        let uuid = daemon.create_realm(create_example_config()).unwrap();
+        let uuid = daemon.create_realm(create_example_realm_config()).unwrap();
         assert!(daemon.managers_map.contains_key(&uuid));
 
         assert_eq!(daemon.destroy_realm(uuid).await, Ok(()));
@@ -129,7 +123,7 @@ mod test {
             state: State::Running,
         });
         let mut daemon = create_host_daemon(Some(mock_realm));
-        let uuid = daemon.create_realm(create_example_config()).unwrap();
+        let uuid = daemon.create_realm(create_example_realm_config()).unwrap();
         assert_eq!(
             daemon.destroy_realm(uuid.clone()).await,
             Err(WardenError::DestroyFail(String::from(
@@ -143,14 +137,14 @@ mod test {
         let mut realm = MockRealm::new();
         realm
             .expect_get_realm_data()
-            .returning(|| create_realm_data());
+            .returning(|| create_example_realm_data());
         let mut daemon = create_host_daemon(Some(realm));
-        let uuid = daemon.create_realm(create_example_config()).unwrap();
+        let uuid = daemon.create_realm(create_example_realm_config()).unwrap();
         assert_eq!(
             daemon.inspect_realm(uuid).await,
             Ok(RealmDescription {
                 uuid,
-                realm_data: create_realm_data()
+                realm_data: create_example_realm_data()
             })
         );
     }
@@ -177,9 +171,9 @@ mod test {
         let mut realm = MockRealm::new();
         realm
             .expect_get_realm_data()
-            .returning(|| create_realm_data());
+            .returning(|| create_example_realm_data());
         let mut daemon = create_host_daemon(Some(realm));
-        let uuid = daemon.create_realm(create_example_config()).unwrap();
+        let uuid = daemon.create_realm(create_example_realm_config()).unwrap();
         let listed_realm = daemon
             .list_realms()
             .await
@@ -211,53 +205,5 @@ mod test {
             .expect_create_realm()
             .return_once(move |_| realm_mock);
         WardenDaemon::new(Box::new(creator_mock))
-    }
-
-    fn create_example_config() -> RealmConfig {
-        RealmConfig {
-            machine: String::new(),
-            cpu: CpuConfig {
-                cpu: String::new(),
-                cores_number: 0,
-            },
-            memory: MemoryConfig { ram_size: 0 },
-            network: NetworkConfig {
-                vsock_cid: 0,
-                tap_device: String::new(),
-                mac_address: String::new(),
-                hardware_device: None,
-                remote_terminal_uri: None,
-            },
-            kernel: KernelConfig {
-                kernel_path: PathBuf::new(),
-            },
-        }
-    }
-
-    fn create_realm_data() -> RealmData {
-        RealmData {
-            state: State::Halted,
-        }
-    }
-
-    mock! {
-        pub Realm{}
-        #[async_trait]
-        impl Realm for Realm {
-            async fn start(&mut self) -> Result<(), RealmError>;
-            fn stop(&mut self) -> Result<(), RealmError>;
-            async fn reboot(&mut self) -> Result<(), RealmError>;
-            async fn create_application(&mut self, config: ApplicationConfig) -> Result<Uuid, RealmError>;
-            fn get_realm_data(& self) -> RealmData;
-            async fn get_application(&self, uuid: Uuid) -> Result<Arc<tokio::sync::Mutex<Box<dyn Application + Send + Sync>>>, RealmError>;
-            async fn update_application(&mut self, uuid: Uuid, new_config: ApplicationConfig) -> Result<(), RealmError>;
-        }
-    }
-
-    mock! {
-        pub RealmManagerCreator {}
-        impl RealmCreator for RealmManagerCreator {
-            fn create_realm(&self, config: RealmConfig) -> Box<dyn Realm + Send + Sync>;
-        }
     }
 }

@@ -332,14 +332,16 @@ impl Client for ClientHandler {
 #[cfg(test)]
 mod test {
     use crate::managers::{
-        application::{Application, ApplicationConfig, ApplicationError},
-        realm::{Realm, RealmData, RealmDescription, RealmError, State},
-        realm_configuration::{CpuConfig, KernelConfig, MemoryConfig, NetworkConfig, RealmConfig},
-        warden::{Warden, WardenError},
+        application::Application,
+        realm::{Realm, RealmData, RealmError, State},
+        warden::WardenError,
     };
-    use mockall::mock;
+    use crate::test_utilities::{
+        create_example_app_config, create_example_realm_config, create_example_realm_description,
+        create_example_uuid, MockApplication, MockRealm, MockWardenDaemon,
+    };
     use parameterized::parameterized;
-    use std::{path::PathBuf, str::FromStr, sync::Arc};
+    use std::sync::Arc;
     use tokio::{
         io::{AsyncReadExt, AsyncWriteExt, BufReader},
         net::UnixStream,
@@ -348,7 +350,7 @@ mod test {
     use tokio_util::sync::CancellationToken;
     use uuid::Uuid;
 
-    use super::{async_trait, ClientCommand, ClientError, ClientHandler, ClientReponse};
+    use super::{ClientCommand, ClientError, ClientHandler, ClientReponse};
 
     #[tokio::test]
     async fn handle_requests_and_disconnect() {
@@ -577,83 +579,5 @@ mod test {
                 token: Arc::new(CancellationToken::new()),
             },
         )
-    }
-
-    fn create_example_realm_description() -> RealmDescription {
-        RealmDescription {
-            uuid: create_example_uuid(),
-            realm_data: RealmData {
-                state: State::Halted,
-            },
-        }
-    }
-
-    fn create_example_uuid() -> Uuid {
-        Uuid::from_str("a46289a4-5902-4586-81a3-908bdd62e7a1").unwrap()
-    }
-
-    fn create_example_realm_config() -> RealmConfig {
-        RealmConfig {
-            machine: String::new(),
-            cpu: CpuConfig {
-                cpu: String::new(),
-                cores_number: 0,
-            },
-            memory: MemoryConfig { ram_size: 0 },
-            network: NetworkConfig {
-                vsock_cid: 0,
-                tap_device: String::new(),
-                mac_address: String::new(),
-                hardware_device: None,
-                remote_terminal_uri: None,
-            },
-            kernel: KernelConfig {
-                kernel_path: PathBuf::new(),
-            },
-        }
-    }
-
-    fn create_example_app_config() -> ApplicationConfig {
-        ApplicationConfig {}
-    }
-
-    mock! {
-        pub WardenDaemon {}
-
-        #[async_trait]
-        impl Warden for WardenDaemon {
-            fn create_realm(&mut self, config: RealmConfig) -> Result<Uuid, WardenError>;
-            async fn destroy_realm(&mut self, realm_uuid: Uuid) -> Result<(), WardenError>;
-            async fn list_realms(&self) -> Vec<RealmDescription>;
-            async fn inspect_realm(&self, realm_uuid: Uuid) -> Result<RealmDescription, WardenError>;
-            fn get_realm(
-                &mut self,
-                realm_uuid: &Uuid,
-            ) -> Result<Arc<tokio::sync::Mutex<Box<dyn Realm + Send + Sync>>>, WardenError>;
-        }
-    }
-
-    mock! {
-        pub Realm{}
-        #[async_trait]
-        impl Realm for Realm {
-            async fn start(&mut self) -> Result<(), RealmError>;
-            fn stop(&mut self) -> Result<(), RealmError>;
-            async fn reboot(&mut self) -> Result<(), RealmError>;
-            async fn create_application(&mut self, config: ApplicationConfig) -> Result<Uuid, RealmError>;
-            fn get_realm_data(& self) -> RealmData;
-            async fn get_application(&self, uuid: Uuid) -> Result<Arc<tokio::sync::Mutex<Box<dyn Application + Send + Sync>>>, RealmError>;
-            async fn update_application(&mut self, uuid: Uuid, new_config: ApplicationConfig) -> Result<(), RealmError>;
-        }
-    }
-
-    mock! {
-        pub Application {}
-        #[async_trait]
-        impl Application for Application {
-            async fn stop(&mut self) -> Result<(), ApplicationError>;
-            async fn start(&mut self) -> Result<(), ApplicationError>;
-            fn update(&mut self, config: ApplicationConfig);
-        }
     }
 }

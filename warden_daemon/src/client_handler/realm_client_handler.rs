@@ -106,20 +106,18 @@ mod test {
         io::{self, Error},
         sync::Arc,
     };
-
-    use async_trait::async_trait;
-    use mockall::mock;
     use tokio::sync::{
         oneshot::{Receiver, Sender},
         Mutex,
     };
     use uuid::Uuid;
 
-    use crate::managers::realm_client::{RealmClientError, RealmProvisioningConfig};
-
     use super::{
-        RealmClient, RealmClientHandler, RealmCommand, RealmConnector, RealmSender,
+        RealmClient, RealmClientError, RealmClientHandler, RealmCommand, RealmSender,
         RealmSenderError,
+    };
+    use crate::test_utilities::{
+        create_realm_provisioning_config, MockRealmConnector, MockRealmSender,
     };
 
     #[tokio::test]
@@ -266,29 +264,5 @@ mod test {
             realm_connector
         });
         RealmClientHandler::new(Arc::new(Mutex::new(realm_connector)))
-    }
-
-    fn create_realm_provisioning_config() -> RealmProvisioningConfig {
-        RealmProvisioningConfig {}
-    }
-
-    mock! {
-        pub RealmConnector {}
-
-        #[async_trait]
-        impl RealmConnector for RealmConnector {
-            async fn acquire_realm_sender(
-                &mut self,
-                cid: u32,
-            ) -> Receiver<Box<dyn RealmSender + Send + Sync>>;
-        }
-    }
-    mock! {
-        pub RealmSender {}
-
-        #[async_trait]
-        impl RealmSender for RealmSender {
-            async fn send(&mut self, data: RealmCommand) -> Result<(), RealmSenderError>;
-        }
     }
 }

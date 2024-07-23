@@ -19,6 +19,9 @@ use tokio::task::JoinHandle;
 use tokio_util::sync::CancellationToken;
 use tokio_vsock::VMADDR_CID_HOST;
 
+#[cfg(test)]
+mod test_utilities;
+
 mod client_handler;
 mod fabric;
 mod managers;
