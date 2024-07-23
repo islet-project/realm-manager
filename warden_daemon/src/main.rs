@@ -3,7 +3,7 @@ use clap::Parser;
 use client_handler::client_command_handler::ClientHandler;
 use fabric::application_fabric::ApplicationFabric;
 use fabric::realm_manager_fabric::RealmManagerFabric;
-use log::{error, info};
+use log::{debug, error, info};
 use managers::application::ApplicationCreator;
 use managers::realm::RealmCreator;
 use managers::warden::Warden;
@@ -46,15 +46,12 @@ async fn main() -> anyhow::Result<(), Error> {
     env_logger::init();
     let cli = Cli::parse();
 
-    info!("Starting application!");
+    info!("Starting application.");
     let cancel_token = Arc::new(CancellationToken::new());
-    let vsock_server = Arc::new(Mutex::new(VSockServer::new(
-        VSockServerConfig {
-            cid: cli.cid,
-            port: cli.port,
-        },
-        cancel_token.clone(),
-    )));
+    let vsock_server = Arc::new(Mutex::new(VSockServer::new(VSockServerConfig {
+        cid: cli.cid,
+        port: cli.port,
+    })));
 
     let application_fabric: Arc<Box<dyn ApplicationCreator + Send + Sync>> =
         Arc::new(Box::new(ApplicationFabric::new()));
@@ -77,32 +74,32 @@ async fn main() -> anyhow::Result<(), Error> {
         }
 
         _ = sigterm.recv() => {
-            info!("SIGTERM recevied shuttding down");
+            info!("SIGTERM recevied shutting down");
             cancel_token.cancel();
         }
 
         v = &mut vsock_thread => {
-            error!("Error while listening on unixsocket: {:?}", v);
+            error!("Error while listening on vsocket: {:?}", v);
             cancel_token.cancel();
         }
 
         v = &mut usock_thread => {
-            error!("Error while listening on vsock: {:?}", v);
+            error!("Error while listening on unixsocket: {:?}", v);
             cancel_token.cancel();
         }
     }
 
-    info!("Shutting down application!");
+    info!("Shutting down application.");
 
     if !vsock_thread.is_finished() {
-        vsock_thread.await??;
+        debug!("VSockServer result: {:#?}", vsock_thread.await);
     }
 
     if !usock_thread.is_finished() {
-        usock_thread.await??;
+        debug!("UnixSocketServer result: {:#?}", usock_thread.await);
     }
 
-    info!("Application succesfully shutdown!");
+    info!("Application succesfully shutdown.");
     Ok(())
 }
 

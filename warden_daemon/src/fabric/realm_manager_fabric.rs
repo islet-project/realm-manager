@@ -10,7 +10,6 @@ use std::path::PathBuf;
 use std::sync::Arc;
 use tokio::sync::Mutex;
 
-
 pub struct RealmManagerFabric {
     qemu_path: PathBuf,
     vsock_server: Arc<Mutex<VSockServer>>,

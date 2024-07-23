@@ -25,31 +25,23 @@ pub struct VSockServerConfig {
 
 #[derive(Debug, Error)]
 pub enum VSockServerError {
-    #[error("Error while sending RealmSender through the channel!")]
+    #[error("Error while sending RealmSender through the channel.")]
     ChannelFail,
-    #[error("Unknown Realm has connected!")]
+    #[error("Unknown Realm has connected.")]
     UnexpectedConnection,
-    #[error("Socket failure has occured: {0}!")]
+    #[error("Socket failure has occured: {0}")]
     SocketFail(#[from] io::Error),
 }
 
 pub struct VSockServer {
-    pub config: VSockServerConfig,
-    cancel_token: Arc<CancellationToken>,
+    config: VSockServerConfig,
     waiting: HashMap<u32, Sender<Box<dyn RealmSender + Send + Sync>>>,
 }
 
-impl Drop for VSockServer {
-    fn drop(&mut self) {
-        self.cancel_token.cancel();
-    }
-}
-
 impl VSockServer {
-    pub fn new(config: VSockServerConfig, cancel_token: Arc<CancellationToken>) -> Self {
+    pub fn new(config: VSockServerConfig) -> Self {
         VSockServer {
             config,
-            cancel_token,
             waiting: HashMap::new(),
         }
     }
@@ -68,7 +60,7 @@ impl VSockServer {
                 a_result = listener.accept() => {
                     match a_result {
                         Ok(result) => {
-                            trace!("Accepted connection!");
+                            trace!("Accepted connection.");
                             let mut handler = handler.lock().await;
                             handler.handle_accept(result).await?
                         },
@@ -87,7 +79,7 @@ impl VSockServer {
     ) -> Result<(), VSockServerError> {
         let (stream, addr) = accept_result;
         if let Some(tx) = self.waiting.remove(&addr.cid()) {
-            info!("Client has connected succesfully!");
+            info!("Client has connected succesfully.");
             return tx
                 .send(Box::new(VSockClient::new(stream)))
                 .map_err(|_| VSockServerError::ChannelFail);
@@ -132,7 +124,7 @@ impl RealmConnector for VSockServer {
         &mut self,
         cid: u32,
     ) -> Receiver<Box<dyn RealmSender + Send + Sync>> {
-        info!("Waiting for realm to connect to the server!");
+        info!("Waiting for realm to connect to the server.");
         let (tx, rx) = oneshot::channel();
         self.waiting.insert(cid, tx);
         rx

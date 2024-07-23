@@ -1,3 +1,6 @@
+use crate::client_handler::client_command_handler::Client;
+use crate::managers::warden::Warden;
+
 use log::{debug, error, info};
 use std::fs::remove_file;
 use std::io;
@@ -9,9 +12,6 @@ use tokio::sync::Mutex;
 use tokio::task::AbortHandle;
 use tokio::{select, task::JoinSet};
 use tokio_util::sync::CancellationToken;
-
-use crate::client_handler::client_command_handler::Client;
-use crate::managers::warden::Warden;
 
 #[derive(Error, Debug)]
 pub enum UnixSocketServerError {
@@ -27,18 +27,18 @@ impl UnixSocketServer {
         token: Arc<CancellationToken>,
         socket: PathBuf,
     ) -> Result<(), UnixSocketServerError> {
-        info!("Starting Unix Socket Server!");
+        info!("Starting Unix Socket Server.");
         let mut clients_set = JoinSet::new();
         let listener = UnixSocketServer::create_listener(socket)?;
         let warden = Arc::new(Mutex::new(warden));
         loop {
             select! {
                 accepted_connection = listener.accept() => {
-                    info!("Client connected to the server!");
+                    info!("Client connected to the server.");
                     UnixSocketServer::handle_connection::<T>(accepted_connection.map_err(UnixSocketServerError::SocketFail)?, &mut clients_set, warden.clone(), token.clone());
                 }
                 exited_client = clients_set.join_next(), if !clients_set.is_empty() => {
-                    debug!("Client has exited with result: {:?}", exited_client);
+                    debug!("Client has exited with result: {:?}.", exited_client);
                 }
                 _ = token.cancelled() => {
                     break;
@@ -47,7 +47,7 @@ impl UnixSocketServer {
         }
 
         while let Some(v) = clients_set.join_next().await {
-            debug!("Client thread {:?} joined", v);
+            debug!("Client thread {:?} joined.", v);
         }
 
         Ok(())
@@ -62,7 +62,7 @@ impl UnixSocketServer {
         clients_set.spawn(async move {
             match T::handle_connection(warden, stream, token).await {
                 Err(err) => {
-                    error!("{err:?}");
+                    error!("{err}");
                 }
                 Ok(_) => {
                     debug!("Connection: {:?} ended impeccably!", address);
