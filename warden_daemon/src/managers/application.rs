@@ -1,3 +1,4 @@
+use super::realm_client::RealmClient;
 use async_trait::async_trait;
 use serde::{Deserialize, Serialize};
 use std::sync::Arc;
@@ -5,14 +6,12 @@ use thiserror::Error;
 use tokio::sync::Mutex;
 use uuid::Uuid;
 
-use super::realm_client::RealmClient;
-
 #[derive(Debug, Error, PartialEq, PartialOrd, Serialize, Deserialize)]
 pub enum ApplicationError {
-    #[error("Can't start the application due to: {0}")]
+    #[error("Can't start the application: {0}")]
     ApplicationStartFail(String),
-    #[error("Can't stop the application due to: {0}")]
-    ApplicationStopError(String),
+    #[error("Can't stop the application: {0}")]
+    ApplicationStopFail(String),
 }
 
 #[derive(Debug, Error, PartialEq, PartialOrd, Serialize, Deserialize)]
@@ -34,5 +33,5 @@ pub trait Application {
     fn update(&mut self, config: ApplicationConfig);
 }
 
-#[derive(Debug, Serialize, Deserialize, Clone)]
+#[derive(Debug, Serialize, Deserialize, Clone, PartialEq, PartialOrd)]
 pub struct ApplicationConfig {}

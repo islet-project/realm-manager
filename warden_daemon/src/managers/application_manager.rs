@@ -1,12 +1,12 @@
-use async_trait::async_trait;
-use std::sync::Arc;
-use tokio::sync::Mutex;
-use uuid::Uuid;
-
 use super::{
     application::{Application, ApplicationConfig, ApplicationError},
     realm_client::RealmClient,
 };
+
+use async_trait::async_trait;
+use std::sync::Arc;
+use tokio::sync::Mutex;
+use uuid::Uuid;
 
 pub struct ApplicationManager {
     uuid: Uuid,
@@ -38,7 +38,7 @@ impl Application for ApplicationManager {
             .await
             .stop_application(&self.uuid)
             .await
-            .map_err(|err| ApplicationError::ApplicationStopError(format!("{}", err)))?;
+            .map_err(|err| ApplicationError::ApplicationStopFail(err.to_string()))?;
         Ok(())
     }
     async fn start(&mut self) -> Result<(), ApplicationError> {
@@ -47,7 +47,7 @@ impl Application for ApplicationManager {
             .await
             .start_application(&self.uuid)
             .await
-            .map_err(|err| ApplicationError::ApplicationStartFail(format!("{}", err)))?;
+            .map_err(|err| ApplicationError::ApplicationStartFail(err.to_string()))?;
         Ok(())
     }
 
@@ -62,13 +62,22 @@ mod test {
     use tokio::sync::Mutex;
     use uuid::Uuid;
 
-    use crate::managers::{
-        application::{Application, ApplicationConfig, ApplicationError},
-        realm_client::RealmClientError,
-    };
     use crate::test_utilities::MockRealmClient;
+    use crate::{
+        managers::{
+            application::{Application, ApplicationConfig, ApplicationError},
+            realm_client::RealmClientError,
+        },
+        test_utilities::create_example_app_config,
+    };
 
     use super::ApplicationManager;
+
+    #[test]
+    fn new() {
+        let application_manager = create_application_manager(None);
+        assert_eq!(application_manager.new_config, None);
+    }
 
     #[tokio::test]
     async fn stop() {
@@ -85,7 +94,7 @@ mod test {
         let mut application_manager = create_application_manager(Some(realm_client));
         assert_eq!(
             application_manager.stop().await,
-            Err(ApplicationError::ApplicationStopError(
+            Err(ApplicationError::ApplicationStopFail(
                 RealmClientError::RealmConnectorError(String::from("")).to_string()
             ))
         );
@@ -115,8 +124,9 @@ mod test {
     #[test]
     fn update() {
         let mut application_manager = create_application_manager(None);
-        application_manager.update(ApplicationConfig {});
-        assert!(application_manager.new_config.is_some());
+        let app_config = create_example_app_config();
+        application_manager.update(app_config.clone());
+        assert_eq!(application_manager.new_config, Some(app_config));
     }
 
     fn create_application_manager(realm_client: Option<MockRealmClient>) -> ApplicationManager {
