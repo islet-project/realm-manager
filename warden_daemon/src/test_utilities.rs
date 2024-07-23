@@ -87,10 +87,10 @@ mock! {
         async fn start(&mut self) -> Result<(), RealmError>;
         fn stop(&mut self) -> Result<(), RealmError>;
         async fn reboot(&mut self) -> Result<(), RealmError>;
-        async fn create_application(&mut self, config: ApplicationConfig) -> Result<Uuid, RealmError>;
+        fn create_application(&mut self, config: ApplicationConfig) -> Result<Uuid, RealmError>;
         fn get_realm_data(& self) -> RealmData;
-        async fn get_application(&self, uuid: Uuid) -> Result<Arc<tokio::sync::Mutex<Box<dyn Application + Send + Sync>>>, RealmError>;
-        async fn update_application(&mut self, uuid: Uuid, new_config: ApplicationConfig) -> Result<(), RealmError>;
+        fn get_application(&self, uuid:& Uuid) -> Result<Arc<tokio::sync::Mutex<Box<dyn Application + Send + Sync>>>, RealmError>;
+        async fn update_application(&mut self, uuid:& Uuid, new_config: ApplicationConfig) -> Result<(), RealmError>;
     }
 }
 

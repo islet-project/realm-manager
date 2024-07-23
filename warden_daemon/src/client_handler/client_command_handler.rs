@@ -227,7 +227,6 @@ impl ClientHandler {
                     .lock()
                     .await
                     .create_application(config)
-                    .await
                     .map_err(ClientError::RealmManagerError)?;
                 info!("Created application with id: {application_uuid} in realm: {realm_uuid}!");
                 Ok(ClientReponse::Ok)
@@ -272,7 +271,7 @@ impl ClientHandler {
                     .await?
                     .lock()
                     .await
-                    .update_application(application_uuid, config)
+                    .update_application(&application_uuid, config)
                     .await
                     .map_err(ClientError::RealmManagerError)?;
                 info!("Started application: {application_uuid} in realm: {realm_uuid}!");
@@ -307,8 +306,7 @@ impl ClientHandler {
             .await?
             .lock()
             .await
-            .get_application(*application_uuid)
-            .await
+            .get_application(application_uuid)
             .map_err(ClientError::RealmManagerError)
     }
 }
@@ -441,7 +439,7 @@ mod test {
         let mut realm_manager = MockRealm::new();
         realm_manager
             .expect_get_application()
-            .return_once(|uuid| Err(RealmError::ApplicationMissing(uuid)));
+            .return_once(|uuid| Err(RealmError::ApplicationMissing(*uuid)));
         let mut warden_daemon = MockWardenDaemon::new();
         warden_daemon
             .expect_get_realm()
