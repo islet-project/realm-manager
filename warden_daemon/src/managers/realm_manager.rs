@@ -174,15 +174,17 @@ impl Realm for RealmManager {
         uuid: &Uuid,
         new_config: ApplicationConfig,
     ) -> Result<(), RealmError> {
-        if self.state != State::Running && self.state != State::NeedReboot {
+        if self.state == State::Provisioning {
             return Err(RealmError::UnsupportedAction(
-                "Can't update application when realm isn't running.".to_string(),
+                "Can't update application when realm is in provisioning phase.".to_string(),
             ));
         }
         match self.applications.get(uuid) {
             Some(app_manager) => {
                 app_manager.lock().await.update(new_config);
-                self.state = State::NeedReboot;
+                if self.state == State::Running {
+                    self.state = State::NeedReboot;
+                }
                 Ok(())
             }
             None => Err(RealmError::ApplicationMissing(*uuid)),
@@ -361,8 +363,9 @@ mod test {
     }
 
     #[tokio::test]
-    #[parameterized(state = {State::Running, State::NeedReboot})]
-    async fn update_application(state: State) {
+    #[parameterized(states = {(State::Running, State::NeedReboot), (State::NeedReboot, State::NeedReboot), (State::Halted, State::Halted)})]
+    async fn update_application(states: (State, State)) {
+        let (state, expected_state) = states;
         let mut realm_manager = create_realm_manager(None, None);
         let uuid = realm_manager
             .create_application(create_example_app_config())
@@ -372,24 +375,23 @@ mod test {
             .update_application(&uuid, create_example_app_config())
             .await;
         assert_eq!(uuid_res, Ok(()));
-        assert_eq!(realm_manager.state, State::NeedReboot);
+        assert_eq!(realm_manager.state, expected_state);
     }
 
     #[tokio::test]
-    #[parameterized(state = {State::Halted, State::Provisioning})]
-    async fn update_application_invalid_state(state: State) {
+    async fn update_application_invalid_state() {
         let mut realm_manager = create_realm_manager(None, None);
         let uuid = realm_manager
             .create_application(create_example_app_config())
             .unwrap();
-        realm_manager.state = state;
+        realm_manager.state = State::Provisioning;
         let uuid_res = realm_manager
             .update_application(&uuid, create_example_app_config())
             .await;
         assert_eq!(
             uuid_res,
             Err(RealmError::UnsupportedAction(format!(
-                "Can't update application when realm isn't running.",
+                "Can't update application when realm is in provisioning phase.",
             )))
         );
     }
