@@ -5,12 +5,10 @@ use uuid::Uuid;
 
 #[derive(Debug, Error, PartialEq, PartialOrd)]
 pub enum RealmClientError {
-    #[error("Can't connect with the Realm, error: {0}")]
-    RealmConnectorError(String),
-    #[error("Can't communicate with connected Realm, error: {0}")]
+    #[error("Can't connect with the Realm: {0}")]
+    RealmConnectionFail(String),
+    #[error("Can't communicate with connected Realm: {0}")]
     CommunicationFail(String),
-    #[error("Not connected to the realm!")]
-    MissingConnection,
 }
 
 #[derive(Debug, Serialize, Deserialize)]

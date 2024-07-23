@@ -90,12 +90,12 @@ mod test {
         let mut realm_client = MockRealmClient::new();
         realm_client
             .expect_stop_application()
-            .returning(|_| Err(RealmClientError::RealmConnectorError(String::from(""))));
+            .returning(|_| Err(RealmClientError::RealmConnectionFail(String::from(""))));
         let mut application_manager = create_application_manager(Some(realm_client));
         assert_eq!(
             application_manager.stop().await,
             Err(ApplicationError::ApplicationStopFail(
-                RealmClientError::RealmConnectorError(String::from("")).to_string()
+                RealmClientError::RealmConnectionFail(String::from("")).to_string()
             ))
         );
     }
@@ -111,12 +111,12 @@ mod test {
         let mut realm_client = MockRealmClient::new();
         realm_client
             .expect_start_application()
-            .returning(|_| Err(RealmClientError::RealmConnectorError(String::from(""))));
+            .returning(|_| Err(RealmClientError::RealmConnectionFail(String::from(""))));
         let mut application_manager = create_application_manager(Some(realm_client));
         assert_eq!(
             application_manager.start().await,
             Err(ApplicationError::ApplicationStartFail(
-                RealmClientError::RealmConnectorError(String::from("")).to_string()
+                RealmClientError::RealmConnectionFail(String::from("")).to_string()
             ))
         );
     }

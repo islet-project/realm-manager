@@ -277,12 +277,12 @@ mod test {
         let mut client_mock = MockRealmClient::new();
         client_mock
             .expect_send_realm_provisioning_config()
-            .return_once(|_, _| Err(RealmClientError::RealmConnectorError(String::new())));
+            .return_once(|_, _| Err(RealmClientError::RealmConnectionFail(String::new())));
         let mut realm_manager = create_realm_manager(None, Some(client_mock));
         assert_eq!(
             realm_manager.start().await,
             Err(RealmError::RealmStartFail(
-                RealmClientError::RealmConnectorError(String::new()).to_string()
+                RealmClientError::RealmConnectionFail(String::new()).to_string()
             ))
         );
         assert_eq!(realm_manager.state, State::Halted);
