@@ -1,0 +1,9 @@
+[package]
+name = "warden_client"
+version = "0.1.0"
+edition = "2021"
+
+[dependencies]
+uuid = { version = "1.10.0", features = ["v4", "serde"] }
+serde = { version = "1.0.197", features = ["derive", "alloc"] }
+thiserror = "1.0.57"
