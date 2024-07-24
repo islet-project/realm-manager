@@ -1,0 +1,12 @@
+[package]
+name = "warden_client_lib"
+version = "0.1.0"
+edition = "2021"
+
+[dependencies]
+serde = { version = "1.0.197", features = ["derive", "alloc"] }
+serde_json = { version = "1.0.114", features = ["alloc"] }
+uuid = { version = "1.10.0", features = ["v4", "serde"] }
+tokio = { version = "1.36.0", features = ["net", "macros", "rt", "rt-multi-thread", "io-util", "signal", "time", "sync", "fs", "process"] }
+thiserror = "1.0.57"
+warden_client = { path = "../protocol/warden_client"}
