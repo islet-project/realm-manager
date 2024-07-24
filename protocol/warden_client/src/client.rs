@@ -63,6 +63,9 @@ pub enum WardenResponse {
     CreatedRealm {
         uuid: Uuid,
     },
+    CreatedApplication {
+        uuid: Uuid,
+    },
     InspectedRealm {
         description: RealmDescription,
     },

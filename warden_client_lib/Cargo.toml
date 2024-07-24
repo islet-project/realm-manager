@@ -10,3 +10,4 @@ uuid = { version = "1.10.0", features = ["v4", "serde"] }
 tokio = { version = "1.36.0", features = ["net", "macros", "rt", "rt-multi-thread", "io-util", "signal", "time", "sync", "fs", "process"] }
 thiserror = "1.0.57"
 warden_client = { path = "../protocol/warden_client"}
+utils = { path = "../utils"}
