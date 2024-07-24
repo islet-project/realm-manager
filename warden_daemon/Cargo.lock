@@ -856,6 +856,15 @@ dependencies = [
 ]
 
 [[package]]
+name = "warden_client"
+version = "0.1.0"
+dependencies = [
+ "serde",
+ "thiserror",
+ "uuid",
+]
+
+[[package]]
 name = "warden_daemon"
 version = "0.1.0"
 dependencies = [
@@ -876,6 +885,7 @@ dependencies = [
  "tokio-util",
  "tokio-vsock",
  "uuid",
+ "warden_client",
 ]
 
 [[package]]

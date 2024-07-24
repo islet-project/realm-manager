@@ -1,5 +1,5 @@
-use crate::managers::application::{Application, ApplicationConfig, ApplicationError};
-use crate::managers::realm::{Realm, RealmDescription, RealmError};
+use crate::managers::application::{Application, ApplicationError};
+use crate::managers::realm::{Realm, RealmError};
 use crate::managers::realm_configuration::RealmConfig;
 use crate::managers::warden::{Warden, WardenError};
 
@@ -14,55 +14,7 @@ use tokio::sync::Mutex;
 use tokio::{net::UnixStream, select};
 use tokio_util::sync::CancellationToken;
 use uuid::Uuid;
-
-#[derive(Serialize, Deserialize, Debug)]
-pub enum ClientCommand {
-    CreateRealm {
-        config: RealmConfig,
-    },
-    StartRealm {
-        uuid: Uuid,
-    },
-    StopRealm {
-        uuid: Uuid,
-    },
-    RebootRealm {
-        uuid: Uuid,
-    },
-    DestroyRealm {
-        uuid: Uuid,
-    },
-    InspectRealm {
-        uuid: Uuid,
-    },
-    ListRealms,
-    CreateApplication {
-        realm_uuid: Uuid,
-        config: ApplicationConfig,
-    },
-    StartApplication {
-        realm_uuid: Uuid,
-        application_uuid: Uuid,
-    },
-    StopApplication {
-        realm_uuid: Uuid,
-        application_uuid: Uuid,
-    },
-    UpdateApplication {
-        realm_uuid: Uuid,
-        application_uuid: Uuid,
-        config: ApplicationConfig,
-    },
-}
-
-#[derive(Serialize, Deserialize, Debug)]
-pub enum ClientReponse {
-    Ok,
-    CreatedRealm { uuid: Uuid },
-    InspectedRealm(RealmDescription),
-    ListedRealms(Vec<RealmDescription>),
-    Error(ClientError),
-}
+use warden_client::client::{WardenCommand, WardenResponse};
 
 #[derive(Debug, Error, Serialize, Deserialize, PartialEq, PartialOrd)]
 pub enum ClientError {
@@ -141,7 +93,7 @@ impl ClientHandler {
             .map_err(|_| ClientError::SendingResponseFail)
     }
 
-    fn resolve_command(&self, serialized_command: String) -> Result<ClientCommand, ClientError> {
+    fn resolve_command(&self, serialized_command: String) -> Result<WardenCommand, ClientError> {
         serde_json::from_str(&serialized_command).map_err(|_| ClientError::UnknownCommand {
             length: serialized_command.len(),
         })
@@ -149,10 +101,10 @@ impl ClientHandler {
 
     async fn handle_command(
         &mut self,
-        client_command: ClientCommand,
-    ) -> Result<ClientReponse, ClientError> {
+        client_command: WardenCommand,
+    ) -> Result<WardenResponse, ClientError> {
         match client_command {
-            ClientCommand::StartRealm { uuid } => {
+            WardenCommand::StartRealm { uuid } => {
                 info!("Starting realm: {uuid}.");
                 let realm: Arc<Mutex<Box<dyn Realm + Send + Sync>>> = self.get_realm(&uuid).await?;
                 realm
@@ -162,20 +114,20 @@ impl ClientHandler {
                     .await
                     .map_err(ClientError::RealmManagerError)?;
                 info!("Started realm: {uuid}.");
-                Ok(ClientReponse::Ok)
+                Ok(WardenResponse::Ok)
             }
-            ClientCommand::CreateRealm { config } => {
+            WardenCommand::CreateRealm { config } => {
                 info!("Creating realm.");
                 let uuid = self
                     .warden
                     .lock()
                     .await
-                    .create_realm(config)
+                    .create_realm(RealmConfig::from(config))
                     .map_err(ClientError::WardenDaemonError)?;
                 info!("Realm: {uuid} created.");
-                Ok(ClientReponse::CreatedRealm { uuid })
+                Ok(WardenResponse::CreatedRealm { uuid })
             }
-            ClientCommand::StopRealm { uuid } => {
+            WardenCommand::StopRealm { uuid } => {
                 info!("Stopping realm: {uuid}.");
                 let realm = self.get_realm(&uuid).await?;
                 realm
@@ -184,9 +136,9 @@ impl ClientHandler {
                     .stop()
                     .map_err(ClientError::RealmManagerError)?;
                 info!("Realm: {uuid} stopped.");
-                Ok(ClientReponse::Ok)
+                Ok(WardenResponse::Ok)
             }
-            ClientCommand::DestroyRealm { uuid } => {
+            WardenCommand::DestroyRealm { uuid } => {
                 info!("Destroying realm: {uuid}.");
                 self.warden
                     .lock()
@@ -195,9 +147,9 @@ impl ClientHandler {
                     .await
                     .map_err(ClientError::WardenDaemonError)?;
                 info!("Realm: {uuid} destroyed.");
-                Ok(ClientReponse::Ok)
+                Ok(WardenResponse::Ok)
             }
-            ClientCommand::RebootRealm { uuid } => {
+            WardenCommand::RebootRealm { uuid } => {
                 info!("Rebooting realm: {uuid}.");
                 let realm = self.get_realm(&uuid).await?;
                 realm
@@ -207,9 +159,9 @@ impl ClientHandler {
                     .await
                     .map_err(ClientError::RealmManagerError)?;
                 info!("Realm: {uuid} rebooted.");
-                Ok(ClientReponse::Ok)
+                Ok(WardenResponse::Ok)
             }
-            ClientCommand::InspectRealm { uuid } => {
+            WardenCommand::InspectRealm { uuid } => {
                 info!("Inspecting realm: {uuid}.");
                 let warden = self.warden.lock().await;
                 let realm_data = warden
@@ -217,26 +169,38 @@ impl ClientHandler {
                     .await
                     .map_err(ClientError::WardenDaemonError)?;
                 info!("Realm: {uuid} inspected.");
-                Ok(ClientReponse::InspectedRealm(realm_data))
+                Ok(WardenResponse::InspectedRealm {
+                    description: realm_data.into(),
+                })
             }
-            ClientCommand::ListRealms => {
+            WardenCommand::ListRealms => {
                 info!("Listing realms.");
-                let listed_realms = self.warden.lock().await.list_realms().await;
+                let listed_realms = self
+                    .warden
+                    .lock()
+                    .await
+                    .list_realms()
+                    .await
+                    .into_iter()
+                    .map(|description| description.into())
+                    .collect();
                 info!("Realms listed.");
-                Ok(ClientReponse::ListedRealms(listed_realms))
+                Ok(WardenResponse::ListedRealms {
+                    realms_description: listed_realms,
+                })
             }
-            ClientCommand::CreateApplication { realm_uuid, config } => {
+            WardenCommand::CreateApplication { realm_uuid, config } => {
                 info!("Creating application in realm: {realm_uuid}.");
                 let realm = self.get_realm(&realm_uuid).await?;
                 let application_uuid = realm
                     .lock()
                     .await
-                    .create_application(config)
+                    .create_application(config.into())
                     .map_err(ClientError::RealmManagerError)?;
                 info!("Created application with id: {application_uuid} in realm: {realm_uuid}.");
-                Ok(ClientReponse::Ok)
+                Ok(WardenResponse::Ok)
             }
-            ClientCommand::StartApplication {
+            WardenCommand::StartApplication {
                 realm_uuid,
                 application_uuid,
             } => {
@@ -249,9 +213,9 @@ impl ClientHandler {
                     .await
                     .map_err(ClientError::ApplicationError)?;
                 info!("Started application: {application_uuid} in realm: {realm_uuid}.");
-                Ok(ClientReponse::Ok)
+                Ok(WardenResponse::Ok)
             }
-            ClientCommand::StopApplication {
+            WardenCommand::StopApplication {
                 realm_uuid,
                 application_uuid,
             } => {
@@ -264,9 +228,9 @@ impl ClientHandler {
                     .await
                     .map_err(ClientError::ApplicationError)?;
                 info!("Stopped application: {application_uuid} in realm: {realm_uuid}.");
-                Ok(ClientReponse::Ok)
+                Ok(WardenResponse::Ok)
             }
-            ClientCommand::UpdateApplication {
+            WardenCommand::UpdateApplication {
                 realm_uuid,
                 application_uuid,
                 config,
@@ -276,11 +240,11 @@ impl ClientHandler {
                     .await?
                     .lock()
                     .await
-                    .update_application(&application_uuid, config)
+                    .update_application(&application_uuid, config.into())
                     .await
                     .map_err(ClientError::RealmManagerError)?;
                 info!("Started application: {application_uuid} in realm: {realm_uuid}.");
-                Ok(ClientReponse::Ok)
+                Ok(WardenResponse::Ok)
             }
         }
     }
@@ -334,11 +298,11 @@ mod test {
         warden::WardenError,
     };
     use crate::test_utilities::{
-        create_example_app_config, create_example_realm_config, create_example_realm_description,
-        create_example_uuid, MockApplication, MockRealm, MockWardenDaemon,
+        create_example_realm_description, create_example_uuid, MockApplication, MockRealm,
+        MockWardenDaemon,
     };
     use parameterized::parameterized;
-    use std::sync::Arc;
+    use std::{path::PathBuf, sync::Arc};
     use tokio::{
         io::{AsyncReadExt, AsyncWriteExt, BufReader},
         net::UnixStream,
@@ -346,12 +310,17 @@ mod test {
     };
     use tokio_util::sync::CancellationToken;
     use uuid::Uuid;
+    use warden_client::{
+        applciation::ApplicationConfig,
+        client::{WardenCommand, WardenResponse},
+        realm::{CpuConfig, KernelConfig, MemoryConfig, NetworkConfig, RealmConfig},
+    };
 
-    use super::{ClientCommand, ClientError, ClientHandler, ClientReponse};
+    use super::{ClientError, ClientHandler};
 
     #[tokio::test]
     async fn handle_requests_and_disconnect() {
-        const INPUT: ClientCommand = ClientCommand::ListRealms;
+        const INPUT: WardenCommand = WardenCommand::ListRealms;
         let (mut client_socket, mut client_handler) = create_client_handler(None).await;
         let task = tokio::spawn(async move {
             client_socket
@@ -482,19 +451,19 @@ mod test {
 
     #[tokio::test]
     #[parameterized(input = {
-        (ClientCommand::CreateRealm { config: create_example_realm_config() }, ClientReponse::CreatedRealm{uuid: create_example_uuid()}),
-        (ClientCommand::StartRealm { uuid: create_example_uuid()}, ClientReponse::Ok),
-        (ClientCommand::StopRealm { uuid: create_example_uuid() }, ClientReponse::Ok),
-        (ClientCommand::DestroyRealm { uuid: create_example_uuid() }, ClientReponse::Ok),
-        (ClientCommand::RebootRealm { uuid: create_example_uuid() }, ClientReponse::Ok),
-        (ClientCommand::InspectRealm { uuid: create_example_uuid() }, ClientReponse::InspectedRealm(create_example_realm_description())),
-        (ClientCommand::ListRealms, ClientReponse::ListedRealms(vec![create_example_realm_description()])),
-        (ClientCommand::CreateApplication { realm_uuid: create_example_uuid(), config: create_example_app_config() }, ClientReponse::Ok),
-        (ClientCommand::StartApplication { realm_uuid: create_example_uuid(), application_uuid: create_example_uuid() }, ClientReponse::Ok),
-        (ClientCommand::StopApplication { realm_uuid: create_example_uuid(), application_uuid: create_example_uuid() }, ClientReponse::Ok),
-        (ClientCommand::UpdateApplication { realm_uuid: create_example_uuid(), application_uuid: create_example_uuid(), config: create_example_app_config() }, ClientReponse::Ok),
+        (WardenCommand::CreateRealm { config: create_example_client_realm_config() }, WardenResponse::CreatedRealm{uuid: create_example_uuid()}),
+        (WardenCommand::StartRealm { uuid: create_example_uuid()}, WardenResponse::Ok),
+        (WardenCommand::StopRealm { uuid: create_example_uuid() }, WardenResponse::Ok),
+        (WardenCommand::DestroyRealm { uuid: create_example_uuid() }, WardenResponse::Ok),
+        (WardenCommand::RebootRealm { uuid: create_example_uuid() }, WardenResponse::Ok),
+        (WardenCommand::InspectRealm { uuid: create_example_uuid() }, WardenResponse::InspectedRealm { description: create_example_realm_description().into() }),
+        (WardenCommand::ListRealms, WardenResponse::ListedRealms { realms_description: vec![create_example_realm_description().into()] }),
+        (WardenCommand::CreateApplication { realm_uuid: create_example_uuid(), config: create_example_client_app_config() }, WardenResponse::Ok),
+        (WardenCommand::StartApplication { realm_uuid: create_example_uuid(), application_uuid: create_example_uuid() }, WardenResponse::Ok),
+        (WardenCommand::StopApplication { realm_uuid: create_example_uuid(), application_uuid: create_example_uuid() }, WardenResponse::Ok),
+        (WardenCommand::UpdateApplication { realm_uuid: create_example_uuid(), application_uuid: create_example_uuid(), config: create_example_client_app_config() }, WardenResponse::Ok),
     })]
-    async fn handle_request(input: (ClientCommand, ClientReponse)) {
+    async fn handle_request(input: (WardenCommand, WardenResponse)) {
         let (request, response) = input;
         let (mut receive_socket, mut client_handler) = create_client_handler(None).await;
         let reader = tokio::spawn(async move {
@@ -576,5 +545,30 @@ mod test {
                 token: Arc::new(CancellationToken::new()),
             },
         )
+    }
+
+    fn create_example_client_realm_config() -> RealmConfig {
+        RealmConfig {
+            machine: String::new(),
+            cpu: CpuConfig {
+                cpu: String::new(),
+                cores_number: 0,
+            },
+            memory: MemoryConfig { ram_size: 0 },
+            network: NetworkConfig {
+                vsock_cid: 0,
+                tap_device: String::new(),
+                mac_address: String::new(),
+                hardware_device: None,
+                remote_terminal_uri: None,
+            },
+            kernel: KernelConfig {
+                kernel_path: PathBuf::new(),
+            },
+        }
+    }
+
+    fn create_example_client_app_config() -> ApplicationConfig {
+        ApplicationConfig {}
     }
 }
