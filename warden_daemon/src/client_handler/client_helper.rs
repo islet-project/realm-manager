@@ -4,8 +4,6 @@ use crate::managers::{
     realm_configuration::{CpuConfig, KernelConfig, MemoryConfig, NetworkConfig, RealmConfig},
 };
 
-use super::client_command_handler::ClientError;
-
 impl From<warden_client::realm::RealmConfig> for RealmConfig {
     fn from(realm_config: warden_client::realm::RealmConfig) -> Self {
         RealmConfig {
@@ -81,20 +79,6 @@ impl From<warden_client::realm::KernelConfig> for KernelConfig {
 impl From<warden_client::applciation::ApplicationConfig> for ApplicationConfig {
     fn from(_value: warden_client::applciation::ApplicationConfig) -> Self {
         Self {}
-    }
-}
-
-impl From<ClientError> for warden_client::client::WardenDaemonError {
-    fn from(val: ClientError) -> Self {
-        type WardenDaemonError = warden_client::client::WardenDaemonError;
-        match val {
-            ClientError::ReadingRequestFail => WardenDaemonError::ReadingRequestFail,
-            ClientError::UnknownCommand { length: _ } => WardenDaemonError::UnknownCommand,
-            ClientError::SendingResponseFail => WardenDaemonError::SendingResponseFail,
-            err => WardenDaemonError::WardenDaemonFail {
-                message: err.to_string(),
-            },
-        }
     }
 }
 

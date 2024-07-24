@@ -4,69 +4,59 @@ use crate::managers::realm_configuration::RealmConfig;
 use crate::managers::warden::{Warden, WardenError};
 
 use async_trait::async_trait;
-use log::{error, info, trace};
+use log::{error, info};
 use serde::{Deserialize, Serialize};
-use std::io;
 use std::sync::Arc;
 use thiserror::Error;
-use tokio::io::{AsyncBufReadExt, AsyncWriteExt, BufReader};
 use tokio::sync::Mutex;
 use tokio::{net::UnixStream, select};
 use tokio_util::sync::CancellationToken;
+use utils::serde::{JsonFramed, JsonFramedError};
 use uuid::Uuid;
-use warden_client::client::{WardenCommand, WardenResponse};
+use warden_client::client::{WardenCommand, WardenDaemonError, WardenResponse};
 
 #[derive(Debug, Error, Serialize, Deserialize, PartialEq, PartialOrd)]
 pub enum ClientError {
-    #[error("Failed to read request.")]
-    ReadingRequestFail,
-    #[error("Can't recognise a command.")]
-    UnknownCommand { length: usize },
-    #[error("Provided Uuid is invalid.")]
-    InvalidUuid,
-    #[error("Can't serialize a response.")]
-    ParsingResponseFail,
+    #[error("Failed to read request. Error: {message}")]
+    InvalidRequest { message: String },
     #[error("Warden error occured: {0}")]
     WardenDaemonError(WardenError),
     #[error("Realm error occured: {0}")]
     RealmManagerError(RealmError),
     #[error("Application error occured: {0}")]
     ApplicationError(ApplicationError),
-    #[error("Failed to send response.")]
-    SendingResponseFail,
+    #[error("Failed to send response. Error: {message}")]
+    SendingResponseFail { message: String },
 }
 
 #[async_trait]
 pub trait Client {
     async fn handle_connection(
         warden: Arc<Mutex<Box<dyn Warden + Send + Sync>>>,
-        socket: UnixStream,
+        stream: UnixStream,
         token: Arc<CancellationToken>,
     ) -> Result<(), ClientError>;
 }
 
 pub struct ClientHandler {
     warden: Arc<Mutex<Box<dyn Warden + Send + Sync>>>,
-    socket: BufReader<UnixStream>,
+    communicator: JsonFramed<UnixStream, WardenCommand, WardenResponse>,
     token: Arc<CancellationToken>,
 }
 
 impl ClientHandler {
     pub async fn handle_client_requests(&mut self) -> Result<(), ClientError> {
         loop {
-            // TODO! Refactor command reading using tokio_serde
-            let mut request_data = String::new();
             select! {
-                readed_bytes = self.socket.read_line(&mut request_data) => {
-                    if let Err(err) = self.handle_request(readed_bytes, request_data).await {
-                        match err {
-                            ClientError::UnknownCommand{length: 0} => { break; }, // Client disconnected
-                            _ => {
-                                error!("Error has occured while handling client command: {}", err);
-                                let _ = self.socket.write_all(&serde_json::to_vec(&err).map_err(|_|ClientError::ParsingResponseFail)?).await;
-                            }
-                        }
-                    }
+                command_result = self.communicator.recv() => {
+                    let command = match command_result {
+                        Ok(command) => command,
+                        Err(JsonFramedError::StreamIsClosed()) => {break;},
+                        Err(_) => {
+                            return self.communicator.send(WardenResponse::Error { warden_error: WardenDaemonError::ReadingRequestFail }).await.map_err(|err|ClientError::SendingResponseFail { message: err.to_string() });
+                        },
+                    };
+                    self.handle_client_command(command).await?;
                 }
                 _ = self.token.cancelled() => {
                     break;
@@ -76,27 +66,27 @@ impl ClientHandler {
         Ok(())
     }
 
-    async fn handle_request(
-        &mut self,
-        readed_bytes: Result<usize, io::Error>,
-        request_data: String,
-    ) -> Result<(), ClientError> {
-        let _ = readed_bytes.map_err(|_| ClientError::ReadingRequestFail)?;
-        trace!("Received message: {request_data}.");
-        let command = self.resolve_command(request_data)?;
-        let response = self.handle_command(command).await?;
-        self.socket
-            .write_all(
-                &serde_json::to_vec(&response).map_err(|_| ClientError::ParsingResponseFail)?,
-            )
+    async fn handle_client_command(&mut self, command: WardenCommand) -> Result<(), ClientError> {
+        let response = match self.handle_command(command).await.map_err(|client_err| {
+            WardenDaemonError::WardenDaemonFail {
+                message: client_err.to_string(),
+            }
+        }) {
+            Ok(response) => response,
+            Err(warden_error) => {
+                error!(
+                    "Error has occured while handling client command: {}",
+                    warden_error
+                );
+                WardenResponse::Error { warden_error }
+            }
+        };
+        self.communicator
+            .send(response)
             .await
-            .map_err(|_| ClientError::SendingResponseFail)
-    }
-
-    fn resolve_command(&self, serialized_command: String) -> Result<WardenCommand, ClientError> {
-        serde_json::from_str(&serialized_command).map_err(|_| ClientError::UnknownCommand {
-            length: serialized_command.len(),
-        })
+            .map_err(|err| ClientError::SendingResponseFail {
+                message: err.to_string(),
+            })
     }
 
     async fn handle_command(
@@ -278,12 +268,12 @@ impl ClientHandler {
 impl Client for ClientHandler {
     async fn handle_connection(
         warden: Arc<Mutex<Box<dyn Warden + Send + Sync>>>,
-        socket: UnixStream,
+        stream: UnixStream,
         token: Arc<CancellationToken>,
     ) -> Result<(), ClientError> {
         let mut handler = ClientHandler {
             warden,
-            socket: BufReader::new(socket),
+            communicator: JsonFramed::<UnixStream, WardenCommand, WardenResponse>::new(stream),
             token,
         };
         handler.handle_client_requests().await
@@ -303,12 +293,9 @@ mod test {
     };
     use parameterized::parameterized;
     use std::{path::PathBuf, sync::Arc};
-    use tokio::{
-        io::{AsyncReadExt, AsyncWriteExt, BufReader},
-        net::UnixStream,
-        sync::Mutex,
-    };
+    use tokio::{net::UnixStream, sync::Mutex};
     use tokio_util::sync::CancellationToken;
+    use utils::serde::JsonFramed;
     use uuid::Uuid;
     use warden_client::{
         applciation::ApplicationConfig,
@@ -323,14 +310,8 @@ mod test {
         const INPUT: WardenCommand = WardenCommand::ListRealms;
         let (mut client_socket, mut client_handler) = create_client_handler(None).await;
         let task = tokio::spawn(async move {
-            client_socket
-                .write_all(&serde_json::to_vec(&INPUT).unwrap())
-                .await
-                .unwrap();
-            client_socket.write(&[0xA]).await.unwrap(); //  New line char
-            let mut buffer = [0; 2048];
-            client_socket.read(&mut buffer).await.unwrap();
-            client_socket.shutdown().await.unwrap(); // Testing shutdown
+            client_socket.send(INPUT).await.unwrap();
+            client_socket.recv().await.unwrap();
         });
         assert_eq!(client_handler.handle_client_requests().await, Ok(()));
         task.await.unwrap();
@@ -425,31 +406,6 @@ mod test {
     }
 
     #[tokio::test]
-    async fn handle_requests_invalid_command() {
-        const MESSAGE: &str = "{}";
-        let mut data = serde_json::to_vec(MESSAGE).unwrap();
-        data.push(0xA); // new line
-        let length = data.len();
-        let (mut client_socket, mut client_handler) = create_client_handler(None).await;
-        let task = tokio::spawn(async move {
-            client_socket.write_all(&data).await.unwrap();
-            let mut buffer = [0; 2048];
-            client_socket.read(&mut buffer).await.unwrap();
-            client_socket.shutdown().await.unwrap();
-            buffer
-        });
-        assert_eq!(client_handler.handle_client_requests().await, Ok(()));
-        let mut request_response = std::str::from_utf8(&task.await.unwrap())
-            .unwrap()
-            .to_string();
-        request_response.retain(|c| c != '\0');
-        assert_eq!(
-            request_response,
-            serde_json::to_string(&ClientError::UnknownCommand { length }).unwrap()
-        );
-    }
-
-    #[tokio::test]
     #[parameterized(input = {
         (WardenCommand::CreateRealm { config: create_example_client_realm_config() }, WardenResponse::CreatedRealm{uuid: create_example_uuid()}),
         (WardenCommand::StartRealm { uuid: create_example_uuid()}, WardenResponse::Ok),
@@ -464,29 +420,19 @@ mod test {
         (WardenCommand::UpdateApplication { realm_uuid: create_example_uuid(), application_uuid: create_example_uuid(), config: create_example_client_app_config() }, WardenResponse::Ok),
     })]
     async fn handle_request(input: (WardenCommand, WardenResponse)) {
-        let (request, response) = input;
+        let (command, response) = input;
         let (mut receive_socket, mut client_handler) = create_client_handler(None).await;
-        let reader = tokio::spawn(async move {
-            let mut buffer = [0; 2048];
-            receive_socket.read(&mut buffer).await.unwrap();
-            buffer
-        });
-        assert_eq!(
-            client_handler
-                .handle_request(Ok(0), serde_json::to_string(&request).unwrap())
-                .await,
-            Ok(())
-        );
-        let mut request_response = std::str::from_utf8(&reader.await.unwrap())
-            .unwrap()
-            .to_string();
-        request_response.retain(|c| c != '\0');
-        assert_eq!(request_response, serde_json::to_string(&response).unwrap());
+        let reader = tokio::spawn(async move { receive_socket.recv().await.unwrap() });
+        assert!(client_handler.handle_client_command(command).await.is_ok());
+        assert_eq!(reader.await.unwrap(), response);
     }
 
     async fn create_client_handler(
         warden_daemon: Option<MockWardenDaemon>,
-    ) -> (UnixStream, ClientHandler) {
+    ) -> (
+        JsonFramed<UnixStream, WardenResponse, WardenCommand>,
+        ClientHandler,
+    ) {
         let application_manager: Arc<Mutex<Box<dyn Application + Send + Sync>>> =
             Arc::new(Mutex::new(Box::new({
                 let mut realm_manager = MockApplication::new();
@@ -536,12 +482,14 @@ mod test {
                 .return_once(|_| Ok(realm_manager));
             warden_daemon
         });
-        let (receive_socket, client_socket) = UnixStream::pair().unwrap();
+        let (receive_stream, client_stream) = UnixStream::pair().unwrap();
         (
-            receive_socket,
+            JsonFramed::<UnixStream, WardenResponse, WardenCommand>::new(receive_stream),
             ClientHandler {
                 warden: Arc::new(Mutex::new(Box::new(warden_daemon))),
-                socket: BufReader::new(client_socket),
+                communicator: JsonFramed::<UnixStream, WardenCommand, WardenResponse>::new(
+                    client_stream,
+                ),
                 token: Arc::new(CancellationToken::new()),
             },
         )

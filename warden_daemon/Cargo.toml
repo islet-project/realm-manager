@@ -22,3 +22,4 @@ mockall = "0.12.1"
 parameterized = "2.0.0"
 futures = "0.3"
 warden_client = { path = "../protocol/warden_client"}
+utils = { path = "../utils"}
