@@ -327,7 +327,7 @@ mod test {
                 .write_all(&serde_json::to_vec(&INPUT).unwrap())
                 .await
                 .unwrap();
-            client_socket.write(&vec![0xA]).await.unwrap(); //  New line char
+            client_socket.write(&[0xA]).await.unwrap(); //  New line char
             let mut buffer = [0; 2048];
             client_socket.read(&mut buffer).await.unwrap();
             client_socket.shutdown().await.unwrap(); // Testing shutdown

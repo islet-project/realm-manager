@@ -84,13 +84,13 @@ impl From<warden_client::applciation::ApplicationConfig> for ApplicationConfig {
     }
 }
 
-impl Into<warden_client::client::WardenDaemonError> for ClientError {
-    fn into(self) -> warden_client::client::WardenDaemonError {
+impl From<ClientError> for warden_client::client::WardenDaemonError {
+    fn from(val: ClientError) -> Self {
         type WardenDaemonError = warden_client::client::WardenDaemonError;
-        match self {
-            Self::ReadingRequestFail => WardenDaemonError::ReadingRequestFail,
-            Self::UnknownCommand { length: _ } => WardenDaemonError::UnknownCommand,
-            Self::SendingResponseFail => WardenDaemonError::SendingResponseFail,
+        match val {
+            ClientError::ReadingRequestFail => WardenDaemonError::ReadingRequestFail,
+            ClientError::UnknownCommand { length: _ } => WardenDaemonError::UnknownCommand,
+            ClientError::SendingResponseFail => WardenDaemonError::SendingResponseFail,
             err => WardenDaemonError::WardenDaemonFail {
                 message: err.to_string(),
             },
@@ -98,24 +98,24 @@ impl Into<warden_client::client::WardenDaemonError> for ClientError {
     }
 }
 
-impl Into<warden_client::realm::State> for State {
-    fn into(self) -> warden_client::realm::State {
+impl From<State> for warden_client::realm::State {
+    fn from(val: State) -> Self {
         type CState = warden_client::realm::State;
-        match self {
-            Self::Halted => CState::Halted,
-            Self::Provisioning => CState::Provisioning,
-            Self::Running => CState::Running,
-            Self::NeedReboot => CState::NeedReboot,
+        match val {
+            State::Halted => CState::Halted,
+            State::Provisioning => CState::Provisioning,
+            State::Running => CState::Running,
+            State::NeedReboot => CState::NeedReboot,
         }
     }
 }
 
-impl Into<warden_client::realm::RealmDescription> for RealmDescription {
-    fn into(self) -> warden_client::realm::RealmDescription {
+impl From<RealmDescription> for warden_client::realm::RealmDescription {
+    fn from(val: RealmDescription) -> Self {
         type RealmDescription = warden_client::realm::RealmDescription;
         RealmDescription {
-            uuid: self.uuid,
-            state: self.realm_data.state.into(),
+            uuid: val.uuid,
+            state: val.realm_data.state.into(),
         }
     }
 }

@@ -158,7 +158,7 @@ mod test {
         let mut realm = MockRealm::new();
         realm
             .expect_get_realm_data()
-            .returning(|| create_example_realm_data());
+            .returning(create_example_realm_data);
         let mut daemon = create_host_daemon(Some(realm));
         let uuid = daemon.create_realm(create_example_realm_config()).unwrap();
         assert_eq!(
@@ -192,7 +192,7 @@ mod test {
         let mut realm = MockRealm::new();
         realm
             .expect_get_realm_data()
-            .returning(|| create_example_realm_data());
+            .returning(create_example_realm_data);
         let mut daemon = create_host_daemon(Some(realm));
         let uuid = daemon.create_realm(create_example_realm_config()).unwrap();
         let listed_realm = daemon
