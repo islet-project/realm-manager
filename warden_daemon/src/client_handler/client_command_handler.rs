@@ -51,7 +51,10 @@ impl ClientHandler {
                 command_result = self.communicator.recv() => {
                     let command = match command_result {
                         Ok(command) => command,
-                        Err(JsonFramedError::StreamIsClosed()) => {break;},
+                        Err(JsonFramedError::StreamIsClosed()) => {
+                            info!("CLient has disconnected.");
+                            break;
+                        },
                         Err(_) => {
                             return self.communicator.send(WardenResponse::Error { warden_error: WardenDaemonError::ReadingRequestFail }).await.map_err(|err|ClientError::SendingResponseFail { message: err.to_string() });
                         },
@@ -188,7 +191,9 @@ impl ClientHandler {
                     .create_application(config.into())
                     .map_err(ClientError::RealmManagerError)?;
                 info!("Created application with id: {application_uuid} in realm: {realm_uuid}.");
-                Ok(WardenResponse::Ok)
+                Ok(WardenResponse::CreatedApplication {
+                    uuid: application_uuid,
+                })
             }
             WardenCommand::StartApplication {
                 realm_uuid,
