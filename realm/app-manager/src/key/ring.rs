@@ -6,7 +6,7 @@ use thiserror::Error;
 use super::Result;
 
 #[derive(Debug, Error)]
-pub enum KeyError {
+pub enum KeyRingError {
     #[error("Failed to attach to requested kernel keyring")]
     FailedToAttachtoKeyring(#[source] keyutils::Error),
 
@@ -21,7 +21,7 @@ pub struct KernelKeyring {
 impl KernelKeyring {
     pub fn new(parent_ring: SpecialKeyring) -> Result<Self> {
         Ok(Self {
-            ring: Keyring::attach_or_create(parent_ring).map_err(KeyError::FailedToAttachtoKeyring)?
+            ring: Keyring::attach_or_create(parent_ring).map_err(KeyRingError::FailedToAttachtoKeyring)?
         })
     }
 
@@ -32,7 +32,7 @@ impl KernelKeyring {
         };
 
         let _ = self.ring.add_key::<Logon, _, _>(key_desc, payload.as_ref())
-            .map_err(KeyError::FailedToSealKey)?;
+            .map_err(KeyRingError::FailedToSealKey)?;
 
         Ok(())
     }

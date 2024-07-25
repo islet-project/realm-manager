@@ -51,11 +51,11 @@ async fn main() -> Result<()> {
     let config = Config::read_from_file("/etc/app-manager/config.yml").await?;
     let mut manager = Manager::new(config)?;
 
-    info!("Provishioning...");
-    let _ = manager.setup().await?;
+    // info!("Provishioning...");
+    // let _ = manager.setup().await?;
 
-    info!("Applications started entering event loop");
-    let _ = manager.handle_events().await?;
+    // info!("Applications started entering event loop");
+    // let _ = manager.handle_events().await?;
 
     Ok(())
 }

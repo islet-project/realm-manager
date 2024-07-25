@@ -10,7 +10,7 @@ pub enum CryptError {
 
 }
 
-#[derive(Deserialize, Debug)]
+#[derive(Deserialize, Debug, Clone, Copy)]
 pub enum Cipher {
     Aes,
     Twofish,
@@ -27,7 +27,7 @@ impl Display for Cipher {
     }
 }
 
-#[derive(Deserialize, Debug)]
+#[derive(Deserialize, Debug, Clone, Copy)]
 pub enum HashAlgo {
     Sha256
 }
@@ -40,7 +40,7 @@ impl Display for HashAlgo {
     }
 }
 
-#[derive(Deserialize, Debug)]
+#[derive(Deserialize, Debug, Clone, Copy)]
 pub enum IvMode {
     Plain,
     Plain64,
@@ -57,7 +57,7 @@ impl Display for IvMode {
     }
 }
 
-#[derive(Deserialize, Debug)]
+#[derive(Deserialize, Debug, Clone, Copy)]
 pub enum BlockMode {
     Cbc,
     Xts
@@ -123,7 +123,7 @@ impl Display for DevicePath {
     }
 }
 
-#[derive(Deserialize, Debug)]
+#[derive(Deserialize, Debug, Clone)]
 pub struct CryptoParams {
     pub cipher: Cipher,
     pub iv_mode: IvMode,

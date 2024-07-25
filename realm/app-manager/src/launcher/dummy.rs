@@ -33,7 +33,7 @@ impl DummyLauncher {
 
 #[async_trait]
 impl Launcher for DummyLauncher {
-    async fn install(&mut self, path: &Path, _: impl AsRef<str> + Send + Sync) -> Result<()> {
+    async fn install(&mut self, path: &Path, _: &String, _: &String) -> Result<()> {
         fs::copy("/usr/bin/busybox", path.join("busybox"))
             .await
             .map_err(DummyLauncherError::FileCopyError)?;
@@ -45,11 +45,11 @@ impl Launcher for DummyLauncher {
         Ok(())
     }
 
-    async fn read_vendor_data(&self, _: &Path) -> Result<Vec<u8>> {
-        Ok(vec![0x11, 0x22, 0x33])
+    async fn read_vendor_data(&self, _: &Path) -> Result<Vec<Vec<u8>>> {
+        Ok(vec![vec![0x11, 0x22, 0x33]])
     }
 
-    async fn prepare(&mut self, path: &Path) -> Result<Box<dyn ApplicationHandler>> {
+    async fn prepare(&mut self, path: &Path) -> Result<Box<dyn ApplicationHandler + Send + Sync>> {
         let config = ExecConfig {
             exec: PathBuf::from("/busybox"),
             argv: vec!["sh".to_owned(), "/script.sh".to_owned()],

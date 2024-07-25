@@ -19,6 +19,17 @@ pub enum JsonFramedError {
 
     #[error("Stream is closed")]
     StreamIsClosed(),
+
+    #[error("Serde serialization error")]
+    SerializationError(#[from] serde_json::Error)
+}
+
+pub fn json_dump(obj: impl Serialize + Sized) -> Result<String> {
+    Ok(serde_json::to_string(&obj).map_err(JsonFramedError::SerializationError)?)
+}
+
+pub fn json_load<T: DeserializeOwned>(content: impl AsRef<str>) -> Result<T> {
+    Ok(serde_json::from_str(content.as_ref()).map_err(JsonFramedError::SerializationError)?)
 }
 
 pub struct JsonFramed<Transport: AsyncRead + AsyncWrite + Unpin, RecvItem: DeserializeOwned + Unpin, SendItem: Serialize + Unpin> {

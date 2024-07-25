@@ -1,6 +1,6 @@
 use std::path::{Path, PathBuf};
 
-use serde::Deserialize;
+use serde::{Deserialize, Serialize};
 use thiserror::Error;
 use super::Result;
 use crate::{dm::crypt::CryptoParams, util::fs::read_to_string};
@@ -12,11 +12,23 @@ pub enum ConfigError {
 }
 
 #[derive(Debug, Deserialize)]
+pub enum LauncherType {
+    Dummy
+}
+
+#[derive(Debug, Deserialize)]
+pub enum KeySealingType {
+    Dummy
+}
+
+#[derive(Debug, Deserialize)]
 pub struct Config {
     pub workdir: PathBuf,
     pub vsock_port: u32,
     pub crypto: CryptoParams,
-    pub image_registry: String
+    pub image_registry: String,
+    pub launcher: LauncherType,
+    pub keysealing: KeySealingType
 }
 
 impl Config {

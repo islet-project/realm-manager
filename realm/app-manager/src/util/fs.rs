@@ -15,6 +15,9 @@ pub enum FsError {
     #[error("Filesystem mounting error")]
     MountError(#[source] Errno),
 
+    #[error("Failed to umount filesystem")]
+    UmountError(#[source] Errno),
+
     #[error("Error creating device file")]
     MknodError(#[source] Errno),
 
@@ -28,7 +31,10 @@ pub enum FsError {
     StatError(#[source] std::io::Error),
 
     #[error("File read error")]
-    FileReadError(#[source] std::io::Error)
+    FileReadError(#[source] std::io::Error),
+
+    #[error("File write error")]
+    FileWriteError(#[source] std::io::Error)
 }
 
 pub enum Filesystem {
@@ -91,6 +97,16 @@ pub fn mount(fs: &Filesystem, src: impl AsRef<Path>, dst: impl AsRef<Path>, opt:
     };
 
     check_libc_error(result, FsError::MountError)
+}
+
+pub fn umount(path: impl AsRef<Path>) -> Result<()> {
+    let path = cstring_from_path(path)?;
+
+    let result = unsafe {
+        nix::libc::umount(path.as_ptr() as *const c_char)
+    };
+
+    check_libc_error(result, FsError::UmountError)
 }
 
 pub fn mount_overlayfs(lower: impl AsRef<Path>, upper: impl AsRef<Path>, workdir: impl AsRef<Path>, dst: impl AsRef<Path>) -> Result<()> {
@@ -156,4 +172,12 @@ pub async fn read_to_string(path: impl AsRef<Path>) -> Result<String> {
         .await
         .map_err(FsError::FileReadError)?
     )
+}
+
+pub async fn write_to_string(path: impl AsRef<Path>, content: impl AsRef<[u8]>) -> Result<()> {
+    fs::write(path, content)
+        .await
+        .map_err(FsError::FileWriteError)?;
+
+    Ok(())
 }

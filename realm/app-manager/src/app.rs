@@ -1,11 +1,13 @@
-use std::{os::linux::fs::MetadataExt, path::{Path, PathBuf}, sync::Arc};
+use std::{os::linux::fs::MetadataExt, path::{self, Path, PathBuf}, sync::Arc};
 
 use nix::libc::{major, makedev, minor};
+use serde::{Deserialize, Serialize};
 use thiserror::Error;
 use tokio::fs;
 use uuid::Uuid;
+use log::info;
 
-use crate::{dm::{crypt::{CryptDevice, CryptoParams, DmCryptTable, Key}, device::{DeviceHandleWrapper, DeviceHandleWrapperExt}, DeviceMapper}, util::{disk::read_device_size, fs::{format, mkdirp, mknod, mount, readlink, stat, Filesystem}}};
+use crate::{app, dm::{crypt::{CryptDevice, CryptoParams, DmCryptTable, Key}, device::{DeviceHandleWrapper, DeviceHandleWrapperExt}, DeviceMapper}, key::{ring::KernelKeyring, KeySealing}, launcher::{ApplicationHandler, Launcher}, util::{disk::read_device_size, fs::{format, mkdirp, mknod, mount, mount_overlayfs, read_to_string, readlink, stat, write_to_string, Filesystem}, serde::{json_dump, json_load}}};
 
 use super::Result;
 
@@ -15,25 +17,36 @@ pub enum ApplicationError {
     PartitionNotFound(),
 }
 
-pub struct Application {
-    workdir: PathBuf,
-    devicemapper: Arc<DeviceMapper>
+pub struct ApplicationInfo {
+    pub id: Uuid,
+    pub name: String,
+    pub version: String,
+    pub image_part_uuid: Uuid,
+    pub data_part_uuid: Uuid
 }
 
-enum MountOption<'a> {
-    JustMount,
+#[derive(Serialize, Deserialize)]
+pub struct ApplicationMetadata {
+    salt: Vec<u8>
+}
 
-    Format {
-        label: Option<&'a str>
-    }
+pub struct Application {
+    info: ApplicationInfo,
+    workdir: PathBuf,
+    devicemapper: Arc<DeviceMapper>,
+    keyring: KernelKeyring,
+    handler: Option<Box<dyn ApplicationHandler + Send + Sync>>
 }
 
 impl Application {
-    pub fn new(workdir: impl ToOwned<Owned = PathBuf>, devicemapper: &Arc<DeviceMapper>) -> Self {
-        Self {
+    pub fn new(info: ApplicationInfo, workdir: impl ToOwned<Owned = PathBuf>) -> Result<Self> {
+        Ok(Self {
+            info,
             workdir: workdir.to_owned(),
-            devicemapper: Arc::clone(&devicemapper)
-        }
+            devicemapper: Arc::new(DeviceMapper::init()?),
+            keyring: KernelKeyring::new(keyutils::SpecialKeyring::User)?,
+            handler: None
+        })
     }
 
     async fn decrypt_partition(&self, part_uuid: &Uuid, params: &CryptoParams, key: Key, dst: impl AsRef<Path>) -> Result<CryptDevice> {
@@ -58,34 +71,110 @@ impl Application {
         };
 
         let device: CryptDevice = self.devicemapper.create_device(device_name, None::<Uuid>, None)?;
-        let _ = device.load(
+        device.load(
             table,
             &crate::dm::crypt::DevicePath::MajorMinor(major, minor),
             &key,
             None
         )?;
-        let _ = device.resume()?;
+        device.resume()?;
 
-        let _ = mkdirp(&dst).await?;
+        mkdirp(&dst).await?;
         let (crypt_major, crypt_minor) = device.get_major_minor();
         let crypt_dev_t = makedev(crypt_major, crypt_minor);
-        let _ = mknod(dst, 0660, crypt_dev_t);
+        mknod(dst, 0660, crypt_dev_t)?;
 
         Ok(device)
     }
 
-    async fn mount_partition<'a>(&self, src: impl AsRef<Path>, dst: impl AsRef<Path>, fs: &Filesystem, opt: MountOption<'a>) -> Result<()> {
-        if let MountOption::Format { label } = opt {
-            let _ = format(fs, &src, label).await?;
+    async fn try_mount_or_format_partition<'a>(&self, src: impl AsRef<Path>, dst: impl AsRef<Path>, fs: &Filesystem, label: Option<impl AsRef<str>>) -> Result<()> {
+        mkdirp(&dst).await?;
+        let result = mount(fs, &src, &dst, None::<&str>);
+
+        if let Err(_) = result {
+            format(fs, &src, label).await?;
         }
 
-        let _ = mkdirp(&dst).await?;
-        let _ = mount(fs, src, dst, None::<&str>)?;
+        mount(fs, &src, &dst, None::<&str>)?;
 
         Ok(())
     }
 
-    pub async fn setup(&self) {
-        todo!()
+    fn derive_key_for(&mut self, label: impl AsRef<str>, keyseal: &Box<dyn KeySealing + Send + Sync>, infos: &[&[u8]]) -> Result<Key> {
+        let raw_key = keyseal.derive_key(&mut infos.iter())?;
+        self.keyring.logon_seal("APP-MANAGER", &label, &raw_key)?;
+        Ok(Key::Keyring { key_size: raw_key.len(), key_type: crate::dm::crypt::KeyType::Logon, key_desc: label.as_ref().to_owned() })
+    }
+
+    async fn application_metadata(&self, path: impl AsRef<Path>) -> Result<ApplicationMetadata> {
+        let metadata_path = path.as_ref().join("metadata.json");
+        let result = read_to_string(&metadata_path).await;
+
+        if let Ok(content) = result {
+            Ok(json_load(content)?)
+        } else {
+            let metadata = ApplicationMetadata {
+                salt: Vec::new()
+            };
+
+            write_to_string(metadata_path, json_dump(&metadata)?).await?;
+
+            Ok(metadata)
+        }
+    }
+
+    pub async fn setup(&mut self, params: CryptoParams, mut launcher: Box<dyn Launcher + Send + Sync>, keyseal: Box<dyn KeySealing + Send + Sync>) -> Result<()> {
+        let decrypted_partinions_dir = self.workdir.join("crypt");
+        let app_image_key = self.derive_key_for(self.info.image_part_uuid.to_string(), &keyseal, &[
+            "App manager label".as_bytes()
+        ])?;
+        let app_image_crypt_device = decrypted_partinions_dir.join("image");
+        let _ = self.decrypt_partition(&self.info.image_part_uuid, &params, app_image_key, &app_image_crypt_device).await?;
+
+        // TODO: Parametrize this
+        const fs: Filesystem = Filesystem::Ext2;
+
+        let app_image_dir = self.workdir.join("image");
+        self.try_mount_or_format_partition(&app_image_crypt_device, &app_image_dir, &fs, Some("image")).await?;
+
+        let app_image_root_dir = app_image_dir.join("root");
+        info!("Installing application");
+        launcher.install(&app_image_root_dir, &self.info.name, &self.info.version).await?;
+
+        let mut vendor_data = launcher.read_vendor_data(&app_image_root_dir).await?;
+        let app_metadata = self.application_metadata(&app_image_dir).await?;
+        vendor_data.push(app_metadata.salt);
+        let infos: Vec<_> = vendor_data.iter().map(|i| i.as_slice()).collect();
+        let keyseal = keyseal.seal(&mut infos.iter())?;
+
+        let app_name = self.info.name.as_bytes().to_owned();
+        let app_data_key = self.derive_key_for(self.info.data_part_uuid.to_string(), &keyseal, &[
+            app_name.as_slice()
+        ])?;
+        let app_data_crypt_device = decrypted_partinions_dir.join("data");
+        let _ = self.decrypt_partition(&self.info.data_part_uuid, &params, app_data_key, &app_data_crypt_device).await?;
+
+        info!("Mounting data partition");
+        let app_data_dir = self.workdir.join("data");
+        self.try_mount_or_format_partition(&app_data_crypt_device, &app_data_dir, &fs, Some("data")).await?;
+
+        info!("Mounting overlayfs");
+        let app_overlay_dir = self.workdir.join("overlay");
+        let overlay_lower = app_image_root_dir;
+        let overlay_workdir = app_data_dir.join("workdir");
+        let overlay_upper = app_data_dir.join("root");
+
+        mkdirp(&overlay_workdir).await?;
+        mkdirp(&overlay_upper).await?;
+
+        mount_overlayfs(&overlay_lower, &overlay_upper, &overlay_workdir, &app_overlay_dir)?;
+
+        self.handler = Some(launcher.prepare(&app_overlay_dir).await?);
+
+        Ok(())
+    }
+
+    pub fn id(&self) -> &Uuid {
+        &self.info.id
     }
 }

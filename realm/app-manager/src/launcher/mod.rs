@@ -30,8 +30,8 @@ pub trait ApplicationHandler {
 
 #[async_trait]
 pub trait Launcher {
-    async fn install(&mut self, path: &Path, name: impl AsRef<str> + Send + Sync) -> Result<()>;
-    async fn read_vendor_data(&self, path: &Path) -> Result<Vec<u8>>;
-    async fn prepare(&mut self, path: &Path) -> Result<Box<dyn ApplicationHandler>>;
+    async fn install(&mut self, path: &Path, name: &String, version: &String) -> Result<()>;
+    async fn read_vendor_data(&self, path: &Path) -> Result<Vec<Vec<u8>>>;
+    async fn prepare(&mut self, path: &Path) -> Result<Box<dyn ApplicationHandler + Send + Sync>>;
 }
 
