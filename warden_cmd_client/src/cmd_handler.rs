@@ -82,13 +82,16 @@ impl CommandHanlder {
             Command::DestroyRealm { id } => {
                 Ok(self.connection.destroy_realm(Uuid::from_str(&id)?).await?)
             }
+            Command::RebootRealm { id } => {
+                Ok(self.connection.reboot_realm(Uuid::from_str(&id)?).await?)
+            }
             Command::CreateApplication { realm_id } => {
                 let application_config = ApplicationConfig {};
                 let application_uuid = self
                     .connection
                     .create_application(Uuid::from_str(&realm_id)?, application_config)
                     .await?;
-                info!("Application Uuid: {application_uuid}");
+                info!("Application uuid: {application_uuid}");
                 Ok(())
             }
             Command::StartApplication {

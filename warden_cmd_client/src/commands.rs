@@ -50,25 +50,31 @@ pub enum Command {
 
     StartRealm {
         /// Realm Id
-        #[clap(short, long)]
+        #[clap(short = 'r', long)]
         id: String,
     },
 
     InspectRealm {
         /// Realm Id
-        #[clap(short, long)]
+        #[clap(short = 'r', long)]
         id: String,
     },
 
     StopRealm {
         /// Realm Id
-        #[clap(short, long)]
+        #[clap(short = 'r', long)]
+        id: String,
+    },
+
+    RebootRealm {
+        /// Realm Id
+        #[clap(short = 'r', long)]
         id: String,
     },
 
     DestroyRealm {
         /// Realm Id
-        #[clap(short, long)]
+        #[clap(short = 'r', long)]
         id: String,
     },
 

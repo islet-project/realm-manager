@@ -13,11 +13,11 @@
 ### Example commands:
 
     - Create realm: create-realm -k {ABSOLUTE_PATH_TO_BUILT_KERNEL} -v {VSOCK_CID_FOR_REALM} [-u {TCP_SERVER_URI}]
-    - Start realm: start-realm -i {REALM_ID}
-    - Stop realm: stop-realm -i {REALM_ID}
-    - Inspect realm: inspect-realm -i {REALM_ID}
-    - Reboot realm: reboot-realm -i {REALM_ID}
-    - Destroy realm: destroy-realm -i {REALM_ID}
+    - Start realm: start-realm -r {REALM_ID}
+    - Stop realm: stop-realm -r {REALM_ID}
+    - Inspect realm: inspect-realm -r {REALM_ID}
+    - Reboot realm: reboot-realm -r {REALM_ID}
+    - Destroy realm: destroy-realm -r {REALM_ID}
     - List realms: list-realms
     - Create application: create-application -r {REALM_ID}
     - Update application: update-application -r {REALM_ID} -a {APPLICATION_ID}
