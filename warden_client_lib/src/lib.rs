@@ -1,5 +1,5 @@
 use request_handlers::{
-    connect_to_warden_sokcet, create_application, create_realm, destroy_realm, inspect_realm,
+    connect_to_warden_socket, create_application, create_realm, destroy_realm, inspect_realm,
     list_realms, reboot_realm, start_application, start_realm, stop_application, stop_realm,
     update_application,
 };
@@ -9,8 +9,8 @@ use utils::serde::JsonFramed;
 use uuid::Uuid;
 use warden_client::{
     applciation::ApplicationConfig,
-    warden::{WardenCommand, WardenResponse},
     realm::{RealmConfig, RealmDescription},
+    warden::{WardenCommand, WardenResponse},
 };
 use warden_client_error::WardenClientError;
 mod request_handlers;
@@ -24,7 +24,7 @@ impl WardenConnection {
     pub async fn connect(
         warden_socket_path: PathBuf,
     ) -> Result<WardenConnection, WardenClientError> {
-        let stream = connect_to_warden_sokcet(warden_socket_path).await?;
+        let stream = connect_to_warden_socket(warden_socket_path).await?;
         Ok(WardenConnection {
             communicator: JsonFramed::<UnixStream, WardenResponse, WardenCommand>::new(stream),
         })
