@@ -2,7 +2,7 @@ use clap::Parser;
 use cmd_handler::CommandHanlder;
 use log::{error, info};
 use std::path::PathBuf;
-use utils::read_command_line;
+use utils::parse_users_input;
 use warden_client_lib::WardenConnection;
 
 mod cmd_handler;
@@ -26,7 +26,7 @@ async fn main() -> Result<(), anyhow::Error> {
     let mut handler = CommandHanlder::new(warden_connection);
     loop {
         info!("Insert new command:");
-        let cmd = read_command_line()?;
+        let cmd = parse_users_input()?;
         match handler.handle_command(cmd.command).await {
             Err(err) => error!("Error occured why handling command: {:#?}!", err),
             Ok(_) => info!("Command handled successfully."),

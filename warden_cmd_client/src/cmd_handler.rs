@@ -71,7 +71,7 @@ impl CommandHanlder {
                     .connection
                     .inspect_realm(Uuid::from_str(&realm_id)?)
                     .await?;
-                info!("Realms data: {realm_data:#?}");
+                info!("Realm data: {realm_data:#?}");
                 Ok(())
             }
             Command::ListRealms {} => {
@@ -88,24 +88,24 @@ impl CommandHanlder {
                     .connection
                     .create_application(Uuid::from_str(&realm_id)?, application_config)
                     .await?;
-                info!("Realms data: {application_uuid:#?}");
+                info!("Application Uuid: {application_uuid}");
                 Ok(())
             }
-            Command::StartApp {
+            Command::StartApplication {
                 application_id,
                 realm_id,
             } => Ok(self
                 .connection
                 .start_application(Uuid::from_str(&realm_id)?, Uuid::from_str(&application_id)?)
                 .await?),
-            Command::StopApp {
+            Command::StopApplication {
                 application_id,
                 realm_id,
             } => Ok(self
                 .connection
                 .stop_application(Uuid::from_str(&realm_id)?, Uuid::from_str(&application_id)?)
                 .await?),
-            Command::UpdateApp {
+            Command::UpdateApplication {
                 application_id,
                 realm_id,
             } => {

@@ -78,7 +78,7 @@ pub enum Command {
         realm_id: String,
     },
 
-    StartApp {
+    StartApplication {
         /// Application Id
         #[clap(short, long)]
         application_id: String,
@@ -88,7 +88,7 @@ pub enum Command {
         realm_id: String,
     },
 
-    StopApp {
+    StopApplication {
         /// Application Id
         #[clap(short, long)]
         application_id: String,
@@ -98,7 +98,7 @@ pub enum Command {
         realm_id: String,
     },
 
-    UpdateApp {
+    UpdateApplication {
         /// Application Id
         #[clap(short, long)]
         application_id: String,
