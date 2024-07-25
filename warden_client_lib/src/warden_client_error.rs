@@ -2,7 +2,7 @@ use std::{io, path::PathBuf};
 
 use thiserror::Error;
 use utils::serde::JsonFramedError;
-use warden_client::client::{WardenDaemonError, WardenResponse};
+use warden_client::warden::{WardenDaemonError, WardenResponse};
 
 #[derive(Debug, Error)]
 pub enum WardenClientError {

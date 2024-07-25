@@ -13,7 +13,7 @@ use tokio::{net::UnixStream, select};
 use tokio_util::sync::CancellationToken;
 use utils::serde::{JsonFramed, JsonFramedError};
 use uuid::Uuid;
-use warden_client::client::{WardenCommand, WardenDaemonError, WardenResponse};
+use warden_client::warden::{WardenCommand, WardenDaemonError, WardenResponse};
 
 #[derive(Debug, Error, Serialize, Deserialize, PartialEq, PartialOrd)]
 pub enum ClientError {
@@ -52,7 +52,7 @@ impl ClientHandler {
                     let command = match command_result {
                         Ok(command) => command,
                         Err(JsonFramedError::StreamIsClosed()) => {
-                            info!("CLient has disconnected.");
+                            info!("Client has disconnected.");
                             break;
                         },
                         Err(_) => {
@@ -70,20 +70,19 @@ impl ClientHandler {
     }
 
     async fn handle_client_command(&mut self, command: WardenCommand) -> Result<(), ClientError> {
-        let response = match self.handle_command(command).await.map_err(|client_err| {
+        let handle_result = self.handle_command(command).await.map_err(|client_err| {
             WardenDaemonError::WardenDaemonFail {
                 message: client_err.to_string(),
             }
-        }) {
-            Ok(response) => response,
-            Err(warden_error) => {
-                error!(
-                    "Error has occured while handling client command: {}",
-                    warden_error
-                );
-                WardenResponse::Error { warden_error }
-            }
-        };
+        });
+        self.send_handle_result(handle_result).await
+    }
+
+    async fn send_handle_result(
+        &mut self,
+        handle_result: Result<WardenResponse, WardenDaemonError>,
+    ) -> Result<(), ClientError> {
+        let response = create_response(handle_result);
         self.communicator
             .send(response)
             .await
@@ -269,6 +268,19 @@ impl ClientHandler {
     }
 }
 
+fn create_response(handle_result: Result<WardenResponse, WardenDaemonError>) -> WardenResponse {
+    match handle_result {
+        Ok(response) => response,
+        Err(warden_error) => {
+            error!(
+                "Error has occured while handling client command: {}",
+                warden_error
+            );
+            WardenResponse::Error { warden_error }
+        }
+    }
+}
+
 #[async_trait]
 impl Client for ClientHandler {
     async fn handle_connection(
@@ -304,8 +316,8 @@ mod test {
     use uuid::Uuid;
     use warden_client::{
         applciation::ApplicationConfig,
-        client::{WardenCommand, WardenResponse},
         realm::{CpuConfig, KernelConfig, MemoryConfig, NetworkConfig, RealmConfig},
+        warden::{WardenCommand, WardenResponse},
     };
 
     use super::{ClientError, ClientHandler};
@@ -419,7 +431,7 @@ mod test {
         (WardenCommand::RebootRealm { uuid: create_example_uuid() }, WardenResponse::Ok),
         (WardenCommand::InspectRealm { uuid: create_example_uuid() }, WardenResponse::InspectedRealm { description: create_example_realm_description().into() }),
         (WardenCommand::ListRealms, WardenResponse::ListedRealms { realms_description: vec![create_example_realm_description().into()] }),
-        (WardenCommand::CreateApplication { realm_uuid: create_example_uuid(), config: create_example_client_app_config() }, WardenResponse::Ok),
+        (WardenCommand::CreateApplication { realm_uuid: create_example_uuid(), config: create_example_client_app_config() }, WardenResponse::CreatedApplication { uuid: create_example_uuid() }),
         (WardenCommand::StartApplication { realm_uuid: create_example_uuid(), application_uuid: create_example_uuid() }, WardenResponse::Ok),
         (WardenCommand::StopApplication { realm_uuid: create_example_uuid(), application_uuid: create_example_uuid() }, WardenResponse::Ok),
         (WardenCommand::UpdateApplication { realm_uuid: create_example_uuid(), application_uuid: create_example_uuid(), config: create_example_client_app_config() }, WardenResponse::Ok),

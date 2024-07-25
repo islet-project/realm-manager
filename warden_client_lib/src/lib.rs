@@ -9,7 +9,7 @@ use utils::serde::JsonFramed;
 use uuid::Uuid;
 use warden_client::{
     applciation::ApplicationConfig,
-    client::{WardenCommand, WardenResponse},
+    warden::{WardenCommand, WardenResponse},
     realm::{RealmConfig, RealmDescription},
 };
 use warden_client_error::WardenClientError;

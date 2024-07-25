@@ -8,8 +8,7 @@ use crate::cmd_parser::CmdParser;
 pub fn parse_users_input() -> Result<CmdParser, anyhow::Error> {
     write_line_begining()?;
     let line = read_line()?;
-    let argv =
-        shlex::split(line.trim()).ok_or(io::Error::other("Can't split readed line!"))?;
+    let argv = shlex::split(line.trim()).ok_or(io::Error::other("Can't split readed line!"))?;
     Ok(CmdParser::try_parse_from(argv.iter())?)
 }
 

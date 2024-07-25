@@ -45,18 +45,6 @@ pub enum WardenCommand {
     },
 }
 
-#[derive(Debug, Error, Clone, Serialize, Deserialize, PartialEq, PartialOrd)]
-pub enum WardenDaemonError {
-    #[error("Failed to read request.")]
-    ReadingRequestFail,
-    #[error("Can't recognise a command.")]
-    UnknownCommand,
-    #[error("Error occured: {message}")]
-    WardenDaemonFail { message: String },
-    #[error("Failed to send response.")]
-    SendingResponseFail,
-}
-
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, PartialOrd)]
 pub enum WardenResponse {
     Ok,
@@ -75,4 +63,16 @@ pub enum WardenResponse {
     Error {
         warden_error: WardenDaemonError,
     },
+}
+
+#[derive(Debug, Error, Clone, Serialize, Deserialize, PartialEq, PartialOrd)]
+pub enum WardenDaemonError {
+    #[error("Failed to read request.")]
+    ReadingRequestFail,
+    #[error("Can't recognise a command.")]
+    UnknownCommand,
+    #[error("Error occured: {message}")]
+    WardenDaemonFail { message: String },
+    #[error("Failed to send response.")]
+    SendingResponseFail,
 }
