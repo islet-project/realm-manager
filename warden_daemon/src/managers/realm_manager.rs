@@ -1,5 +1,5 @@
 use super::application::{Application, ApplicationConfig, ApplicationCreator};
-use super::realm::{Realm, RealmData, RealmError, State};
+use super::realm::{Realm, RealmConfigRepository, RealmData, RealmError, State};
 use super::realm_client::{RealmClient, RealmProvisioningConfig};
 use super::realm_configuration::*;
 
@@ -41,7 +41,7 @@ type AppsMap = HashMap<Uuid, Arc<Mutex<Box<dyn Application + Send + Sync>>>>;
 
 pub struct RealmManager {
     state: State,
-    config: RealmConfig,
+    config: Box<dyn RealmConfigRepository + Send + Sync>,
     applications: AppsMap,
     vm_manager: Box<dyn VmManager + Send + Sync>,
     realm_client_handler: Arc<Mutex<Box<dyn RealmClient + Send + Sync>>>,
@@ -50,7 +50,7 @@ pub struct RealmManager {
 
 impl RealmManager {
     pub fn new(
-        config: RealmConfig,
+        config: Box<dyn RealmConfigRepository + Send + Sync>,
         vm_manager: Box<dyn VmManager + Send + Sync>,
         realm_client_handler: Arc<Mutex<Box<dyn RealmClient + Send + Sync>>>,
         application_fabric: Arc<Box<dyn ApplicationCreator + Send + Sync>>,
@@ -70,11 +70,12 @@ impl RealmManager {
     }
 
     fn setup_vm(&mut self) -> Result<(), RealmError> {
-        self.vm_manager.setup_cpu(&self.config.cpu);
-        self.vm_manager.setup_kernel(&self.config.kernel);
-        self.vm_manager.setup_memory(&self.config.memory);
-        self.vm_manager.setup_machine(&self.config.machine);
-        self.vm_manager.setup_network(&self.config.network);
+        let config = self.config.get_realm_config();
+        self.vm_manager.setup_cpu(&config.cpu);
+        self.vm_manager.setup_kernel(&config.kernel);
+        self.vm_manager.setup_memory(&config.memory);
+        self.vm_manager.setup_machine(&config.machine);
+        self.vm_manager.setup_network(&config.network);
         self.vm_manager
             .launch_vm()
             .map_err(|err| RealmError::RealmLaunchFail(err.to_string()))
@@ -112,7 +113,7 @@ impl Realm for RealmManager {
             .await
             .send_realm_provisioning_config(
                 self.create_provisioning_config(),
-                self.config.network.vsock_cid,
+                self.config.get_realm_config().network.vsock_cid,
             )
             .await
         {

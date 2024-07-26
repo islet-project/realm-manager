@@ -46,7 +46,12 @@ pub trait Realm {
 }
 
 pub trait RealmCreator {
-    fn create_realm(&self, config: RealmConfig) -> Box<dyn Realm + Send + Sync>;
+    fn create_realm(&self, realm_id: Uuid, config: RealmConfig) -> Box<dyn Realm + Send + Sync>;
+}
+
+pub trait RealmConfigRepository {
+    fn save_realm_config(&self) -> Result<(), RealmError>;
+    fn get_realm_config(&self) -> &mut RealmConfig;
 }
 
 #[derive(Debug, Clone, PartialEq, PartialOrd, Serialize, Deserialize)]
@@ -67,3 +72,4 @@ pub struct RealmDescription {
     pub uuid: Uuid,
     pub realm_data: RealmData,
 }
+

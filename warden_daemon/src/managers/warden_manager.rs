@@ -13,10 +13,10 @@ pub struct WardenDaemon {
 }
 
 impl WardenDaemon {
-    pub fn new(rm_fabric: Box<dyn RealmCreator + Send + Sync>) -> Self {
+    pub fn new(realms: HashMap<Uuid, Arc<Mutex<Box<dyn Realm + Send + Sync>>>>, rm_fabric: Box<dyn RealmCreator + Send + Sync>) -> Self {
         WardenDaemon {
             realm_fabric: rm_fabric,
-            realms_managers: HashMap::new(),
+            realms_managers: realms,
         }
     }
 }
@@ -27,7 +27,7 @@ impl Warden for WardenDaemon {
         let uuid = Uuid::new_v4();
         let _ = self.realms_managers.insert(
             uuid,
-            Arc::new(Mutex::new(self.realm_fabric.create_realm(config))),
+            Arc::new(Mutex::new(self.realm_fabric.create_realm(uuid, config))),
         );
         Ok(uuid)
     }
@@ -216,7 +216,7 @@ mod test {
         let mut creator_mock = MockRealmManagerCreator::new();
         creator_mock
             .expect_create_realm()
-            .return_once(move |_| realm_mock);
-        WardenDaemon::new(Box::new(creator_mock))
+            .return_once(move |_, _| realm_mock);
+        WardenDaemon::new(HashMap::new(), Box::new(creator_mock))
     }
 }

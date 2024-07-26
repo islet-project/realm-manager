@@ -3,6 +3,7 @@ use clap::Parser;
 use client_handler::client_command_handler::ClientHandler;
 use fabric::application_fabric::ApplicationFabric;
 use fabric::realm_manager_fabric::RealmManagerFabric;
+use fabric::warden_fabric::WardenFabric;
 use log::{debug, error, info};
 use managers::application::ApplicationCreator;
 use managers::realm::RealmCreator;
@@ -27,6 +28,7 @@ mod fabric;
 mod managers;
 mod socket;
 mod virtualization;
+mod storage;
 
 #[derive(Parser)]
 #[command(version, about)]
@@ -39,6 +41,8 @@ struct Cli {
     qemu_path: PathBuf,
     #[arg(short, long)]
     unix_sock_path: PathBuf,
+    #[arg(short, long)]
+    warden_workdir_path: PathBuf,
 }
 
 #[tokio::main]
@@ -59,8 +63,9 @@ async fn main() -> anyhow::Result<(), Error> {
         cli.qemu_path,
         vsock_server.clone(),
         application_fabric,
+        cli.warden_workdir_path.clone()
     ));
-    let warden: Box<dyn Warden + Send + Sync> = Box::new(WardenDaemon::new(realm_fabric));
+    let warden = WardenFabric::create_warden(realm_fabric, cli.warden_workdir_path)?;
     let mut vsock_thread = spawn_vsock_server_thread(vsock_server.clone(), cancel_token.clone());
     let mut usock_thread =
         spawn_unix_socket_server_thread(warden, cancel_token.clone(), cli.unix_sock_path);

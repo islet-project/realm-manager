@@ -9,11 +9,13 @@ use crate::virtualization::qemu_runner::QemuRunner;
 use std::path::PathBuf;
 use std::sync::Arc;
 use tokio::sync::Mutex;
+use uuid::Uuid;
 
 pub struct RealmManagerFabric {
     qemu_path: PathBuf,
     vsock_server: Arc<Mutex<VSockServer>>,
     application_fabric: Arc<Box<dyn ApplicationCreator + Send + Sync>>,
+    warden_workdir_path: PathBuf
 }
 
 impl RealmManagerFabric {
@@ -21,19 +23,21 @@ impl RealmManagerFabric {
         qemu_path: PathBuf,
         vsock_server: Arc<Mutex<VSockServer>>,
         application_fabric: Arc<Box<dyn ApplicationCreator + Send + Sync>>,
+        warden_workdir_path: PathBuf,
     ) -> Self {
         RealmManagerFabric {
             qemu_path,
             vsock_server,
             application_fabric,
+            warden_workdir_path
         }
     }
 }
 
 impl RealmCreator for RealmManagerFabric {
-    fn create_realm(&self, config: RealmConfig) -> Box<dyn Realm + Send + Sync> {
+    fn create_realm(&self, realm_id: Uuid, config: RealmConfig) -> Box<dyn Realm + Send + Sync> {
         Box::new(RealmManager::new(
-            config,
+            config, // Create repository here
             Box::new(QemuRunner::new(self.qemu_path.clone())),
             Arc::new(Mutex::new(Box::new(RealmClientHandler::new(
                 self.vsock_server.clone(),

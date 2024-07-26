@@ -159,7 +159,7 @@ mock! {
 mock! {
     pub RealmManagerCreator {}
     impl RealmCreator for RealmManagerCreator {
-        fn create_realm(&self, config: RealmConfig) -> Box<dyn Realm + Send + Sync>;
+        fn create_realm(&self, realm_id: Uuid, config: RealmConfig) -> Box<dyn Realm + Send + Sync>;
     }
 }
 
