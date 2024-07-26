@@ -1,7 +1,7 @@
 use std::{io, path::PathBuf};
 
 use thiserror::Error;
-use utils::serde::JsonFramedError;
+use utils::serde::json_framed::JsonFramedError;
 use warden_client::warden::{WardenDaemonError, WardenResponse};
 
 #[derive(Debug, Error)]

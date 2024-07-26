@@ -11,7 +11,7 @@ use thiserror::Error;
 use tokio::sync::Mutex;
 use tokio::{net::UnixStream, select};
 use tokio_util::sync::CancellationToken;
-use utils::serde::{JsonFramed, JsonFramedError};
+use utils::serde::json_framed::{JsonFramed, JsonFramedError};
 use uuid::Uuid;
 use warden_client::warden::{WardenCommand, WardenDaemonError, WardenResponse};
 
@@ -312,7 +312,7 @@ mod test {
     use std::{path::PathBuf, sync::Arc};
     use tokio::{net::UnixStream, sync::Mutex};
     use tokio_util::sync::CancellationToken;
-    use utils::serde::JsonFramed;
+    use utils::serde::json_framed::JsonFramed;
     use uuid::Uuid;
     use warden_client::{
         applciation::ApplicationConfig,

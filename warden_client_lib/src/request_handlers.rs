@@ -1,7 +1,7 @@
 use std::path::PathBuf;
 
 use tokio::net::UnixStream;
-use utils::serde::JsonFramed;
+use utils::serde::json_framed::JsonFramed;
 use uuid::Uuid;
 use warden_client::{
     applciation::ApplicationConfig,
@@ -200,7 +200,7 @@ mod test {
         task::JoinHandle,
     };
     use tokio_util::sync::CancellationToken;
-    use utils::serde::JsonFramed;
+    use utils::serde::json_framed::JsonFramed;
     use uuid::Uuid;
     use warden_client::{
         applciation::ApplicationConfig,
