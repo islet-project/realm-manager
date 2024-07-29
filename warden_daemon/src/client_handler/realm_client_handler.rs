@@ -139,9 +139,9 @@ mod test {
             realm_client_handler
                 .start_application(&Uuid::new_v4())
                 .await,
-            Err(RealmClientError::CommunicationFail(format!(
-                "Failed to send command: ."
-            )))
+            Err(RealmClientError::CommunicationFail(
+                "Failed to send command: .".to_string()
+            ))
         );
     }
 
@@ -172,9 +172,9 @@ mod test {
             .unwrap();
         assert_eq!(
             realm_client_handler.stop_application(&Uuid::new_v4()).await,
-            Err(RealmClientError::CommunicationFail(format!(
-                "Failed to send command: ."
-            )))
+            Err(RealmClientError::CommunicationFail(
+                "Failed to send command: .".to_string()
+            ))
         );
     }
 

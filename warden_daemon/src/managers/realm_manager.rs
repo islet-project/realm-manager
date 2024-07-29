@@ -357,9 +357,9 @@ mod test {
         let uuid_res = realm_manager.create_application(create_example_app_config());
         assert_eq!(
             uuid_res,
-            Err(RealmError::UnsupportedAction(format!(
-                "Can't create application when realm is not halted.",
-            )))
+            Err(RealmError::UnsupportedAction(
+                "Can't create application when realm is not halted.".to_string()
+            ))
         );
     }
 
@@ -391,9 +391,9 @@ mod test {
             .await;
         assert_eq!(
             uuid_res,
-            Err(RealmError::UnsupportedAction(format!(
-                "Can't update application when realm is in provisioning phase.",
-            )))
+            Err(RealmError::UnsupportedAction(
+                "Can't update application when realm is in provisioning phase.".to_string()
+            ))
         );
     }
 
@@ -449,7 +449,7 @@ mod test {
         vm_manager: Option<MockVmManager>,
         realm_client_handler: Option<MockRealmClient>,
     ) -> RealmManager {
-        let mut vm_manager = vm_manager.unwrap_or(MockVmManager::new());
+        let mut vm_manager = vm_manager.unwrap_or_default();
         vm_manager.expect_setup_cpu().returning(|_| ());
         vm_manager.expect_setup_kernel().returning(|_| ());
         vm_manager.expect_setup_machine().returning(|_| ());
@@ -458,7 +458,7 @@ mod test {
         vm_manager.expect_launch_vm().returning(|| Ok(()));
         vm_manager.expect_stop_vm().returning(|| Ok(()));
         vm_manager.expect_delete_vm().returning(|| Ok(()));
-        let mut realm_client_handler = realm_client_handler.unwrap_or(MockRealmClient::new());
+        let mut realm_client_handler = realm_client_handler.unwrap_or_default();
         realm_client_handler
             .expect_send_realm_provisioning_config()
             .returning(|_, _| Ok(()));
