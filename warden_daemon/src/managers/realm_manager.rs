@@ -213,6 +213,12 @@ impl Realm for RealmManager {
     fn get_realm_data(&self) -> RealmData {
         RealmData {
             state: self.state.clone(),
+            applications: self
+                .applications
+                .keys()
+                .into_iter()
+                .map(|uuid| *uuid)
+                .collect(),
         }
     }
 }

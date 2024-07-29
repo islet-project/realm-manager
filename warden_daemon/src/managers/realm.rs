@@ -80,6 +80,7 @@ pub enum State {
 #[derive(Debug, PartialEq, PartialOrd, Serialize, Deserialize)]
 pub struct RealmData {
     pub state: State,
+    pub applications: Vec<Uuid>,
 }
 
 #[derive(Debug, Serialize, Deserialize, PartialEq, PartialOrd)]

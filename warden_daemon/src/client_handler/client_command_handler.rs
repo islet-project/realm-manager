@@ -471,6 +471,7 @@ mod test {
                     .expect_get_realm_data()
                     .returning(|| RealmData {
                         state: State::Halted,
+                        applications: vec![],
                     });
                 realm_manager
                     .expect_get_application()

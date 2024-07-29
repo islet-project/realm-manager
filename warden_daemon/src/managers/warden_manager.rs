@@ -156,6 +156,7 @@ mod test {
         let mut mock_realm = MockRealm::new();
         mock_realm.expect_get_realm_data().returning(|| RealmData {
             state: State::Running,
+            applications: vec![],
         });
         let mut daemon = create_host_daemon(Some(mock_realm));
         let uuid = daemon
@@ -233,6 +234,7 @@ mod test {
             let mut realm_mock = MockRealm::new();
             realm_mock.expect_get_realm_data().returning(|| RealmData {
                 state: State::Halted,
+                applications: vec![],
             });
             realm_mock
         }));

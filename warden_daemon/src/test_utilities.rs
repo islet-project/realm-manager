@@ -23,6 +23,7 @@ use uuid::Uuid;
 pub fn create_example_realm_data() -> RealmData {
     RealmData {
         state: State::Halted,
+        applications: vec![],
     }
 }
 
