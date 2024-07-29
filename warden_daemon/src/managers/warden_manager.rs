@@ -1,6 +1,6 @@
-use super::realm::{Realm, RealmCreator, RealmDescription, State};
+use super::realm::{Realm, RealmDescription, State};
 use super::realm_configuration::RealmConfig;
-use super::warden::{Warden, WardenError};
+use super::warden::{RealmCreator, Warden, WardenError};
 use async_trait::async_trait;
 use std::collections::HashMap;
 use std::sync::Arc;
@@ -13,7 +13,10 @@ pub struct WardenDaemon {
 }
 
 impl WardenDaemon {
-    pub fn new(realms: HashMap<Uuid, Arc<Mutex<Box<dyn Realm + Send + Sync>>>>, rm_fabric: Box<dyn RealmCreator + Send + Sync>) -> Self {
+    pub fn new(
+        realms: HashMap<Uuid, Arc<Mutex<Box<dyn Realm + Send + Sync>>>>,
+        rm_fabric: Box<dyn RealmCreator + Send + Sync>,
+    ) -> Self {
         WardenDaemon {
             realm_fabric: rm_fabric,
             realms_managers: realms,
@@ -23,11 +26,13 @@ impl WardenDaemon {
 
 #[async_trait]
 impl Warden for WardenDaemon {
-    fn create_realm(&mut self, config: RealmConfig) -> Result<Uuid, WardenError> {
+    async fn create_realm(&mut self, config: RealmConfig) -> Result<Uuid, WardenError> {
         let uuid = Uuid::new_v4();
         let _ = self.realms_managers.insert(
             uuid,
-            Arc::new(Mutex::new(self.realm_fabric.create_realm(uuid, config))),
+            Arc::new(Mutex::new(
+                self.realm_fabric.create_realm(uuid, config).await?,
+            )),
         );
         Ok(uuid)
     }
@@ -96,23 +101,29 @@ mod test {
         assert_eq!(daemon.realms_managers.len(), 0);
     }
 
-    #[test]
-    fn create_realm() {
+    #[tokio::test]
+    async fn create_realm() {
         let mut daemon = create_host_daemon(None);
-        let uuid = daemon.create_realm(create_example_realm_config()).unwrap();
+        let uuid = daemon
+            .create_realm(create_example_realm_config())
+            .await
+            .unwrap();
         assert!(daemon.realms_managers.contains_key(&uuid));
     }
 
-    #[test]
-    fn get_realm() {
+    #[tokio::test]
+    async fn get_realm() {
         let mut daemon = create_host_daemon(None);
-        let uuid = daemon.create_realm(create_example_realm_config()).unwrap();
+        let uuid = daemon
+            .create_realm(create_example_realm_config())
+            .await
+            .unwrap();
         assert!(daemon.realms_managers.contains_key(&uuid));
         assert!(daemon.get_realm(&uuid).is_ok());
     }
 
-    #[test]
-    fn get_none_existing_realm() {
+    #[tokio::test]
+    async fn get_none_existing_realm() {
         let mut daemon = create_host_daemon(None);
         let uuid = Uuid::new_v4();
         let res = daemon.get_realm(&uuid);
@@ -122,7 +133,10 @@ mod test {
     #[tokio::test]
     async fn destroy_created_realm() {
         let mut daemon = create_host_daemon(None);
-        let uuid = daemon.create_realm(create_example_realm_config()).unwrap();
+        let uuid = daemon
+            .create_realm(create_example_realm_config())
+            .await
+            .unwrap();
         assert!(daemon.realms_managers.contains_key(&uuid));
         assert_eq!(daemon.destroy_realm(&uuid).await, Ok(()));
     }
@@ -144,7 +158,10 @@ mod test {
             state: State::Running,
         });
         let mut daemon = create_host_daemon(Some(mock_realm));
-        let uuid = daemon.create_realm(create_example_realm_config()).unwrap();
+        let uuid = daemon
+            .create_realm(create_example_realm_config())
+            .await
+            .unwrap();
         assert_eq!(
             daemon.destroy_realm(&uuid).await,
             Err(WardenError::DestroyFail(String::from(
@@ -160,7 +177,10 @@ mod test {
             .expect_get_realm_data()
             .returning(create_example_realm_data);
         let mut daemon = create_host_daemon(Some(realm));
-        let uuid = daemon.create_realm(create_example_realm_config()).unwrap();
+        let uuid = daemon
+            .create_realm(create_example_realm_config())
+            .await
+            .unwrap();
         assert_eq!(
             daemon.inspect_realm(&uuid).await,
             Ok(RealmDescription {
@@ -194,7 +214,10 @@ mod test {
             .expect_get_realm_data()
             .returning(create_example_realm_data);
         let mut daemon = create_host_daemon(Some(realm));
-        let uuid = daemon.create_realm(create_example_realm_config()).unwrap();
+        let uuid = daemon
+            .create_realm(create_example_realm_config())
+            .await
+            .unwrap();
         let listed_realm = daemon
             .list_realms()
             .await
@@ -216,7 +239,7 @@ mod test {
         let mut creator_mock = MockRealmManagerCreator::new();
         creator_mock
             .expect_create_realm()
-            .return_once(move |_, _| realm_mock);
+            .return_once(move |_, _| Ok(realm_mock));
         WardenDaemon::new(HashMap::new(), Box::new(creator_mock))
     }
 }

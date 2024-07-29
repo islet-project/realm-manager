@@ -1,2 +1,2 @@
-mod fs_repository;
-mod workspace_manager;
+pub mod fs_repository;
+pub mod workspace_manager;

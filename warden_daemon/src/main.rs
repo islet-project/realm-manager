@@ -6,9 +6,8 @@ use fabric::realm_manager_fabric::RealmManagerFabric;
 use fabric::warden_fabric::WardenFabric;
 use log::{debug, error, info};
 use managers::application::ApplicationCreator;
-use managers::realm::RealmCreator;
+use managers::warden::RealmCreator;
 use managers::warden::Warden;
-use managers::warden_manager::WardenDaemon;
 use socket::unix_socket_server::{UnixSocketServer, UnixSocketServerError};
 use socket::vsocket_server::{VSockServer, VSockServerConfig, VSockServerError};
 use std::path::PathBuf;
@@ -27,8 +26,8 @@ mod client_handler;
 mod fabric;
 mod managers;
 mod socket;
-mod virtualization;
 mod storage;
+mod virtualization;
 
 #[derive(Parser)]
 #[command(version, about)]
@@ -63,9 +62,9 @@ async fn main() -> anyhow::Result<(), Error> {
         cli.qemu_path,
         vsock_server.clone(),
         application_fabric,
-        cli.warden_workdir_path.clone()
+        cli.warden_workdir_path.clone(),
     ));
-    let warden = WardenFabric::create_warden(realm_fabric, cli.warden_workdir_path)?;
+    let warden = WardenFabric::create_warden(realm_fabric, cli.warden_workdir_path).await?;
     let mut vsock_thread = spawn_vsock_server_thread(vsock_server.clone(), cancel_token.clone());
     let mut usock_thread =
         spawn_unix_socket_server_thread(warden, cancel_token.clone(), cli.unix_sock_path);

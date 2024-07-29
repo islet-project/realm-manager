@@ -1,9 +1,9 @@
-use std::path::PathBuf;
+use std::path::Path;
 
 use serde::{de::DeserializeOwned, Serialize};
 use thiserror::Error;
 use tokio::{
-    fs::File,
+    fs::{create_dir_all, File},
     io::{AsyncReadExt, AsyncSeekExt, AsyncWriteExt},
 };
 
@@ -23,25 +23,35 @@ pub struct FileRepository<Struct: Serialize + DeserializeOwned> {
 }
 
 impl<Struct: Serialize + DeserializeOwned> FileRepository<Struct> {
-    pub async fn new(data: Struct, path: impl AsRef<PathBuf>) -> Result<Self, FileRepositoryError> {
-        let file = File::create(path.as_ref().as_path())
+    pub async fn new(data: Struct, path: &Path) -> Result<Self, FileRepositoryError> {
+        create_dir_all(path.parent().expect("Config has to have parent dir."))
             .await
-            .map_err(|err| FileRepositoryError::CreationFail(err))?;
+            .map_err(FileRepositoryError::CreationFail)?;
+        let file = File::create(path)
+            .await
+            .map_err(FileRepositoryError::CreationFail)?;
         let mut repository = Self { data, file };
         repository.save().await?;
         Ok(repository)
     }
 
-    pub async fn from_file_path(path: impl AsRef<PathBuf>) -> Result<Self, FileRepositoryError> {
+    pub async fn from_file_path(path: &Path) -> Result<Self, FileRepositoryError> {
         FileRepository::<Struct>::try_read_file(path)
             .await
             .map(|(file, data)| Self { data, file })
     }
 
     pub async fn save(&mut self) -> Result<(), FileRepositoryError> {
-        let yaml_data = serde_yaml::to_string(&self.data).map_err(|err|FileRepositoryError::SaveFail(err.to_string()))?;
-        self.file.seek(std::io::SeekFrom::Start(0)).await.map_err(|err|FileRepositoryError::SaveFail(err.to_string()))?;
-        self.file.write_all(yaml_data.as_bytes()).await.map_err(|err|FileRepositoryError::SaveFail(err.to_string()))?;
+        let yaml_data = serde_yaml::to_string(&self.data)
+            .map_err(|err| FileRepositoryError::SaveFail(err.to_string()))?;
+        self.file
+            .seek(std::io::SeekFrom::Start(0))
+            .await
+            .map_err(|err| FileRepositoryError::SaveFail(err.to_string()))?;
+        self.file
+            .write_all(yaml_data.as_bytes())
+            .await
+            .map_err(|err| FileRepositoryError::SaveFail(err.to_string()))?;
         Ok(())
     }
 
@@ -49,12 +59,16 @@ impl<Struct: Serialize + DeserializeOwned> FileRepository<Struct> {
         &mut self.data
     }
 
-    async fn try_read_file(path:impl AsRef<PathBuf>) -> Result<(File, Struct), FileRepositoryError> {
-        match File::open(path.as_ref().as_path()).await {
+    async fn try_read_file(path: &Path) -> Result<(File, Struct), FileRepositoryError> {
+        match File::open(path).await {
             Ok(mut file) => {
                 let mut buf = String::new();
-                let _ = file.read_to_string(&mut buf).await.map_err(|err|FileRepositoryError::ReadFail(err.to_string()))?;
-                let data: Struct = serde_yaml::from_str(&buf).map_err(|err|FileRepositoryError::ReadFail(err.to_string()))?;
+                let _ = file
+                    .read_to_string(&mut buf)
+                    .await
+                    .map_err(|err| FileRepositoryError::ReadFail(err.to_string()))?;
+                let data: Struct = serde_yaml::from_str(&buf)
+                    .map_err(|err| FileRepositoryError::ReadFail(err.to_string()))?;
                 Ok((file, data))
             }
             Err(err) => Err(FileRepositoryError::ReadFail(err.to_string())),
@@ -62,10 +76,9 @@ impl<Struct: Serialize + DeserializeOwned> FileRepository<Struct> {
     }
 }
 
-
-#[cfg(test)] 
+#[cfg(test)]
 mod test {
-    use std::{path::PathBuf, rc::Rc};
+    use std::path::PathBuf;
 
     use serde::{de::DeserializeOwned, Serialize};
 
@@ -73,18 +86,19 @@ mod test {
 
     const FILE_PATH: &str = "/tmp/realm_manager_fs_repository_test_file";
 
-    impl<Struct: Serialize + DeserializeOwned>  Drop for FileRepository<Struct> {
+    impl<Struct: Serialize + DeserializeOwned> Drop for FileRepository<Struct> {
         fn drop(&mut self) {
             let _ = std::fs::remove_file(FILE_PATH);
         }
     }
 
-
     #[tokio::test]
     async fn create_file_repository() {
         const DATA: u32 = 0;
-        let path = Rc::new(PathBuf::from(FILE_PATH));
-        let mut file_repository = super::FileRepository::<u32>::new(DATA, &path).await.unwrap();
+        let path = PathBuf::from(FILE_PATH);
+        let mut file_repository = super::FileRepository::<u32>::new(DATA, &path)
+            .await
+            .unwrap();
         assert_eq!(*file_repository.get(), DATA);
         let data = file_repository.get();
         *data += 1;

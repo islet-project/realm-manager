@@ -41,8 +41,8 @@ type AppsMap = HashMap<Uuid, Arc<Mutex<Box<dyn Application + Send + Sync>>>>;
 
 pub struct RealmManager {
     state: State,
-    config: Box<dyn RealmConfigRepository + Send + Sync>,
     applications: AppsMap,
+    config: Box<dyn RealmConfigRepository + Send + Sync>,
     vm_manager: Box<dyn VmManager + Send + Sync>,
     realm_client_handler: Arc<Mutex<Box<dyn RealmClient + Send + Sync>>>,
     application_fabric: Arc<Box<dyn ApplicationCreator + Send + Sync>>,
@@ -220,8 +220,8 @@ mod test {
     use super::{RealmError, RealmManager, VmManagerError};
     use crate::managers::{realm::Realm, realm_client::RealmClientError, realm_manager::State};
     use crate::test_utilities::{
-        create_example_app_config, create_example_realm_config, MockApplication,
-        MockApplicationFabric, MockRealmClient, MockVmManager,
+        create_example_app_config, MockApplication, MockApplicationFabric, MockRealmClient,
+        MockVmManager, RealmInMemoryRepository,
     };
     use parameterized::parameterized;
     use std::{io::Error, sync::Arc};
@@ -479,7 +479,7 @@ mod test {
             .expect_create_application()
             .return_once(move |_, _, _| Box::new(app_mock));
         RealmManager::new(
-            create_example_realm_config(),
+            Box::new(RealmInMemoryRepository::new()),
             Box::new(vm_manager),
             Arc::new(Mutex::new(Box::new(realm_client_handler))),
             Arc::new(Box::new(creator_mock)),

@@ -115,6 +115,7 @@ impl ClientHandler {
                     .lock()
                     .await
                     .create_realm(RealmConfig::from(config))
+                    .await
                     .map_err(ClientError::WardenDaemonError)?;
                 info!("Realm: {uuid} created.");
                 Ok(WardenResponse::CreatedRealm { uuid })

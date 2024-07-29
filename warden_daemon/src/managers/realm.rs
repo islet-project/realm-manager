@@ -25,6 +25,8 @@ pub enum RealmError {
     VmDestroyFail(String),
     #[error("Can't create application: {0}")]
     ApplicationCreationFail(String),
+    #[error("Storage failure: {0}")]
+    StorageOperationFail(String),
 }
 
 #[async_trait]
@@ -45,13 +47,10 @@ pub trait Realm {
     ) -> Result<(), RealmError>;
 }
 
-pub trait RealmCreator {
-    fn create_realm(&self, realm_id: Uuid, config: RealmConfig) -> Box<dyn Realm + Send + Sync>;
-}
-
+#[async_trait]
 pub trait RealmConfigRepository {
-    fn save_realm_config(&self) -> Result<(), RealmError>;
-    fn get_realm_config(&self) -> &mut RealmConfig;
+    async fn save_realm_config(&mut self) -> Result<(), RealmError>;
+    fn get_realm_config(&mut self) -> &mut RealmConfig;
 }
 
 #[derive(Debug, Clone, PartialEq, PartialOrd, Serialize, Deserialize)]
@@ -72,4 +71,3 @@ pub struct RealmDescription {
     pub uuid: Uuid,
     pub realm_data: RealmData,
 }
-
