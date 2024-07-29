@@ -1,10 +1,6 @@
-use super::realm_client::RealmClient;
 use async_trait::async_trait;
 use serde::{Deserialize, Serialize};
-use std::sync::Arc;
 use thiserror::Error;
-use tokio::sync::Mutex;
-use uuid::Uuid;
 
 #[derive(Debug, Error, PartialEq, PartialOrd, Serialize, Deserialize)]
 pub enum ApplicationError {
@@ -12,25 +8,24 @@ pub enum ApplicationError {
     ApplicationStartFail(String),
     #[error("Can't stop the application: {0}")]
     ApplicationStopFail(String),
+    #[error("Storage failure: {0}")]
+    StorageOperationFail(String),
 }
 
 #[derive(Debug, Error, PartialEq, PartialOrd, Serialize, Deserialize)]
 pub enum ApplicationClientError {}
-
-pub trait ApplicationCreator {
-    fn create_application(
-        &self,
-        uuid: Uuid,
-        config: ApplicationConfig,
-        realm_client_handler: Arc<Mutex<Box<dyn RealmClient + Send + Sync>>>,
-    ) -> Box<dyn Application + Send + Sync>;
-}
 
 #[async_trait]
 pub trait Application {
     async fn stop(&mut self) -> Result<(), ApplicationError>;
     async fn start(&mut self) -> Result<(), ApplicationError>;
     fn update(&mut self, config: ApplicationConfig);
+}
+
+#[async_trait]
+pub trait ApplicationConfigRepository {
+    async fn save_realm_config(&mut self) -> Result<(), ApplicationError>;
+    fn get_application_config(&mut self) -> &mut ApplicationConfig;
 }
 
 #[derive(Debug, Serialize, Deserialize, Clone, PartialEq, PartialOrd)]

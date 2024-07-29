@@ -1,5 +1,6 @@
 use super::{
     application::{Application, ApplicationConfig},
+    realm_client::RealmClient,
     realm_configuration::RealmConfig,
 };
 use async_trait::async_trait;
@@ -31,7 +32,7 @@ pub enum RealmError {
 
 #[async_trait]
 pub trait Realm {
-    fn create_application(&mut self, config: ApplicationConfig) -> Result<Uuid, RealmError>;
+    async fn create_application(&mut self, config: ApplicationConfig) -> Result<Uuid, RealmError>;
     fn get_application(
         &self,
         uuid: &Uuid,
@@ -51,6 +52,21 @@ pub trait Realm {
 pub trait RealmConfigRepository {
     async fn save_realm_config(&mut self) -> Result<(), RealmError>;
     fn get_realm_config(&mut self) -> &mut RealmConfig;
+}
+
+#[async_trait]
+pub trait ApplicationCreator {
+    async fn create_application(
+        &self,
+        uuid: Uuid,
+        config: ApplicationConfig,
+        realm_client_handler: Arc<Mutex<Box<dyn RealmClient + Send + Sync>>>,
+    ) -> Result<Box<dyn Application + Send + Sync>, RealmError>;
+    async fn load_application(
+        &self,
+        realm_id: &Uuid,
+        realm_client_handler: Arc<Mutex<Box<dyn RealmClient + Send + Sync>>>,
+    ) -> Result<Box<dyn Application + Send + Sync>, RealmError>;
 }
 
 #[derive(Debug, Clone, PartialEq, PartialOrd, Serialize, Deserialize)]

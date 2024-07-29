@@ -189,6 +189,7 @@ impl ClientHandler {
                     .lock()
                     .await
                     .create_application(config.into())
+                    .await
                     .map_err(ClientError::RealmManagerError)?;
                 info!("Created application with id: {application_uuid} in realm: {realm_uuid}.");
                 Ok(WardenResponse::CreatedApplication {

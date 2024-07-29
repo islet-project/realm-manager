@@ -1,11 +1,14 @@
 use crate::client_handler::realm_client_handler::{
     RealmCommand, RealmConnector, RealmSender, RealmSenderError,
 };
-use crate::managers::application::ApplicationCreator;
+use crate::managers::application::ApplicationConfigRepository;
 use crate::managers::realm_manager::{VmManager, VmManagerError};
 use crate::managers::{
     application::{Application, ApplicationConfig, ApplicationError},
-    realm::{Realm, RealmConfigRepository, RealmData, RealmDescription, RealmError, State},
+    realm::{
+        ApplicationCreator, Realm, RealmConfigRepository, RealmData, RealmDescription, RealmError,
+        State,
+    },
     realm_client::{RealmClient, RealmClientError, RealmProvisioningConfig},
     realm_configuration::{CpuConfig, KernelConfig, MemoryConfig, NetworkConfig, RealmConfig},
     warden::{RealmCreator, Warden, WardenError},
@@ -86,7 +89,7 @@ mock! {
         async fn start(&mut self) -> Result<(), RealmError>;
         fn stop(&mut self) -> Result<(), RealmError>;
         async fn reboot(&mut self) -> Result<(), RealmError>;
-        fn create_application(&mut self, config: ApplicationConfig) -> Result<Uuid, RealmError>;
+        async fn create_application(&mut self, config: ApplicationConfig) -> Result<Uuid, RealmError>;
         fn get_realm_data(& self) -> RealmData;
         fn get_application(&self, uuid:& Uuid) -> Result<Arc<tokio::sync::Mutex<Box<dyn Application + Send + Sync>>>, RealmError>;
         async fn update_application(&mut self, uuid:& Uuid, new_config: ApplicationConfig) -> Result<(), RealmError>;
@@ -166,10 +169,20 @@ mock! {
 
 mock! {
     pub ApplicationFabric {}
+    #[async_trait]
     impl ApplicationCreator for ApplicationFabric {
-        fn create_application(&self,
-            uuid: Uuid,  config: ApplicationConfig, realm_client_handler: Arc<tokio::sync::Mutex<Box<dyn RealmClient + Send + Sync>>>) -> Box<dyn Application + Send + Sync>;
-    }
+        async fn create_application(
+            &self,
+            uuid: Uuid,
+            config: ApplicationConfig,
+            realm_client_handler: Arc<tokio::sync::Mutex<Box<dyn RealmClient + Send + Sync>>>,
+        ) -> Result<Box<dyn Application + Send + Sync>, RealmError>;
+        async fn load_application(
+            &self,
+            realm_id: &Uuid,
+            realm_client_handler: Arc<tokio::sync::Mutex<Box<dyn RealmClient + Send + Sync>>>
+        ) -> Result<Box<dyn Application + Send + Sync>, RealmError>;
+        }
 }
 
 pub struct RealmInMemoryRepository {
@@ -191,6 +204,29 @@ impl RealmConfigRepository for RealmInMemoryRepository {
     }
 
     async fn save_realm_config(&mut self) -> Result<(), RealmError> {
+        Ok(())
+    }
+}
+
+pub struct ApplicationInMemoryRepository {
+    config: ApplicationConfig,
+}
+
+impl ApplicationInMemoryRepository {
+    pub fn new() -> Self {
+        Self {
+            config: create_example_app_config(),
+        }
+    }
+}
+
+#[async_trait]
+impl ApplicationConfigRepository for ApplicationInMemoryRepository {
+    fn get_application_config(&mut self) -> &mut ApplicationConfig {
+        &mut self.config
+    }
+
+    async fn save_realm_config(&mut self) -> Result<(), ApplicationError> {
         Ok(())
     }
 }

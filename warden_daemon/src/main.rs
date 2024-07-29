@@ -1,11 +1,9 @@
 use anyhow::Error;
 use clap::Parser;
 use client_handler::client_command_handler::ClientHandler;
-use fabric::application_fabric::ApplicationFabric;
 use fabric::realm_manager_fabric::RealmManagerFabric;
 use fabric::warden_fabric::WardenFabric;
 use log::{debug, error, info};
-use managers::application::ApplicationCreator;
 use managers::warden::RealmCreator;
 use managers::warden::Warden;
 use socket::unix_socket_server::{UnixSocketServer, UnixSocketServerError};
@@ -56,12 +54,9 @@ async fn main() -> anyhow::Result<(), Error> {
         port: cli.port,
     })));
 
-    let application_fabric: Arc<Box<dyn ApplicationCreator + Send + Sync>> =
-        Arc::new(Box::new(ApplicationFabric::new()));
     let realm_fabric: Box<dyn RealmCreator + Send + Sync> = Box::new(RealmManagerFabric::new(
         cli.qemu_path,
         vsock_server.clone(),
-        application_fabric,
         cli.warden_workdir_path.clone(),
     ));
     let warden = WardenFabric::create_warden(realm_fabric, cli.warden_workdir_path).await?;
