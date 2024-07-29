@@ -11,12 +11,12 @@ log = "*"
 serde = { version = "*", features = ["derive", "alloc"] }
 serde_json = { version = "*", features = ["alloc"] }
 thiserror = "*"
-uuid = { version = "*", features = ["serde"] }
+uuid = { version = "*", features = ["serde", "v4"] }
 hex = "*"
 nix = { version = "*", features = ["process", "signal"] }
 tokio-serde = { version = "*", features = ["json"] }
 tokio-util = { version = "*", features = ["codec"] }
-tokio = { version = "*", features = ["io-util", "sync", "rt", "rt-multi-thread", "fs", "macros", "process"] }
+tokio = { version = "*", features = ["io-util", "sync", "rt", "rt-multi-thread", "fs", "macros", "process", "time"] }
 tokio-vsock = "*"
 futures-util = "*"
 serde_yaml = "*"

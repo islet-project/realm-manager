@@ -1,0 +1,10 @@
+workdir: /apps
+vsock_port: 1337
+image_registry: http://192.168.100.1:8888
+crypto:
+  cipher: Aes
+  iv_mode: Plain
+  block_mode: Cbc
+  iv_offset: 0
+launcher: Dummy
+keysealing: Dummy

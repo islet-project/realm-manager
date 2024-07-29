@@ -1,7 +1,7 @@
-use std::{collections::HashMap, path::Path, sync::Arc};
+use std::{collections::HashMap, path::Path, sync::Arc, time::Duration};
 
 use thiserror::Error;
-use tokio::task::{JoinError, JoinSet};
+use tokio::{task::{JoinError, JoinSet}, time::sleep};
 use uuid::Uuid;
 use log::info;
 
@@ -76,6 +76,13 @@ impl Manager {
     }
 
     pub async fn handle_events(&mut self) -> Result<()> {
-        todo!()
+        for (_, app) in self.apps.iter_mut() {
+            app.start().await?;
+        }
+
+        loop {
+            //TODO implement proper
+            sleep(Duration::from_secs(1)).await;
+        }
     }
 }

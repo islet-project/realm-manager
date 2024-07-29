@@ -5,7 +5,7 @@ PID_FILE=/var/run/app-manager.pid
 
 case "$1" in 
     start)
-        "$APP_MANAGER" &
+        RUST_LOG=debug "$APP_MANAGER" &
         echo $!>"$PID_FILE"
         ;;
 

@@ -1,13 +1,13 @@
-use std::{os::linux::fs::MetadataExt, path::{self, Path, PathBuf}, sync::Arc};
+use std::{os::linux::fs::MetadataExt, path::{self, Path, PathBuf}, process::ExitStatus, sync::Arc};
 
-use nix::libc::{major, makedev, minor};
+use nix::libc::{major, makedev, minor, S_IFBLK};
 use serde::{Deserialize, Serialize};
 use thiserror::Error;
 use tokio::fs;
 use uuid::Uuid;
 use log::info;
 
-use crate::{app, dm::{crypt::{CryptDevice, CryptoParams, DmCryptTable, Key}, device::{DeviceHandleWrapper, DeviceHandleWrapperExt}, DeviceMapper}, key::{ring::KernelKeyring, KeySealing}, launcher::{ApplicationHandler, Launcher}, util::{disk::read_device_size, fs::{format, mkdirp, mknod, mount, mount_overlayfs, read_to_string, readlink, stat, write_to_string, Filesystem}, serde::{json_dump, json_load}}};
+use crate::{app, dm::{crypt::{CryptDevice, CryptoParams, DmCryptTable, Key}, device::{DeviceHandleWrapper, DeviceHandleWrapperExt}, DeviceMapper}, key::{ring::KernelKeyring, KeySealing}, launcher::{ApplicationHandler, Launcher}, util::{disk::read_device_size, fs::{dirname, formatfs, mkdirp, mknod, mount, mount_overlayfs, read_to_string, readlink, stat, write_to_string, Filesystem}, serde::{json_dump, json_load}}};
 
 use super::Result;
 
@@ -15,6 +15,9 @@ use super::Result;
 pub enum ApplicationError {
     #[error("Partition not found")]
     PartitionNotFound(),
+
+    #[error("Application not provishioned")]
+    NotInstalled()
 }
 
 pub struct ApplicationInfo {
@@ -79,10 +82,10 @@ impl Application {
         )?;
         device.resume()?;
 
-        mkdirp(&dst).await?;
+        mkdirp(dirname(&dst).await?).await?;
         let (crypt_major, crypt_minor) = device.get_major_minor();
         let crypt_dev_t = makedev(crypt_major, crypt_minor);
-        mknod(dst, 0660, crypt_dev_t)?;
+        mknod(dst, 0666|S_IFBLK, crypt_dev_t)?;
 
         Ok(device)
     }
@@ -92,18 +95,18 @@ impl Application {
         let result = mount(fs, &src, &dst, None::<&str>);
 
         if let Err(_) = result {
-            format(fs, &src, label).await?;
+            formatfs(fs, &src, label).await?;
+            mount(fs, &src, &dst, None::<&str>)?;
         }
-
-        mount(fs, &src, &dst, None::<&str>)?;
 
         Ok(())
     }
 
     fn derive_key_for(&mut self, label: impl AsRef<str>, keyseal: &Box<dyn KeySealing + Send + Sync>, infos: &[&[u8]]) -> Result<Key> {
+        const subclass: &'static str = "app-manager";
         let raw_key = keyseal.derive_key(&mut infos.iter())?;
-        self.keyring.logon_seal("APP-MANAGER", &label, &raw_key)?;
-        Ok(Key::Keyring { key_size: raw_key.len(), key_type: crate::dm::crypt::KeyType::Logon, key_desc: label.as_ref().to_owned() })
+        self.keyring.logon_seal(subclass, &label, &raw_key)?;
+        Ok(Key::Keyring { key_size: raw_key.len(), key_type: crate::dm::crypt::KeyType::Logon, key_desc: format!("{}:{}", subclass, label.as_ref()) })
     }
 
     async fn application_metadata(&self, path: impl AsRef<Path>) -> Result<ApplicationMetadata> {
@@ -138,6 +141,7 @@ impl Application {
         self.try_mount_or_format_partition(&app_image_crypt_device, &app_image_dir, &fs, Some("image")).await?;
 
         let app_image_root_dir = app_image_dir.join("root");
+        mkdirp(&app_image_root_dir).await?;
         info!("Installing application");
         launcher.install(&app_image_root_dir, &self.info.name, &self.info.version).await?;
 
@@ -164,6 +168,7 @@ impl Application {
         let overlay_workdir = app_data_dir.join("workdir");
         let overlay_upper = app_data_dir.join("root");
 
+        mkdirp(&app_overlay_dir).await?;
         mkdirp(&overlay_workdir).await?;
         mkdirp(&overlay_upper).await?;
 
@@ -176,5 +181,40 @@ impl Application {
 
     pub fn id(&self) -> &Uuid {
         &self.info.id
+    }
+
+    fn get_handler(&mut self) -> Result<&mut (dyn ApplicationHandler + Send + Sync)> {
+        Ok(self.handler.as_mut().ok_or(ApplicationError::NotInstalled())?.as_mut())
+    }
+
+    pub async fn start(&mut self) -> Result<()> {
+        self.get_handler()?.start().await?;
+
+        Ok(())
+    }
+
+    async fn stop(&mut self) -> Result<()> {
+        self.get_handler()?.stop().await?;
+
+        Ok(())
+
+    }
+
+    async fn kill(&mut self) -> Result<()> {
+        self.get_handler()?.kill().await?;
+
+        Ok(())
+    }
+
+    async fn wait(&mut self) -> Result<ExitStatus> {
+        let status = self.get_handler()?.wait().await?;
+
+        Ok(status)
+    }
+
+    async fn try_wait(&mut self) -> Result<Option<ExitStatus>> {
+        let status = self.get_handler()?.try_wait().await?;
+
+        Ok(status)
     }
 }

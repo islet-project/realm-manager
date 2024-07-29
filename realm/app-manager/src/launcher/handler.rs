@@ -256,6 +256,7 @@ impl ApplicationHandler for SimpleApplicationHandler {
             return Err(ApplicationHandlerError::EmptyArgv().into());
         }
 
+        cmd.arg0(&self.config.argv[0]);
         cmd.args(self.config.argv.iter().skip(1));
         cmd.env_clear();
         cmd.envs(self.config.envp.iter());

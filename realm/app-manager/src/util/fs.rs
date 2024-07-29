@@ -34,7 +34,13 @@ pub enum FsError {
     FileReadError(#[source] std::io::Error),
 
     #[error("File write error")]
-    FileWriteError(#[source] std::io::Error)
+    FileWriteError(#[source] std::io::Error),
+
+    #[error("Path canonicalization error")]
+    PathCanonicalizeError(#[source] std::io::Error),
+
+    #[error("Path has not parent")]
+    PathHasNoParent()
 }
 
 pub enum Filesystem {
@@ -61,7 +67,7 @@ fn check_libc_error(result: i32, f: impl FnOnce(Errno) -> FsError) -> Result<()>
     }
 }
 
-pub async fn format(ty: &Filesystem, device: impl AsRef<Path>, label: Option<impl AsRef<str>>) -> Result<()> {
+pub async fn formatfs(ty: &Filesystem, device: impl AsRef<Path>, label: Option<impl AsRef<str>>) -> Result<()> {
     let mut cmd = Command::new(format!("/sbin/mkfs.{}", ty));
 
     if let Some(l) = label.as_ref() {
@@ -114,7 +120,7 @@ pub fn mount_overlayfs(lower: impl AsRef<Path>, upper: impl AsRef<Path>, workdir
     let opt = cstring_from_vec([
         b"lowerdir=", lower.as_ref().as_os_str().as_bytes(), b",",
         b"upperdir=", upper.as_ref().as_os_str().as_bytes(), b",",
-        b"workdir=", workdir.as_ref().as_os_str().as_bytes()
+        b"workdir=", workdir.as_ref().as_os_str().as_bytes(), b"\x00"
     ].concat())?;
     let dst = cstring_from_path(dst)?;
 
@@ -180,4 +186,12 @@ pub async fn write_to_string(path: impl AsRef<Path>, content: impl AsRef<[u8]>) 
         .map_err(FsError::FileWriteError)?;
 
     Ok(())
+}
+
+pub async fn dirname(path: impl AsRef<Path>) -> Result<PathBuf> {
+    Ok(
+        path.as_ref().parent()
+            .ok_or(FsError::PathHasNoParent())?
+            .to_owned()
+    )
 }
