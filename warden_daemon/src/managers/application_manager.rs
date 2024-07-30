@@ -1,3 +1,5 @@
+use crate::utils::repository::Repository;
+
 use super::{
     application::{Application, ApplicationConfig, ApplicationError},
     realm_client::RealmClient,
@@ -10,7 +12,7 @@ use uuid::Uuid;
 
 pub struct ApplicationManager {
     uuid: Uuid,
-    _config: ApplicationConfig,
+    _config: Box<dyn Repository<Data = ApplicationConfig> + Send + Sync>,
     realm_client_handler: Arc<Mutex<Box<dyn RealmClient + Send + Sync>>>,
     new_config: Option<ApplicationConfig>,
 }
@@ -18,7 +20,7 @@ pub struct ApplicationManager {
 impl ApplicationManager {
     pub fn new(
         uuid: Uuid,
-        config: ApplicationConfig,
+        config: Box<dyn Repository<Data = ApplicationConfig> + Send + Sync>,
         realm_client_handler: Arc<Mutex<Box<dyn RealmClient + Send + Sync>>>,
     ) -> Self {
         ApplicationManager {
@@ -62,13 +64,13 @@ mod test {
     use tokio::sync::Mutex;
     use uuid::Uuid;
 
-    use crate::test_utilities::MockRealmClient;
+    use crate::utils::test_utilities::{MockApplicationRepository, MockRealmClient};
     use crate::{
         managers::{
-            application::{Application, ApplicationConfig, ApplicationError},
+            application::{Application, ApplicationError},
             realm_client::RealmClientError,
         },
-        test_utilities::create_example_app_config,
+        utils::test_utilities::create_example_app_config,
     };
 
     use super::ApplicationManager;
@@ -140,7 +142,7 @@ mod test {
         });
         ApplicationManager::new(
             Uuid::new_v4(),
-            ApplicationConfig {},
+            Box::new(MockApplicationRepository::new()),
             Arc::new(Mutex::new(Box::new(realm_client))),
         )
     }

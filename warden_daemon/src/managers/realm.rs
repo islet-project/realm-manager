@@ -1,6 +1,6 @@
 use super::{
     application::{Application, ApplicationConfig},
-    realm_configuration::RealmConfig,
+    realm_client::RealmClient,
 };
 use async_trait::async_trait;
 use serde::{Deserialize, Serialize};
@@ -29,7 +29,7 @@ pub enum RealmError {
 
 #[async_trait]
 pub trait Realm {
-    fn create_application(&mut self, config: ApplicationConfig) -> Result<Uuid, RealmError>;
+    async fn create_application(&mut self, config: ApplicationConfig) -> Result<Uuid, RealmError>;
     fn get_application(
         &self,
         uuid: &Uuid,
@@ -45,8 +45,19 @@ pub trait Realm {
     ) -> Result<(), RealmError>;
 }
 
-pub trait RealmCreator {
-    fn create_realm(&self, config: RealmConfig) -> Box<dyn Realm + Send + Sync>;
+#[async_trait]
+pub trait ApplicationCreator {
+    async fn create_application(
+        &self,
+        uuid: Uuid,
+        config: ApplicationConfig,
+        realm_client_handler: Arc<Mutex<Box<dyn RealmClient + Send + Sync>>>,
+    ) -> Result<Box<dyn Application + Send + Sync>, RealmError>;
+    async fn load_application(
+        &self,
+        realm_id: &Uuid,
+        realm_client_handler: Arc<Mutex<Box<dyn RealmClient + Send + Sync>>>,
+    ) -> Result<Box<dyn Application + Send + Sync>, RealmError>;
 }
 
 #[derive(Debug, Clone, PartialEq, PartialOrd, Serialize, Deserialize)]
@@ -60,6 +71,7 @@ pub enum State {
 #[derive(Debug, PartialEq, PartialOrd, Serialize, Deserialize)]
 pub struct RealmData {
     pub state: State,
+    pub applications: Vec<Uuid>,
 }
 
 #[derive(Debug, Serialize, Deserialize, PartialEq, PartialOrd)]

@@ -13,11 +13,13 @@ pub enum WardenError {
     NoSuchRealm(Uuid),
     #[error("Can't destroy the realm: {0}")]
     DestroyFail(String),
+    #[error("Failed to create realm: {0}")]
+    RealmCreationFail(String),
 }
 
 #[async_trait]
 pub trait Warden {
-    fn create_realm(&mut self, config: RealmConfig) -> Result<Uuid, WardenError>;
+    async fn create_realm(&mut self, config: RealmConfig) -> Result<Uuid, WardenError>;
     async fn destroy_realm(&mut self, realm_uuid: &Uuid) -> Result<(), WardenError>;
     fn get_realm(
         &mut self,
@@ -25,4 +27,18 @@ pub trait Warden {
     ) -> Result<Arc<Mutex<Box<dyn Realm + Send + Sync>>>, WardenError>;
     async fn inspect_realm(&self, realm_uuid: &Uuid) -> Result<RealmDescription, WardenError>;
     async fn list_realms(&self) -> Vec<RealmDescription>;
+}
+
+#[async_trait]
+pub trait RealmCreator {
+    async fn create_realm(
+        &self,
+        realm_id: Uuid,
+        config: RealmConfig,
+    ) -> Result<Box<dyn Realm + Send + Sync>, WardenError>;
+    async fn load_realm(
+        &self,
+        realm_id: &Uuid,
+    ) -> Result<Box<dyn Realm + Send + Sync>, WardenError>;
+    async fn clean_up_realm(&self, realm_id: &Uuid) -> Result<(), WardenError>;
 }
