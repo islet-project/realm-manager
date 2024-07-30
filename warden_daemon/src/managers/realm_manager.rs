@@ -1,7 +1,7 @@
+use crate::utils::repository::Repository;
+
 use super::application::{Application, ApplicationConfig};
-use super::realm::{
-    ApplicationCreator, Realm, RealmConfigRepository, RealmData, RealmError, State,
-};
+use super::realm::{ApplicationCreator, Realm, RealmData, RealmError, State};
 use super::realm_client::{RealmClient, RealmProvisioningConfig};
 use super::realm_configuration::*;
 
@@ -44,7 +44,7 @@ type AppsMap = HashMap<Uuid, Arc<Mutex<Box<dyn Application + Send + Sync>>>>;
 pub struct RealmManager {
     state: State,
     applications: AppsMap,
-    config: Box<dyn RealmConfigRepository + Send + Sync>,
+    config: Box<dyn Repository<Data = RealmConfig> + Send + Sync>,
     vm_manager: Box<dyn VmManager + Send + Sync>,
     realm_client_handler: Arc<Mutex<Box<dyn RealmClient + Send + Sync>>>,
     application_fabric: Box<dyn ApplicationCreator + Send + Sync>,
@@ -52,7 +52,7 @@ pub struct RealmManager {
 
 impl RealmManager {
     pub fn new(
-        config: Box<dyn RealmConfigRepository + Send + Sync>,
+        config: Box<dyn Repository<Data = RealmConfig> + Send + Sync>,
         applications: AppsMap,
         vm_manager: Box<dyn VmManager + Send + Sync>,
         realm_client_handler: Arc<Mutex<Box<dyn RealmClient + Send + Sync>>>,
@@ -73,7 +73,7 @@ impl RealmManager {
     }
 
     fn setup_vm(&mut self) -> Result<(), RealmError> {
-        let config = self.config.get_realm_config();
+        let config = self.config.get();
         self.vm_manager.setup_cpu(&config.cpu);
         self.vm_manager.setup_kernel(&config.kernel);
         self.vm_manager.setup_memory(&config.memory);
@@ -116,7 +116,7 @@ impl Realm for RealmManager {
             .await
             .send_realm_provisioning_config(
                 self.create_provisioning_config(),
-                self.config.get_realm_config().network.vsock_cid,
+                self.config.get().network.vsock_cid,
             )
             .await
         {
@@ -213,12 +213,7 @@ impl Realm for RealmManager {
     fn get_realm_data(&self) -> RealmData {
         RealmData {
             state: self.state.clone(),
-            applications: self
-                .applications
-                .keys()
-                .into_iter()
-                .map(|uuid| *uuid)
-                .collect(),
+            applications: self.applications.keys().into_iter().copied().collect(),
         }
     }
 }
@@ -227,9 +222,9 @@ impl Realm for RealmManager {
 mod test {
     use super::{RealmError, RealmManager, VmManagerError};
     use crate::managers::{realm::Realm, realm_client::RealmClientError, realm_manager::State};
-    use crate::test_utilities::{
-        create_example_app_config, MockApplication, MockApplicationFabric, MockRealmClient,
-        MockVmManager, RealmInMemoryRepository,
+    use crate::utils::test_utilities::{
+        create_example_app_config, create_example_realm_config, MockApplication,
+        MockApplicationFabric, MockRealmClient, MockRealmRepository, MockVmManager,
     };
     use parameterized::parameterized;
     use std::collections::HashMap;
@@ -494,8 +489,14 @@ mod test {
         creator_mock
             .expect_create_application()
             .return_once(move |_, _, _| Ok(Box::new(app_mock)));
+
+        let mut repository = MockRealmRepository::new();
+        repository
+            .expect_get()
+            .return_const(create_example_realm_config());
+        repository.expect_save().returning(|| Ok(()));
         RealmManager::new(
-            Box::new(RealmInMemoryRepository::new()),
+            Box::new(repository),
             HashMap::new(),
             Box::new(vm_manager),
             Arc::new(Mutex::new(Box::new(realm_client_handler))),

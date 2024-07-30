@@ -306,7 +306,7 @@ mod test {
         realm::{Realm, RealmData, RealmError, State},
         warden::WardenError,
     };
-    use crate::test_utilities::{
+    use crate::utils::test_utilities::{
         create_example_realm_description, create_example_uuid, MockApplication, MockRealm,
         MockWardenDaemon,
     };

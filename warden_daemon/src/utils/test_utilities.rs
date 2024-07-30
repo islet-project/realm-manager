@@ -1,14 +1,11 @@
+use super::repository::{Repository, RepositoryError};
 use crate::client_handler::realm_client_handler::{
     RealmCommand, RealmConnector, RealmSender, RealmSenderError,
 };
-use crate::managers::application::ApplicationConfigRepository;
 use crate::managers::realm_manager::{VmManager, VmManagerError};
 use crate::managers::{
     application::{Application, ApplicationConfig, ApplicationError},
-    realm::{
-        ApplicationCreator, Realm, RealmConfigRepository, RealmData, RealmDescription, RealmError,
-        State,
-    },
+    realm::{ApplicationCreator, Realm, RealmData, RealmDescription, RealmError, State},
     realm_client::{RealmClient, RealmClientError, RealmProvisioningConfig},
     realm_configuration::{CpuConfig, KernelConfig, MemoryConfig, NetworkConfig, RealmConfig},
     warden::{RealmCreator, Warden, WardenError},
@@ -186,48 +183,24 @@ mock! {
         }
 }
 
-pub struct RealmInMemoryRepository {
-    config: RealmConfig,
-}
+mock! {
+    pub ApplicationRepository {}
 
-impl RealmInMemoryRepository {
-    pub fn new() -> Self {
-        Self {
-            config: create_example_realm_config(),
-        }
+    #[async_trait]
+    impl Repository for ApplicationRepository {
+        type Data = ApplicationConfig;
+        fn get(&self) -> &ApplicationConfig;
+        async fn save(&mut self) -> Result<(), RepositoryError>;
     }
 }
 
-#[async_trait]
-impl RealmConfigRepository for RealmInMemoryRepository {
-    fn get_realm_config(&mut self) -> &mut RealmConfig {
-        &mut self.config
-    }
+mock! {
+    pub RealmRepository {}
 
-    async fn save_realm_config(&mut self) -> Result<(), RealmError> {
-        Ok(())
-    }
-}
-
-pub struct ApplicationInMemoryRepository {
-    config: ApplicationConfig,
-}
-
-impl ApplicationInMemoryRepository {
-    pub fn new() -> Self {
-        Self {
-            config: create_example_app_config(),
-        }
-    }
-}
-
-#[async_trait]
-impl ApplicationConfigRepository for ApplicationInMemoryRepository {
-    fn get_application_config(&mut self) -> &mut ApplicationConfig {
-        &mut self.config
-    }
-
-    async fn save_realm_config(&mut self) -> Result<(), ApplicationError> {
-        Ok(())
+    #[async_trait]
+    impl Repository for RealmRepository {
+        type Data = RealmConfig;
+        fn get(&self) -> &RealmConfig;
+        async fn save(&mut self) -> Result<(), RepositoryError>;
     }
 }

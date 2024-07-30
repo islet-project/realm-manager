@@ -5,14 +5,11 @@ use std::{
 };
 
 use async_trait::async_trait;
+use serde::{de::DeserializeOwned, Serialize};
 use utils::file_system::{fs_repository::FileRepository, workspace_manager::WorkspaceManager};
 use uuid::Uuid;
 
-use crate::managers::{
-    application::{ApplicationConfig, ApplicationConfigRepository, ApplicationError},
-    realm::{RealmConfigRepository, RealmError},
-    realm_configuration::RealmConfig,
-};
+use crate::utils::repository::{Repository, RepositoryError};
 
 pub async fn read_subfolders_uuids(root_dir_path: &Path) -> Result<Vec<Uuid>, io::Error> {
     let workspace_manager = WorkspaceManager::new(root_dir_path.to_path_buf()).await?;
@@ -40,67 +37,47 @@ pub fn create_config_path(mut root_path: PathBuf, realm_id: &Uuid) -> PathBuf {
     root_path
 }
 
-pub struct ApplicationConfigYamlRepository {
-    config: FileRepository<ApplicationConfig>,
+pub struct YamlConfigRepository<Config: Serialize + DeserializeOwned> {
+    config: FileRepository<Config>,
 }
 
-impl ApplicationConfigYamlRepository {
-    pub async fn new(config: ApplicationConfig, path: &Path) -> Result<Self, String> {
-        Ok(Self {
-            config: FileRepository::<ApplicationConfig>::new(config, path)
+impl<Config: Serialize + DeserializeOwned + Send + Sync> YamlConfigRepository<Config> {
+    pub async fn new(config: Config, path: &Path) -> Result<Self, RepositoryError> {
+        let mut yaml_repository = Self {
+            config: FileRepository::<Config>::new(config, path)
                 .await
-                .map_err(|err| err.to_string())?,
-        })
+                .map_err(|err| RepositoryError::CreationFail(err.to_string()))?,
+        };
+
+        yaml_repository.save().await?;
+
+        Ok(yaml_repository)
     }
 
-    pub fn from(repository: FileRepository<ApplicationConfig>) -> Self {
-        Self { config: repository }
+    pub async fn from(config_path: &Path) -> Result<Self, RepositoryError> {
+        let file_repository = FileRepository::<Config>::from_file_path(config_path)
+            .await
+            .map_err(|err| RepositoryError::CreationFail(err.to_string()))?;
+        Ok(Self {
+            config: file_repository,
+        })
     }
 }
 
 #[async_trait]
-impl ApplicationConfigRepository for ApplicationConfigYamlRepository {
-    fn get_application_config(&mut self) -> &mut ApplicationConfig {
+impl<Config: Serialize + DeserializeOwned + Send + Sync> Repository
+    for YamlConfigRepository<Config>
+{
+    type Data = Config;
+
+    fn get(&self) -> &Self::Data {
         self.config.get()
     }
-
-    async fn save_realm_config(&mut self) -> Result<(), ApplicationError> {
+    async fn save(&mut self) -> Result<(), RepositoryError> {
         self.config
             .save()
             .await
-            .map_err(|err| ApplicationError::StorageOperationFail(err.to_string()))
-    }
-}
-
-pub struct RealmConfigYamlRepository {
-    config: FileRepository<RealmConfig>,
-}
-
-impl RealmConfigYamlRepository {
-    pub async fn new(config: RealmConfig, path: &Path) -> Result<Self, String> {
-        Ok(Self {
-            config: FileRepository::<RealmConfig>::new(config, path)
-                .await
-                .map_err(|err| err.to_string())?,
-        })
-    }
-
-    pub fn from(repository: FileRepository<RealmConfig>) -> Self {
-        Self { config: repository }
-    }
-}
-
-#[async_trait]
-impl RealmConfigRepository for RealmConfigYamlRepository {
-    fn get_realm_config(&mut self) -> &mut RealmConfig {
-        self.config.get()
-    }
-
-    async fn save_realm_config(&mut self) -> Result<(), RealmError> {
-        self.config
-            .save()
-            .await
-            .map_err(|err| RealmError::StorageOperationFail(err.to_string()))
+            .map_err(|err| RepositoryError::SaveFail(err.to_string()))
     }
 }
 

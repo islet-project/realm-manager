@@ -107,7 +107,7 @@ mod test {
         RealmClient, RealmClientError, RealmClientHandler, RealmCommand, RealmSender,
         RealmSenderError,
     };
-    use crate::test_utilities::{
+    use crate::utils::test_utilities::{
         create_realm_provisioning_config, MockRealmConnector, MockRealmSender,
     };
 

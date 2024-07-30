@@ -1,7 +1,7 @@
 use anyhow::Error;
 use clap::Parser;
 use client_handler::client_command_handler::ClientHandler;
-use fabric::realm_manager_fabric::RealmManagerFabric;
+use fabric::realm_fabric::RealmManagerFabric;
 use fabric::warden_fabric::WardenFabric;
 use log::{debug, error, info};
 use managers::warden::RealmCreator;
@@ -17,14 +17,12 @@ use tokio::task::JoinHandle;
 use tokio_util::sync::CancellationToken;
 use tokio_vsock::VMADDR_CID_HOST;
 
-#[cfg(test)]
-mod test_utilities;
-
 mod client_handler;
 mod fabric;
 mod managers;
 mod socket;
 mod storage;
+mod utils;
 mod virtualization;
 
 #[derive(Parser)]

@@ -55,8 +55,12 @@ impl<Struct: Serialize + DeserializeOwned> FileRepository<Struct> {
         Ok(())
     }
 
-    pub fn get(&mut self) -> &mut Struct {
+    pub fn get_mut(&mut self) -> &mut Struct {
         &mut self.data
+    }
+
+    pub fn get(&self) -> & Struct {
+        & self.data
     }
 
     async fn try_read_file(path: &Path) -> Result<(File, Struct), FileRepositoryError> {
@@ -100,7 +104,7 @@ mod test {
             .await
             .unwrap();
         assert_eq!(*file_repository.get(), DATA);
-        let data = file_repository.get();
+        let data = file_repository.get_mut();
         *data += 1;
         file_repository.save().await.unwrap();
         file_repository = super::FileRepository::from_file_path(&path).await.unwrap();

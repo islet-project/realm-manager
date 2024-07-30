@@ -1,7 +1,6 @@
 use super::{
     application::{Application, ApplicationConfig},
     realm_client::RealmClient,
-    realm_configuration::RealmConfig,
 };
 use async_trait::async_trait;
 use serde::{Deserialize, Serialize};
@@ -26,8 +25,6 @@ pub enum RealmError {
     VmDestroyFail(String),
     #[error("Can't create application: {0}")]
     ApplicationCreationFail(String),
-    #[error("Storage failure: {0}")]
-    StorageOperationFail(String),
 }
 
 #[async_trait]
@@ -46,12 +43,6 @@ pub trait Realm {
         uuid: &Uuid,
         new_config: ApplicationConfig,
     ) -> Result<(), RealmError>;
-}
-
-#[async_trait]
-pub trait RealmConfigRepository {
-    async fn save_realm_config(&mut self) -> Result<(), RealmError>;
-    fn get_realm_config(&mut self) -> &mut RealmConfig;
 }
 
 #[async_trait]

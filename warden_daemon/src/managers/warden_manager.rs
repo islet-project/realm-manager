@@ -89,7 +89,7 @@ impl Warden for WardenDaemon {
 #[cfg(test)]
 mod test {
     use crate::managers::realm::{RealmData, State};
-    use crate::test_utilities::{
+    use crate::utils::test_utilities::{
         create_example_realm_config, create_example_realm_data, MockRealm, MockRealmManagerCreator,
     };
 
