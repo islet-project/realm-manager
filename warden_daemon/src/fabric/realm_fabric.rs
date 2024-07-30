@@ -98,22 +98,22 @@ impl RealmCreator for RealmManagerFabric {
         &self,
         realm_id: &Uuid,
     ) -> Result<Box<dyn Realm + Send + Sync>, WardenError> {
-        let realm_workdir =
+        let realm_workdir_path =
             create_workdir_path_with_uuid(self.warden_workdir_path.clone(), realm_id);
-        let application_fabric = ApplicationFabric::new(realm_workdir.clone());
+        let application_fabric = ApplicationFabric::new(realm_workdir_path.clone());
         let realm_client_handler: Arc<Mutex<Box<dyn RealmClient + Send + Sync>>> = Arc::new(
             Mutex::new(Box::new(RealmClientHandler::new(self.vsock_server.clone()))),
         );
         let loaded_applications = self
             .load_applications(
-                &realm_workdir,
+                &realm_workdir_path,
                 &application_fabric,
                 realm_client_handler.clone(),
             )
             .await?;
         Ok(Box::new(RealmManager::new(
             Box::new(
-                YamlConfigRepository::<RealmConfig>::from(&create_config_path(realm_workdir))
+                YamlConfigRepository::<RealmConfig>::from(&create_config_path(realm_workdir_path))
                     .await
                     .map_err(|err| WardenError::RealmCreationFail(err.to_string()))?,
             ),

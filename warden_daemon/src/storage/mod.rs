@@ -44,14 +44,11 @@ pub struct YamlConfigRepository<Config: Serialize + DeserializeOwned> {
 
 impl<Config: Serialize + DeserializeOwned + Send + Sync> YamlConfigRepository<Config> {
     pub async fn new(config: Config, path: &Path) -> Result<Self, RepositoryError> {
-        let mut yaml_repository = Self {
+        let yaml_repository = Self {
             config: FileRepository::<Config>::new(config, path)
                 .await
                 .map_err(|err| RepositoryError::CreationFail(err.to_string()))?,
         };
-
-        yaml_repository.save().await?;
-
         Ok(yaml_repository)
     }
 
