@@ -57,7 +57,8 @@ async fn main() -> anyhow::Result<(), Error> {
         vsock_server.clone(),
         cli.warden_workdir_path.clone(),
     ));
-    let warden = WardenFabric::create_warden(realm_fabric, cli.warden_workdir_path).await?;
+    let warden_fabric = WardenFabric::new(cli.warden_workdir_path).await?;
+    let warden = warden_fabric.create_warden(realm_fabric).await?;
     let mut vsock_thread = spawn_vsock_server_thread(vsock_server.clone(), cancel_token.clone());
     let mut usock_thread =
         spawn_unix_socket_server_thread(warden, cancel_token.clone(), cli.unix_sock_path);

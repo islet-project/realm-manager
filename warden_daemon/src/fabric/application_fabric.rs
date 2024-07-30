@@ -5,7 +5,7 @@ use crate::{
         realm::{ApplicationCreator, RealmError},
         realm_client::RealmClient,
     },
-    storage::{create_config_path, YamlConfigRepository},
+    storage::{create_config_path, create_workdir_path_with_uuid, YamlConfigRepository},
 };
 
 use async_trait::async_trait;
@@ -31,11 +31,14 @@ impl ApplicationCreator for ApplicationFabric {
         config: ApplicationConfig,
         realm_client_handler: Arc<Mutex<Box<dyn RealmClient + Send + Sync>>>,
     ) -> Result<Box<dyn Application + Send + Sync>, RealmError> {
-        let path = create_config_path(self.realm_workdir_path.clone(), &uuid);
+        let path = create_workdir_path_with_uuid(self.realm_workdir_path.clone(), &uuid);
+        tokio::fs::create_dir(&path)
+            .await
+            .map_err(|err| RealmError::ApplicationCreationFail(err.to_string()))?;
         Ok(Box::new(ApplicationManager::new(
             uuid,
             Box::new(
-                YamlConfigRepository::<ApplicationConfig>::new(config, &path)
+                YamlConfigRepository::<ApplicationConfig>::new(config, &create_config_path(path))
                     .await
                     .map_err(|err| RealmError::ApplicationCreationFail(err.to_string()))?,
             ),
@@ -45,14 +48,14 @@ impl ApplicationCreator for ApplicationFabric {
 
     async fn load_application(
         &self,
-        realm_id: &Uuid,
+        uuid: &Uuid,
         realm_client_handler: Arc<Mutex<Box<dyn RealmClient + Send + Sync>>>,
     ) -> Result<Box<dyn Application + Send + Sync>, RealmError> {
-        let path = create_config_path(self.realm_workdir_path.clone(), realm_id);
+        let path = create_workdir_path_with_uuid(self.realm_workdir_path.clone(), uuid);
         Ok(Box::new(ApplicationManager::new(
-            *realm_id,
+            *uuid,
             Box::new(
-                YamlConfigRepository::<ApplicationConfig>::from(&path)
+                YamlConfigRepository::<ApplicationConfig>::from(&create_config_path(path))
                     .await
                     .map_err(|err| RealmError::ApplicationCreationFail(err.to_string()))?,
             ),

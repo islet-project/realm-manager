@@ -8,17 +8,27 @@ use crate::{
     storage::read_subfolders_uuids,
 };
 use tokio::sync::Mutex;
+pub struct WardenFabric {
+    warden_workdir_path: PathBuf,
+}
 
-pub struct WardenFabric;
+impl WardenFabric {
+    pub async fn new(warden_workdir_path: PathBuf) -> Result<Self, anyhow::Error> {
+        tokio::fs::create_dir_all(&warden_workdir_path).await?;
+        Ok(Self {
+            warden_workdir_path,
+        })
+    }
+}
 
 impl WardenFabric {
     pub async fn create_warden(
+        &self,
         realm_creator: Box<dyn RealmCreator + Send + Sync>,
-        warden_workdir_path: PathBuf,
     ) -> Result<Box<dyn Warden + Send + Sync>, anyhow::Error> {
         let mut realms = HashMap::new();
 
-        for uuid in read_subfolders_uuids(&warden_workdir_path).await? {
+        for uuid in read_subfolders_uuids(&self.warden_workdir_path).await? {
             realms.insert(
                 uuid,
                 Arc::new(Mutex::new(realm_creator.load_realm(&uuid).await?)),

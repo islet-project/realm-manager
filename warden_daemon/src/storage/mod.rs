@@ -6,35 +6,36 @@ use std::{
 
 use async_trait::async_trait;
 use serde::{de::DeserializeOwned, Serialize};
-use utils::file_system::{fs_repository::FileRepository, workspace_manager::WorkspaceManager};
+use utils::file_system::fs_repository::FileRepository;
 use uuid::Uuid;
 
 use crate::utils::repository::{Repository, RepositoryError};
 
-pub async fn read_subfolders_uuids(root_dir_path: &Path) -> Result<Vec<Uuid>, io::Error> {
-    let workspace_manager = WorkspaceManager::new(root_dir_path.to_path_buf()).await?;
+pub async fn read_subfolders_uuids(root_folder: &Path) -> Result<Vec<Uuid>, io::Error> {
     let mut uuids: Vec<Uuid> = Vec::new();
-    for realm_dir in workspace_manager.read_subdirectories().await?.into_iter() {
-        let uuid = {
-            let uuid = realm_dir.iter().last().ok_or(io::Error::other(
-                "Unable to collect realm's Uuid from child dir.",
-            ))?;
-            Uuid::from_str(
-                uuid.to_str()
-                    .ok_or(io::Error::other("Failed to map OS string."))?,
-            )
-            .map_err(|err| io::Error::other(err.to_string()))?
-        };
-        uuids.push(uuid);
+    let mut read_dir = tokio::fs::read_dir(root_folder).await?;
+    while let Ok(Some(entry)) = read_dir.next_entry().await {
+        if let Ok(file_type) = entry.file_type().await {
+            if file_type.is_dir() {
+                uuids.push(
+                    Uuid::from_str(entry.file_name().to_string_lossy().as_ref())
+                        .map_err(|err| io::Error::other(err.to_string()))?,
+                );
+            }
+        }
     }
     Ok(uuids)
 }
 
-pub fn create_config_path(mut root_path: PathBuf, realm_id: &Uuid) -> PathBuf {
+pub fn create_config_path(mut root_path: PathBuf) -> PathBuf {
     const CONFIG_FILE_NAME: &str = "config.yaml";
-    root_path.push(realm_id.to_string());
     root_path.push(CONFIG_FILE_NAME);
     root_path
+}
+
+pub fn create_workdir_path_with_uuid(mut root_workdir: PathBuf, realm_id: &Uuid) -> PathBuf {
+    root_workdir.push(realm_id.to_string());
+    root_workdir
 }
 
 pub struct YamlConfigRepository<Config: Serialize + DeserializeOwned> {
@@ -85,15 +86,9 @@ impl<Config: Serialize + DeserializeOwned + Send + Sync> Repository
 mod test {
     use std::{path::PathBuf, str::FromStr};
 
-    use uuid::Uuid;
-
     #[test]
     fn create_realm_config_path() {
-        let uuid = Uuid::new_v4();
-        let path = super::create_config_path(PathBuf::new(), &uuid);
-        assert_eq!(
-            path,
-            PathBuf::from_str(&format!("{}/config.yaml", uuid.to_string())).unwrap()
-        );
+        let path = super::create_config_path(PathBuf::new());
+        assert_eq!(path, PathBuf::from_str("config.yaml").unwrap());
     }
 }

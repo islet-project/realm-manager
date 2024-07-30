@@ -3,7 +3,7 @@ use std::path::Path;
 use serde::{de::DeserializeOwned, Serialize};
 use thiserror::Error;
 use tokio::{
-    fs::{create_dir_all, File},
+    fs::File,
     io::{AsyncReadExt, AsyncSeekExt, AsyncWriteExt},
 };
 
@@ -24,9 +24,6 @@ pub struct FileRepository<Struct: Serialize + DeserializeOwned> {
 
 impl<Struct: Serialize + DeserializeOwned> FileRepository<Struct> {
     pub async fn new(data: Struct, path: &Path) -> Result<Self, FileRepositoryError> {
-        create_dir_all(path.parent().expect("Config has to have parent dir."))
-            .await
-            .map_err(FileRepositoryError::CreationFail)?;
         let file = File::create(path)
             .await
             .map_err(FileRepositoryError::CreationFail)?;
