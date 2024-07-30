@@ -59,8 +59,8 @@ impl<Struct: Serialize + DeserializeOwned> FileRepository<Struct> {
         &mut self.data
     }
 
-    pub fn get(&self) -> & Struct {
-        & self.data
+    pub fn get(&self) -> &Struct {
+        &self.data
     }
 
     async fn try_read_file(path: &Path) -> Result<(File, Struct), FileRepositoryError> {

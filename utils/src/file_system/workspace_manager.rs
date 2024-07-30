@@ -30,6 +30,10 @@ impl WorkspaceManager {
         }
         Ok(subdirectories)
     }
+
+    pub async fn destroy_workspace(self) -> Result<(), io::Error> {
+        tokio::fs::remove_dir_all(&self.root_dir).await
+    }
 }
 
 #[cfg(test)]

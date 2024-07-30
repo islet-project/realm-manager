@@ -14,6 +14,7 @@ use std::collections::HashMap;
 use std::path::PathBuf;
 use std::sync::Arc;
 use tokio::sync::Mutex;
+use utils::file_system::workspace_manager::WorkspaceManager;
 use uuid::Uuid;
 
 use super::application_fabric::ApplicationFabric;
@@ -119,5 +120,15 @@ impl RealmCreator for RealmManagerFabric {
             realm_client_handler,
             Box::new(application_fabric),
         )))
+    }
+
+    async fn clean_up_realm(&self, realm_id: &Uuid) -> Result<(), WardenError> {
+        let workspace_manager = WorkspaceManager::new(self.create_realm_workdir_path(realm_id))
+            .await
+            .map_err(|err| WardenError::DestroyFail(err.to_string()))?;
+        workspace_manager
+            .destroy_workspace()
+            .await
+            .map_err(|err| WardenError::DestroyFail(err.to_string()))
     }
 }

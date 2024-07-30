@@ -40,4 +40,5 @@ pub trait RealmCreator {
         &self,
         realm_id: &Uuid,
     ) -> Result<Box<dyn Realm + Send + Sync>, WardenError>;
+    async fn clean_up_realm(&self, realm_id: &Uuid) -> Result<(), WardenError>;
 }

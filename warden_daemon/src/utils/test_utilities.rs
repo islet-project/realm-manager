@@ -162,6 +162,7 @@ mock! {
     impl RealmCreator for RealmManagerCreator {
         async fn create_realm(&self, realm_id: Uuid, config: RealmConfig) -> Result<Box<dyn Realm + Send + Sync>, WardenError>;
         async fn load_realm(&self, realm_id:& Uuid) -> Result<Box<dyn Realm + Send + Sync>, WardenError>;
+        async fn clean_up_realm(&self, realm_id: &Uuid) -> Result<(), WardenError>;
     }
 }
 

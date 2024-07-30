@@ -51,7 +51,8 @@ impl Warden for WardenDaemon {
         self.realms_managers
             .remove(realm_uuid)
             .ok_or(WardenError::NoSuchRealm(*realm_uuid))
-            .map(|_| ())
+            .map(|_| ())?;
+        self.realm_fabric.clean_up_realm(realm_uuid).await
     }
 
     async fn list_realms(&self) -> Vec<RealmDescription> {
@@ -242,6 +243,7 @@ mod test {
         creator_mock
             .expect_create_realm()
             .return_once(move |_, _| Ok(realm_mock));
+        creator_mock.expect_clean_up_realm().returning(|_| Ok(()));
         WardenDaemon::new(HashMap::new(), Box::new(creator_mock))
     }
 }
