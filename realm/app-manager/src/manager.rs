@@ -90,6 +90,14 @@ impl Manager {
         }
     }
 
+    async fn report_provision_success(&mut self) -> Result<()> {
+        self.conn.send(Response::Success())
+            .await
+            .map_err(ManagerError::FramedJsonError)?;
+
+        Ok(())
+    }
+
     pub async fn setup(&mut self) -> Result<()> {
         info!("Waiting for provision info");
         let apps_info = self.recv_provision_info().await?;
@@ -120,6 +128,9 @@ impl Manager {
             self.apps.insert(id, app);
             info!("Finished installing {}", id);
         }
+
+        info!("Provisioning finished");
+        self.report_provision_success().await?;
 
         if self.config.autostartall {
             for (id, app) in self.apps.iter_mut() {
@@ -215,18 +226,37 @@ impl Manager {
         }
     }
 
+    async fn handle_valid_request(&mut self, request: Request) -> Response {
+        debug!("Received request: {:?}", request);
+
+        let response = match self.handle_request(request).await {
+            Ok(response) => response,
+            Err(e) => Response::Error(e)
+        };
+
+        response
+    }
+
     pub async fn handle_events(&mut self) -> Result<()> {
         loop {
-            let request = self.recv_msg().await?;
-            debug!("Received request: {:?}", request);
+            let response = match self.recv_msg().await {
+                Ok(r) => {
+                    self.handle_valid_request(r).await
+                },
 
-            let response = match self.handle_request(request).await {
-                Ok(response) => response,
-                Err(e) => Response::Error(e)
+                Err(e) => {
+                    Response::Error(ProtocolError::InvalidRequest(format!("{:?}", e)))
+                }
             };
-            debug!("Sending response: {:?}", response);
 
-            self.send_msg(response).await?;
+            debug!("Sending response: {:?}", response);
+            if let Err(e) = self.send_msg(response).await {
+                error!("Failed to send data back to host ({})", e);
+                info!("Shutting down");
+                let _ = self.perform_reboot(RebootAction::Shutdown).await;
+
+                unreachable!()
+            }
         }
     }
 }
