@@ -1,7 +1,7 @@
 use std::{borrow::Borrow, sync::Arc};
 
 use crypt::CryptError;
-use device::{DeviceHandle, DeviceHandleError};
+use device::{DeviceHandle, DeviceHandleError, DeviceHandleWrapper};
 use devicemapper::{DmError, DmName, DmOptions, DmUuid, DmUuidBuf, DM};
 use thiserror::Error;
 use uuid::Uuid;
@@ -28,6 +28,9 @@ pub enum DeviceMapperError {
 
     #[error("Cannot create virtual mapping device named: {0}")]
     CreateError(String, #[source] devicemapper::DmError),
+
+    #[error("Cannot remove device")]
+    RemoveDevice(#[source] devicemapper::DmError)
 }
 
 pub type Result<T> = std::result::Result<T, DeviceMapperError>;
@@ -61,5 +64,12 @@ impl DeviceMapper {
 
     pub fn create_device<T: From<DeviceHandle>>(&self, name: impl AsRef<str>, uuid: Option<impl AsRef<Uuid>>, opt: Option<DmOptions>) -> Result<T> {
         Ok(T::from(self.create_device_handle(name, uuid, opt)?))
+    }
+
+    pub fn remove_device(&self, device: impl DeviceHandleWrapper, opt: Option<DmOptions>) -> Result<()> {
+        self.0.device_remove(&device.handle().dev_id()?, opt.unwrap_or(DmOptions::default()))
+            .map_err(DeviceMapperError::RemoveDevice)?;
+
+        Ok(())
     }
 }

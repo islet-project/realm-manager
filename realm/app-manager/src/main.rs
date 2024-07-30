@@ -1,6 +1,7 @@
 use std::{path::Path, str::FromStr};
-
-use app::{ApplicationError, ApplicationInfo};
+use app::ApplicationError;
+use clap::Parser;
+use cli::Args;
 use config::{Config, ConfigError};
 use dm::DeviceMapperError;
 use key::KeyError;
@@ -12,6 +13,7 @@ use log::info;
 use uuid::Uuid;
 
 mod app;
+mod cli;
 mod config;
 mod dm;
 mod key;
@@ -47,21 +49,15 @@ pub type Result<T> = std::result::Result<T, Error>;
 
 #[tokio::main]
 async fn main() -> Result<()> {
-    env_logger::init();
+    let args = Args::parse();
+    simple_logger::init_with_level(args.log_level).unwrap();
 
-    let config = Config::read_from_file("/etc/app-manager/config.yml").await?;
-    let mut manager = Manager::new(config)?;
+    info!("Reading config file: {:?}", args.config);
+    let config = Config::read_from_file(args.config).await?;
+    let mut manager = Manager::new(config).await?;
 
     info!("Provishioning...");
-    let _ = manager.setup(Path::new("/apps"), vec![
-        ApplicationInfo {
-            id: Uuid::new_v4(),
-            name: "Testapp".to_owned(),
-            version: "1.1.1".to_owned(),
-            image_part_uuid: Uuid::from_str("2fd89730-d156-6548-baf3-13b3040b2efb").unwrap(),
-            data_part_uuid: Uuid::from_str("74b3a3d5-2218-ff47-9aa2-d3fd4edb347f").unwrap()
-        }
-    ]).await?;
+    let _ = manager.setup().await?;
 
     info!("Applications started entering event loop");
     let _ = manager.handle_events().await?;

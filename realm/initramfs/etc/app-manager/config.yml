@@ -8,3 +8,4 @@ crypto:
   iv_offset: 0
 launcher: Dummy
 keysealing: Dummy
+autostartall: true

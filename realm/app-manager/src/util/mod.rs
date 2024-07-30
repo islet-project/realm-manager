@@ -1,10 +1,12 @@
 use std::{ffi::{CString, FromVecWithNulError, NulError}, path::Path};
 
 use disk::DiskError;
+use os::OsError;
 use thiserror::Error;
 
 pub mod disk;
 pub mod fs;
+pub mod os;
 pub mod serde;
 
 #[derive(Debug, Error)]
@@ -13,7 +15,7 @@ pub enum UtilsError {
     FsError(#[from] fs::FsError),
 
     #[error("Serde error")]
-    SerdeError(#[from] serde::JsonFramedError),
+    SerdeError(#[from] serde::JsonError),
 
     #[error("Disk error")]
     DiskError(#[from] DiskError),
@@ -22,7 +24,10 @@ pub enum UtilsError {
     CstringConvError(#[from] NulError),
 
     #[error("Vector conversion error to CString")]
-    CstringFromVecConvError(#[from] FromVecWithNulError)
+    CstringFromVecConvError(#[from] FromVecWithNulError),
+
+    #[error("OS error")]
+    OsError(#[from] OsError)
 }
 
 pub type Result<T> = std::result::Result<T, UtilsError>;

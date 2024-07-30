@@ -6,7 +6,6 @@ edition = "2021"
 [dependencies]
 devicemapper = { path = "../../../devicemapper-rs", default-features = false }
 anyhow = "*"
-env_logger = "*"
 log = "*"
 serde = { version = "*", features = ["derive", "alloc"] }
 serde_json = { version = "*", features = ["alloc"] }
@@ -24,3 +23,7 @@ futures = "*"
 keyutils = "*"
 async-trait = "*"
 sha2 = "*"
+warden_realm = { path = "../../protocol/warden_realm" }
+utils = { path = "../../utils" }
+clap = { version = "*", features = ["derive"] }
+simple_logger = "*"

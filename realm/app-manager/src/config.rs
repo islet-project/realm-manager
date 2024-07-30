@@ -28,7 +28,8 @@ pub struct Config {
     pub crypto: CryptoParams,
     pub image_registry: String,
     pub launcher: LauncherType,
-    pub keysealing: KeySealingType
+    pub keysealing: KeySealingType,
+    pub autostartall: bool
 }
 
 impl Config {

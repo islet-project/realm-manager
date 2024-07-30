@@ -31,7 +31,7 @@ impl DeviceHandle {
         Self { dm, info }
     }
 
-    fn dev_id(&self) -> Result<DevId> {
+    pub fn dev_id(&self) -> Result<DevId> {
         Ok(
             self.info.name().map(DevId::Name)
                 .or(self.info.uuid().map(DevId::Uuid))

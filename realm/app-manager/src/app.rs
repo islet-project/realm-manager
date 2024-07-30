@@ -6,8 +6,9 @@ use thiserror::Error;
 use tokio::fs;
 use uuid::Uuid;
 use log::info;
+use warden_realm::ApplicationInfo;
 
-use crate::{app, dm::{crypt::{CryptDevice, CryptoParams, DmCryptTable, Key}, device::{DeviceHandleWrapper, DeviceHandleWrapperExt}, DeviceMapper}, key::{ring::KernelKeyring, KeySealing}, launcher::{ApplicationHandler, Launcher}, util::{disk::read_device_size, fs::{dirname, formatfs, mkdirp, mknod, mount, mount_overlayfs, read_to_string, readlink, stat, write_to_string, Filesystem}, serde::{json_dump, json_load}}};
+use crate::{app, dm::{crypt::{CryptDevice, CryptoParams, DmCryptTable, Key}, device::{DeviceHandleWrapper, DeviceHandleWrapperExt}, DeviceMapper}, key::{ring::KernelKeyring, KeySealing}, launcher::{ApplicationHandler, Launcher}, util::{disk::read_device_size, fs::{dirname, formatfs, mkdirp, mknod, mount, mount_overlayfs, read_to_string, readlink, stat, umount, write_to_string, Filesystem}, serde::{json_dump, json_load}}};
 
 use super::Result;
 
@@ -20,14 +21,6 @@ pub enum ApplicationError {
     NotInstalled()
 }
 
-pub struct ApplicationInfo {
-    pub id: Uuid,
-    pub name: String,
-    pub version: String,
-    pub image_part_uuid: Uuid,
-    pub data_part_uuid: Uuid
-}
-
 #[derive(Serialize, Deserialize)]
 pub struct ApplicationMetadata {
     salt: Vec<u8>
@@ -38,7 +31,8 @@ pub struct Application {
     workdir: PathBuf,
     devicemapper: Arc<DeviceMapper>,
     keyring: KernelKeyring,
-    handler: Option<Box<dyn ApplicationHandler + Send + Sync>>
+    handler: Option<Box<dyn ApplicationHandler + Send + Sync>>,
+    devices: Vec<CryptDevice>
 }
 
 impl Application {
@@ -48,7 +42,8 @@ impl Application {
             workdir: workdir.to_owned(),
             devicemapper: Arc::new(DeviceMapper::init()?),
             keyring: KernelKeyring::new(keyutils::SpecialKeyring::User)?,
-            handler: None
+            handler: None,
+            devices: Vec::new()
         })
     }
 
@@ -132,7 +127,8 @@ impl Application {
             "App manager label".as_bytes()
         ])?;
         let app_image_crypt_device = decrypted_partinions_dir.join("image");
-        let _ = self.decrypt_partition(&self.info.image_part_uuid, &params, app_image_key, &app_image_crypt_device).await?;
+        let device = self.decrypt_partition(&self.info.image_part_uuid, &params, app_image_key, &app_image_crypt_device).await?;
+        self.devices.push(device);
 
         // TODO: Parametrize this
         const fs: Filesystem = Filesystem::Ext2;
@@ -156,7 +152,8 @@ impl Application {
             app_name.as_slice()
         ])?;
         let app_data_crypt_device = decrypted_partinions_dir.join("data");
-        let _ = self.decrypt_partition(&self.info.data_part_uuid, &params, app_data_key, &app_data_crypt_device).await?;
+        let device = self.decrypt_partition(&self.info.data_part_uuid, &params, app_data_key, &app_data_crypt_device).await?;
+        self.devices.push(device);
 
         info!("Mounting data partition");
         let app_data_dir = self.workdir.join("data");
@@ -193,28 +190,53 @@ impl Application {
         Ok(())
     }
 
-    async fn stop(&mut self) -> Result<()> {
+    pub async fn stop(&mut self) -> Result<()> {
         self.get_handler()?.stop().await?;
 
         Ok(())
 
     }
 
-    async fn kill(&mut self) -> Result<()> {
+    pub async fn kill(&mut self) -> Result<()> {
         self.get_handler()?.kill().await?;
 
         Ok(())
     }
 
-    async fn wait(&mut self) -> Result<ExitStatus> {
+    pub async fn wait(&mut self) -> Result<ExitStatus> {
         let status = self.get_handler()?.wait().await?;
 
         Ok(status)
     }
 
-    async fn try_wait(&mut self) -> Result<Option<ExitStatus>> {
+    pub async fn try_wait(&mut self) -> Result<Option<ExitStatus>> {
         let status = self.get_handler()?.try_wait().await?;
 
         Ok(status)
+    }
+
+    pub async fn shutdown(&mut self) -> Result<()> {
+        if let Some(handler) = self.handler.as_mut() {
+            info!("Stopping {:?}", self.info.id);
+            handler.stop().await?;
+        }
+        self.handler = None;
+
+        let app_image_dir = self.workdir.join("image");
+        let app_data_dir = self.workdir.join("data");
+        let app_overlay_dir = self.workdir.join("overlay");
+
+        for dir in [app_overlay_dir, app_data_dir, app_image_dir].into_iter() {
+            info!("Unmounting: {:?}", dir);
+            umount(dir)?;
+        }
+
+        while let Some(device) = self.devices.pop() {
+            info!("Remove dm crypt device: {:?}", device.handle().dev_id()?);
+            device.suspend()?;
+            self.devicemapper.remove_device(device, None)?;
+        }
+
+        Ok(())
     }
 }
