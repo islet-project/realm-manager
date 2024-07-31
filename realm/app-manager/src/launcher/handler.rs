@@ -6,6 +6,7 @@ use nix::{errno::Errno, libc::{setgid, setuid}, sys::signal::{self, Signal}, uni
 use thiserror::Error;
 use tokio::{io::{AsyncBufRead, BufReader}, process::{Child, ChildStderr, ChildStdout, Command}, select, sync::mpsc::{self, Receiver, Sender}, task::{JoinError, JoinHandle}};
 use tokio::io::AsyncBufReadExt;
+use log::debug;
 
 use super::{ApplicationHandler, Result};
 
@@ -58,13 +59,15 @@ pub struct ExecConfig {
     pub chdir: Option<PathBuf>,
 }
 
-enum Request {
+#[derive(Debug)]
+pub enum Request {
     Stop,
     Kill,
     Wait,
     TryWait
 }
-enum Response {
+#[derive(Debug)]
+pub enum Response {
     Exited(ExitStatus),
     MaybeExited(Option<ExitStatus>),
     Stopped()
@@ -89,7 +92,7 @@ impl SimpleApplicationHandler {
         let (tx, rx) = self.channel.as_mut()
             .ok_or(ApplicationHandlerError::AppNotRunning())?;
 
-        let _ = tx.send(Request::Stop)
+        let _ = tx.send(req)
             .await
             .map_err(ApplicationHandlerError::RequestChannelError)?;
 
@@ -150,6 +153,14 @@ impl WardenThread {
         Ok(line)
     }
 
+    async fn send_response(&mut self, response: Response) -> Result<()> {
+        self.tx.send(response)
+            .await
+            .map_err(ApplicationHandlerError::ResponseChannelError)?;
+
+        Ok(())
+    }
+
     async fn after_exit(&mut self, req: Request) -> Result<()> {
         let status = self.process.wait()
             .await
@@ -160,23 +171,19 @@ impl WardenThread {
             Request::Wait => Response::Exited(status),
             Request::TryWait => Response::MaybeExited(Some(status))
         };
-
-        self.tx.send(resp)
-            .await
-            .map_err(ApplicationHandlerError::ResponseChannelError)?;
+        self.send_response(resp).await?;
 
         Ok(())
     }
 
-    async fn handle_request(&mut self, req: Request) -> Result<()> {
+    async fn stop_and_respond(&mut self, req: Request) -> Result<()> {
         if let Some(pid) = self.process.id() {
             let pid = Pid::from_raw(pid as i32);
-
 
             match req {
                 Request::Stop => signal::kill(pid, Signal::SIGTERM)
                     .map_err(ApplicationHandlerError::FailedToSendSignal)?,
-                Request::Kill=> signal::kill(pid, Signal::SIGKILL)
+                Request::Kill => signal::kill(pid, Signal::SIGKILL)
                     .map_err(ApplicationHandlerError::FailedToSendSignal)?,
                 _ => {}
             };
@@ -185,6 +192,22 @@ impl WardenThread {
         self.after_exit(req).await?;
 
         Ok(())
+    }
+
+    async fn try_wait(&mut self) -> Result<()> {
+        let status = self.process.try_wait()
+            .map_err(ApplicationHandlerError::WaitpidError)?;
+        let response = Response::MaybeExited(status);
+
+        self.send_response(response).await
+    }
+
+    async fn handle_request(&mut self, req: Request) -> Result<()> {
+        match req {
+            Request::Stop | Request::Kill => self.stop_and_respond(req).await,
+            Request::Wait => self.after_exit(req).await,
+            Request::TryWait => self.try_wait().await
+        }
     }
 
     async fn process_exited(&mut self) -> Result<()> {
@@ -197,6 +220,17 @@ impl WardenThread {
         Ok(())
     }
 
+    fn is_app_running(&self) -> bool {
+        self.process.id().is_some()
+    }
+
+    async fn ensure_app_is_stopped(&mut self) {
+        if self.is_app_running() {
+            let _ = self.process.kill().await;
+            let _ = self.process.wait().await;
+        }
+    }
+
     async fn event_loop(&mut self) -> Result<()> {
         loop {
             select! {
@@ -204,15 +238,12 @@ impl WardenThread {
                     if let Some(request) = request_opt {
                         self.handle_request(request).await?;
                     } else {
-                        self.process.kill()
-                            .await
-                            .map_err(ApplicationHandlerError::FailedToKillChild)?;
-                        let _ = self.process.wait()
-                            .await
-                            .map_err(ApplicationHandlerError::WaitpidError)?;
+                        break;
                     }
 
-                    break;
+                    if !self.is_app_running() {
+                        break;
+                    }
                 }
 
                 result = Self::read_line(&mut self.stdout_reader), if self.stdout_open => {
@@ -242,6 +273,8 @@ impl WardenThread {
             }
         }
 
+        self.ensure_app_is_stopped().await;
+        info!("App handling thread exited");
 
         Ok(())
     }
