@@ -206,7 +206,7 @@ def main():
             try:
                 args = parser.parse_args(shlex.split(line.strip()))
             except:
-                pass
+                continue
 
             if "command" in args:
                 cmd = args.command
