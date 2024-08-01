@@ -4,3 +4,26 @@ version = "0.1.0"
 edition = "2021"
 
 [dependencies]
+devicemapper = { git = "https://github.com/L0czek/devicemapper-rs.git", default-features = false }
+anyhow = "*"
+log = "*"
+serde = { version = "*", features = ["derive", "alloc"] }
+serde_json = { version = "*", features = ["alloc"] }
+thiserror = "*"
+uuid = { version = "*", features = ["serde", "v4"] }
+hex = "*"
+nix = { version = "*", features = ["process", "signal"] }
+tokio-serde = { version = "*", features = ["json"] }
+tokio-util = { version = "*", features = ["codec"] }
+tokio = { version = "*", features = ["io-util", "sync", "rt", "rt-multi-thread", "fs", "macros", "process", "time"] }
+tokio-vsock = "*"
+futures-util = "*"
+serde_yaml = "*"
+futures = "*"
+keyutils = "*"
+async-trait = "*"
+sha2 = "*"
+warden_realm = { path = "../../protocol/warden_realm" }
+utils = { path = "../../utils" }
+clap = { version = "*", features = ["derive"] }
+simple_logger = "*"
