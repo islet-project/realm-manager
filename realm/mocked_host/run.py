@@ -124,6 +124,9 @@ class MockedWarden():
         self.conn, self.addr = self.sock.accept()
         print(f"Accepted connection from {self.addr}")
 
+    def wait_for_qemu(self):
+        return self.qemu.communicate()
+
 
 def main():
     main_parser = argparse.ArgumentParser()
@@ -131,6 +134,7 @@ def main():
     main_parser.add_argument("--guest-cid", type=int, default=1337)
     main_parser.add_argument("--tap-device", type=str, default="tap100")
     main_parser.add_argument("--qemu-serial", type=str, default="tcp:localhost:1337")
+    main_parser.add_argument("--test", action='store_true', default=False)
     args = main_parser.parse_args()
 
 
@@ -155,51 +159,85 @@ def main():
     _ = subparsers.add_parser("invalid_json")
     _ = subparsers.add_parser("exit")
 
-
     host = MockedWarden(vsock_port=args.vsock_port, guest_cid=args.guest_cid, tap_device=args.tap_device, qemu_serial=args.qemu_serial)
     host.start()
     r = host.send_exmaple_provision_info()
-    print(f"Provisioning finished with {r}")
 
-    while True:
-        sys.stdout.write("> ")
-        sys.stdout.flush()
-        line = sys.stdin.readline()
-        try:
-            args = parser.parse_args(shlex.split(line.strip()))
-        except:
-            pass
+    if args.test:
+        assert r == {'Success': []}
 
-        if "command" in args:
-            cmd = args.command
+        r = host.stop_app()
+        assert r == {'Success': []}
 
-            r = None
-            if cmd == "start_app":
-                r = host.start_app(id=args.uuid)
-            elif cmd == "stop_app":
-                r = host.stop_app(id=args.uuid)
-            elif cmd == "kill_app":
-                r = host.kill_app(id=args.uuid)
-            elif cmd == "check_app":
-                r = host.check_app(id=args.uuid)
-            elif cmd == "shutdown":
-                host.shutdown()
-            elif cmd == "reboot":
-                host.reboot()
-                host.reconnect()
-                p = host.send_exmaple_provision_info()
-                print(f"Provisioning finished with {p}")
-            elif cmd == "launch":
-                host.run_qemu()
-                host.reconnect()
-                p = host.send_exmaple_provision_info()
-                print(f"Provisioning finished with {p}")
-            elif cmd == "invalid_json":
-                r = host.invalid_json()
-            elif cmd == "exit":
-                sys.exit()
+        r = host.check_app()
+        assert r == {'ApplicationNotStarted': []}
 
-            print(f"Command returned: {r}")
+        r = host.start_app()
+        assert r == {'Success': []}
+
+        r = host.check_app()
+        assert r == {'ApplicationIsRunning': []}
+
+        r = host.kill_app()
+        assert r == {'Success': []}
+
+        r = host.check_app()
+        assert r == {'ApplicationNotStarted': []}
+
+        host.reboot()
+        host.reconnect()
+        r = host.send_exmaple_provision_info()
+        assert r == {'Success': []}
+
+        r = host.check_app()
+        assert r == {'ApplicationIsRunning': []}
+
+        host.shutdown()
+        host.wait_for_qemu()
+        print("Test pass")
+
+    else:
+        print(f"Provisioning finished with {r}")
+
+        while True:
+            sys.stdout.write("> ")
+            sys.stdout.flush()
+            line = sys.stdin.readline()
+            try:
+                args = parser.parse_args(shlex.split(line.strip()))
+            except:
+                pass
+
+            if "command" in args:
+                cmd = args.command
+
+                r = None
+                if cmd == "start_app":
+                    r = host.start_app(id=args.uuid)
+                elif cmd == "stop_app":
+                    r = host.stop_app(id=args.uuid)
+                elif cmd == "kill_app":
+                    r = host.kill_app(id=args.uuid)
+                elif cmd == "check_app":
+                    r = host.check_app(id=args.uuid)
+                elif cmd == "shutdown":
+                    host.shutdown()
+                elif cmd == "reboot":
+                    host.reboot()
+                    host.reconnect()
+                    p = host.send_exmaple_provision_info()
+                    print(f"Provisioning finished with {p}")
+                elif cmd == "launch":
+                    host.run_qemu()
+                    host.reconnect()
+                    p = host.send_exmaple_provision_info()
+                    print(f"Provisioning finished with {p}")
+                elif cmd == "invalid_json":
+                    r = host.invalid_json()
+                elif cmd == "exit":
+                    sys.exit()
+
+                print(f"Command returned: {r}")
 
 
 if __name__ == "__main__":
