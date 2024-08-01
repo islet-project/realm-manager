@@ -1,6 +1,5 @@
-use std::sync::Arc;
-
 use devicemapper::{DevId, DeviceInfo, DmError, DmFlags, DmOptions, DM};
+use std::sync::Arc;
 use thiserror::Error;
 
 use super::Result;
@@ -17,12 +16,12 @@ pub enum DeviceHandleError {
     SuspendError(#[source] devicemapper::DmError),
 
     #[error("The device has no name nor uuid.")]
-    NoId()
+    NoId(),
 }
 
 pub struct DeviceHandle {
     dm: Arc<DM>,
-    info: DeviceInfo
+    info: DeviceInfo,
 }
 
 impl DeviceHandle {
@@ -31,17 +30,23 @@ impl DeviceHandle {
     }
 
     pub fn dev_id(&self) -> Result<DevId> {
-        Ok(
-            self.info.name().map(DevId::Name)
-                .or(self.info.uuid().map(DevId::Uuid))
-                .ok_or(DeviceHandleError::NoId())?
-        )
+        Ok(self
+            .info
+            .name()
+            .map(DevId::Name)
+            .or(self.info.uuid().map(DevId::Uuid))
+            .ok_or(DeviceHandleError::NoId())?)
     }
 
-    pub fn table_load(&self, targets: &[(u64, u64, String, String)], options: Option<DmOptions>) -> Result<()> {
+    pub fn table_load(
+        &self,
+        targets: &[(u64, u64, String, String)],
+        options: Option<DmOptions>,
+    ) -> Result<()> {
         let id = self.dev_id()?;
 
-        self.dm.table_load(&id, targets, options.unwrap_or_default())
+        self.dm
+            .table_load(&id, targets, options.unwrap_or_default())
             .map_err(DeviceHandleError::TableLoad)?;
 
         Ok(())
@@ -57,7 +62,9 @@ pub trait DeviceHandleWrapperExt: DeviceHandleWrapper {
         let handle = self.handle();
         let id = handle.dev_id()?;
 
-        handle.dm.device_suspend(&id, DmOptions::default())
+        handle
+            .dm
+            .device_suspend(&id, DmOptions::default())
             .map_err(DeviceHandleError::ResumeError)?;
 
         Ok(())
@@ -67,7 +74,9 @@ pub trait DeviceHandleWrapperExt: DeviceHandleWrapper {
         let handle = self.handle();
         let id = handle.dev_id()?;
 
-        handle.dm.device_suspend(&id, DmOptions::default().set_flags(DmFlags::DM_SUSPEND))
+        handle
+            .dm
+            .device_suspend(&id, DmOptions::default().set_flags(DmFlags::DM_SUSPEND))
             .map_err(DeviceHandleError::SuspendError)?;
 
         Ok(())
@@ -76,7 +85,7 @@ pub trait DeviceHandleWrapperExt: DeviceHandleWrapper {
     fn get_major_minor(&self) -> (u32, u32) {
         let handle = self.handle();
         let device = handle.info.device();
-        ( device.major, device.minor )
+        (device.major, device.minor)
     }
 }
 

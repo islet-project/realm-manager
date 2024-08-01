@@ -1,9 +1,10 @@
 use std::{path::Path, process::ExitStatus};
 
 use async_trait::async_trait;
+use thiserror::Error;
+
 use dummy::DummyLauncherError;
 use handler::ApplicationHandlerError;
-use thiserror::Error;
 
 pub mod dummy;
 pub mod handler;
@@ -14,7 +15,7 @@ pub enum LauncherError {
     HandlerError(#[from] ApplicationHandlerError),
 
     #[error("Dummy launcher error")]
-    DummyLauncherError(#[from] DummyLauncherError)
+    DummyLauncherError(#[from] DummyLauncherError),
 }
 
 pub type Result<T> = std::result::Result<T, LauncherError>;
@@ -34,4 +35,3 @@ pub trait Launcher {
     async fn read_vendor_data(&self, path: &Path) -> Result<Vec<Vec<u8>>>;
     async fn prepare(&mut self, path: &Path) -> Result<Box<dyn ApplicationHandler + Send + Sync>>;
 }
-

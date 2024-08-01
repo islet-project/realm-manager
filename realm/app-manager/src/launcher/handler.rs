@@ -1,11 +1,28 @@
-use std::{collections::HashMap, env::set_current_dir, os::unix::fs::chroot, path::PathBuf, process::{ExitStatus, Stdio}};
+use std::{
+    collections::HashMap,
+    env::set_current_dir,
+    os::unix::fs::chroot,
+    path::PathBuf,
+    process::{ExitStatus, Stdio},
+};
 
 use async_trait::async_trait;
 use log::info;
-use nix::{errno::Errno, libc::{setgid, setuid}, sys::signal::{self, Signal}, unistd::Pid};
+use nix::{
+    errno::Errno,
+    libc::{setgid, setuid},
+    sys::signal::{self, Signal},
+    unistd::Pid,
+};
 use thiserror::Error;
-use tokio::{io::{AsyncBufRead, BufReader}, process::{Child, ChildStderr, ChildStdout, Command}, select, sync::mpsc::{self, Receiver, Sender}, task::{JoinError, JoinHandle}};
 use tokio::io::AsyncBufReadExt;
+use tokio::{
+    io::{AsyncBufRead, BufReader},
+    process::{Child, ChildStderr, ChildStdout, Command},
+    select,
+    sync::mpsc::{self, Receiver, Sender},
+    task::{JoinError, JoinHandle},
+};
 
 use super::{ApplicationHandler, Result};
 
@@ -45,7 +62,7 @@ pub enum ApplicationHandlerError {
     WaitpidError(#[source] std::io::Error),
 
     #[error("Failed to kill the child after the parent is closing")]
-    FailedToKillChild(#[source] std::io::Error)
+    FailedToKillChild(#[source] std::io::Error),
 }
 
 pub struct ExecConfig {
@@ -63,19 +80,19 @@ pub enum Request {
     Stop,
     Kill,
     Wait,
-    TryWait
+    TryWait,
 }
 #[derive(Debug)]
 pub enum Response {
     Exited(ExitStatus),
     MaybeExited(Option<ExitStatus>),
-    Stopped()
+    Stopped(),
 }
 
 pub struct SimpleApplicationHandler {
     config: ExecConfig,
     thread: Option<JoinHandle<Result<()>>>,
-    channel: Option<(Sender<Request>, Receiver<Response>)>
+    channel: Option<(Sender<Request>, Receiver<Response>)>,
 }
 
 impl SimpleApplicationHandler {
@@ -83,19 +100,22 @@ impl SimpleApplicationHandler {
         Self {
             config,
             thread: None,
-            channel: None
+            channel: None,
         }
     }
 
     async fn transaction(&mut self, req: Request) -> Result<Response> {
-        let (tx, rx) = self.channel.as_mut()
+        let (tx, rx) = self
+            .channel
+            .as_mut()
             .ok_or(ApplicationHandlerError::AppNotRunning())?;
 
         tx.send(req)
             .await
             .map_err(ApplicationHandlerError::RequestChannelError)?;
 
-        let resp = rx.recv()
+        let resp = rx
+            .recv()
             .await
             .ok_or(ApplicationHandlerError::ChannelClosed())?;
 
@@ -103,10 +123,14 @@ impl SimpleApplicationHandler {
     }
 
     async fn join_handler_thread(&mut self) -> Result<()> {
-        let handle = self.thread.as_mut()
+        let handle = self
+            .thread
+            .as_mut()
             .ok_or(ApplicationHandlerError::AppNotRunning())?;
 
-        let result = handle.await.map_err(ApplicationHandlerError::AppThreadJoinError)?;
+        let result = handle
+            .await
+            .map_err(ApplicationHandlerError::AppThreadJoinError)?;
 
         self.thread = None;
         self.channel = None;
@@ -122,11 +146,14 @@ struct WardenThread {
     stdout_open: bool,
     stderr_open: bool,
     tx: Sender<Response>,
-    rx: Receiver<Request>
+    rx: Receiver<Request>,
 }
 
 impl WardenThread {
-    pub async fn start(mut process: Child, channel: (Sender<Response>, Receiver<Request>)) -> Result<()> {
+    pub async fn start(
+        mut process: Child,
+        channel: (Sender<Response>, Receiver<Request>),
+    ) -> Result<()> {
         let stdout_reader = BufReader::new(process.stdout.take().unwrap());
         let stderr_reader = BufReader::new(process.stderr.take().unwrap());
 
@@ -137,7 +164,7 @@ impl WardenThread {
             stdout_open: true,
             stderr_open: true,
             tx: channel.0,
-            rx: channel.1
+            rx: channel.1,
         };
 
         warden.event_loop().await
@@ -145,7 +172,8 @@ impl WardenThread {
 
     async fn read_line(mut source: impl AsyncBufRead + Unpin) -> Result<String> {
         let mut line = String::new();
-        let _ = source.read_line(&mut line)
+        let _ = source
+            .read_line(&mut line)
             .await
             .map_err(ApplicationHandlerError::IOReadError)?;
 
@@ -153,7 +181,8 @@ impl WardenThread {
     }
 
     async fn send_response(&mut self, response: Response) -> Result<()> {
-        self.tx.send(response)
+        self.tx
+            .send(response)
             .await
             .map_err(ApplicationHandlerError::ResponseChannelError)?;
 
@@ -161,14 +190,16 @@ impl WardenThread {
     }
 
     async fn after_exit(&mut self, req: Request) -> Result<()> {
-        let status = self.process.wait()
+        let status = self
+            .process
+            .wait()
             .await
             .map_err(ApplicationHandlerError::WaitpidError)?;
 
         let resp = match req {
             Request::Stop | Request::Kill => Response::Stopped(),
             Request::Wait => Response::Exited(status),
-            Request::TryWait => Response::MaybeExited(Some(status))
+            Request::TryWait => Response::MaybeExited(Some(status)),
         };
         self.send_response(resp).await?;
 
@@ -194,7 +225,9 @@ impl WardenThread {
     }
 
     async fn try_wait(&mut self) -> Result<()> {
-        let status = self.process.try_wait()
+        let status = self
+            .process
+            .try_wait()
             .map_err(ApplicationHandlerError::WaitpidError)?;
         let response = Response::MaybeExited(status);
 
@@ -205,7 +238,7 @@ impl WardenThread {
         match req {
             Request::Stop | Request::Kill => self.stop_and_respond(req).await,
             Request::Wait => self.after_exit(req).await,
-            Request::TryWait => self.try_wait().await
+            Request::TryWait => self.try_wait().await,
         }
     }
 
@@ -320,8 +353,7 @@ impl ApplicationHandler for SimpleApplicationHandler {
         cmd.stdout(Stdio::piped());
         cmd.stderr(Stdio::piped());
 
-        let process = cmd.spawn()
-            .map_err(ApplicationHandlerError::SpawnError)?;
+        let process = cmd.spawn().map_err(ApplicationHandlerError::SpawnError)?;
 
         let (tx1, rx1) = mpsc::channel::<Request>(1);
         let (tx2, rx2) = mpsc::channel::<Response>(1);
@@ -340,7 +372,7 @@ impl ApplicationHandler for SimpleApplicationHandler {
 
         match resp {
             Response::Stopped() => Ok(()),
-            _ => Err(ApplicationHandlerError::AppHandlerInvalidResponse().into())
+            _ => Err(ApplicationHandlerError::AppHandlerInvalidResponse().into()),
         }
     }
 
@@ -350,7 +382,7 @@ impl ApplicationHandler for SimpleApplicationHandler {
 
         match resp {
             Response::Stopped() => Ok(()),
-            _ => Err(ApplicationHandlerError::AppHandlerInvalidResponse().into())
+            _ => Err(ApplicationHandlerError::AppHandlerInvalidResponse().into()),
         }
     }
 
@@ -360,7 +392,7 @@ impl ApplicationHandler for SimpleApplicationHandler {
 
         match resp {
             Response::Exited(status) => Ok(status),
-            _ => Err(ApplicationHandlerError::AppHandlerInvalidResponse().into())
+            _ => Err(ApplicationHandlerError::AppHandlerInvalidResponse().into()),
         }
     }
 
@@ -371,9 +403,9 @@ impl ApplicationHandler for SimpleApplicationHandler {
             Response::MaybeExited(Some(status)) => {
                 self.join_handler_thread().await?;
                 Ok(Some(status))
-            },
+            }
             Response::MaybeExited(None) => Ok(None),
-            _ => Err(ApplicationHandlerError::AppHandlerInvalidResponse().into())
+            _ => Err(ApplicationHandlerError::AppHandlerInvalidResponse().into()),
         }
     }
 }

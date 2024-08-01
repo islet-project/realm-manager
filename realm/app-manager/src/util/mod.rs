@@ -1,8 +1,12 @@
-use std::{ffi::{CString, FromVecWithNulError, NulError}, path::Path};
+use std::{
+    ffi::{CString, FromVecWithNulError, NulError},
+    path::Path,
+};
+
+use thiserror::Error;
 
 use disk::DiskError;
 use os::OsError;
-use thiserror::Error;
 
 pub mod disk;
 pub mod fs;
@@ -27,7 +31,7 @@ pub enum UtilsError {
     CstringFromVecConvError(#[from] FromVecWithNulError),
 
     #[error("OS error")]
-    Os(#[from] OsError)
+    Os(#[from] OsError),
 }
 
 pub type Result<T> = std::result::Result<T, UtilsError>;

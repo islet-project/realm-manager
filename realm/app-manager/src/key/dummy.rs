@@ -1,17 +1,15 @@
-
-
 use sha2::{Digest, Sha256};
 
 use super::{KeySealing, Result};
 
 pub struct DummyKeySealing {
-    ikm: Vec<u8>
+    ikm: Vec<u8>,
 }
 
 impl DummyKeySealing {
     pub fn new(ikm: impl AsRef<[u8]>) -> Self {
         Self {
-            ikm: ikm.as_ref().to_owned()
+            ikm: ikm.as_ref().to_owned(),
         }
     }
 }
@@ -30,7 +28,10 @@ impl KeySealing for DummyKeySealing {
         Ok(digest.to_vec())
     }
 
-    fn seal(self: Box<Self>, infos: &mut dyn Iterator<Item = &&[u8]>) -> Result<Box<dyn KeySealing + Send + Sync>> {
+    fn seal(
+        self: Box<Self>,
+        infos: &mut dyn Iterator<Item = &&[u8]>,
+    ) -> Result<Box<dyn KeySealing + Send + Sync>> {
         let mut hasher = Sha256::new();
 
         hasher.update(self.ikm.as_slice());

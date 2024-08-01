@@ -1,18 +1,18 @@
 use std::{collections::HashMap, os::unix::process::ExitStatusExt};
 
+use log::{debug, error, info};
 use thiserror::Error;
 use tokio::task::{JoinError, JoinSet};
 use tokio_vsock::{VsockAddr, VsockStream, VMADDR_CID_HOST};
 use utils::serde::{JsonFramed, JsonFramedError};
 use uuid::Uuid;
-use log::{info, error, debug};
 use warden_realm::{ApplicationInfo, ProtocolError, Request, Response};
 
-use crate::util::os::{reboot, RebootAction};
-use crate::launcher::{dummy::DummyLauncher, Launcher};
-use crate::key::{dummy::DummyKeySealing, KeySealing};
-use crate::config::{Config, KeySealingType, LauncherType};
 use crate::app::Application;
+use crate::config::{Config, KeySealingType, LauncherType};
+use crate::key::{dummy::DummyKeySealing, KeySealing};
+use crate::launcher::{dummy::DummyLauncher, Launcher};
+use crate::util::os::{reboot, RebootAction};
 
 use super::Result;
 pub type ProtocolResult<T> = std::result::Result<T, ProtocolError>;
@@ -32,50 +32,54 @@ pub enum ManagerError {
     FramedJsonError(#[from] JsonFramedError),
 
     #[error("Invalid message received")]
-    InvalidMessage()
+    InvalidMessage(),
 }
 
 pub struct Manager {
     config: Config,
     apps: HashMap<Uuid, Application>,
-    conn: JsonFramed<VsockStream, Request, Response>
+    conn: JsonFramed<VsockStream, Request, Response>,
 }
 
 impl Manager {
     pub async fn new(config: Config) -> Result<Self> {
-        let vsock = VsockStream::connect(
-            VsockAddr::new(VMADDR_CID_HOST, config.vsock_port)
-        ).await.map_err(ManagerError::VsockConnectionError)?;
+        let vsock = VsockStream::connect(VsockAddr::new(VMADDR_CID_HOST, config.vsock_port))
+            .await
+            .map_err(ManagerError::VsockConnectionError)?;
         info!("Connected to warden daemon");
 
         Ok(Self {
             config,
             apps: HashMap::new(),
-            conn: JsonFramed::new(vsock)
+            conn: JsonFramed::new(vsock),
         })
     }
 
     fn make_launcher(&self) -> Result<Box<dyn Launcher + Send + Sync>> {
         match self.config.launcher {
-             LauncherType::Dummy => Ok(Box::new(DummyLauncher::new())),
+            LauncherType::Dummy => Ok(Box::new(DummyLauncher::new())),
         }
     }
 
     fn make_keyseal(&self) -> Result<Box<dyn KeySealing + Send + Sync>> {
         match self.config.keysealing {
-            KeySealingType::Dummy => Ok(Box::new(DummyKeySealing::new(vec![0x11, 0x22, 0x33])))
+            KeySealingType::Dummy => Ok(Box::new(DummyKeySealing::new(vec![0x11, 0x22, 0x33]))),
         }
     }
 
     async fn recv_msg(&mut self) -> Result<Request> {
-        let msg = self.conn.recv()
+        let msg = self
+            .conn
+            .recv()
             .await
             .map_err(ManagerError::FramedJsonError)?;
+
         Ok(msg)
     }
 
     async fn send_msg(&mut self, resp: Response) -> Result<()> {
-        self.conn.send(resp)
+        self.conn
+            .send(resp)
             .await
             .map_err(ManagerError::FramedJsonError)?;
 
@@ -95,7 +99,8 @@ impl Manager {
     }
 
     async fn report_provision_success(&mut self) -> Result<()> {
-        self.conn.send(Response::Success())
+        self.conn
+            .send(Response::Success())
             .await
             .map_err(ManagerError::FramedJsonError)?;
 
@@ -126,8 +131,7 @@ impl Manager {
         }
 
         while let Some(result) = set.join_next().await {
-            let app = result
-                .map_err(ManagerError::ProvisionJoinError)??;
+            let app = result.map_err(ManagerError::ProvisionJoinError)??;
             let id = *app.id();
             self.apps.insert(id, app);
             info!("Finished installing {}", id);
@@ -144,11 +148,11 @@ impl Manager {
         }
 
         Ok(())
-
     }
 
     fn get_app(&mut self, id: &Uuid) -> ProtocolResult<&mut Application> {
-        self.apps.get_mut(id)
+        self.apps
+            .get_mut(id)
             .ok_or(ProtocolError::ApplicationNotFound())
     }
 
@@ -166,7 +170,7 @@ impl Manager {
         self.shutdown_all_apps().await;
         match reboot(action) {
             Ok(_) => unreachable!(), // Will never reach here
-            Err(e) => Err(ProtocolError::RebootActionFailed(format!("{:?}", e)))
+            Err(e) => Err(ProtocolError::RebootActionFailed(format!("{:?}", e))),
         }
     }
 
@@ -174,8 +178,10 @@ impl Manager {
         match request {
             Request::ProvisionInfo(_) => {
                 error!("Application already provisioned!");
-                Ok(Response::Error(ProtocolError::ApplicationsAlreadyProvisioned()))
-            },
+                Ok(Response::Error(
+                    ProtocolError::ApplicationsAlreadyProvisioned(),
+                ))
+            }
 
             Request::StartApp(id) => {
                 info!("Starting application: {:?}", id);
@@ -183,9 +189,9 @@ impl Manager {
 
                 match app.start().await {
                     Ok(()) => Ok(Response::Success()),
-                    Err(e) => Err(ProtocolError::ApplicationLaunchFailed(format!("{:?}", e)))
+                    Err(e) => Err(ProtocolError::ApplicationLaunchFailed(format!("{:?}", e))),
                 }
-            },
+            }
 
             Request::StopApp(id) => {
                 info!("Stopping application: {:?}", id);
@@ -193,9 +199,9 @@ impl Manager {
 
                 match app.stop().await {
                     Ok(()) => Ok(Response::Success()),
-                    Err(e) => Err(ProtocolError::ApplicationStopFailed(format!("{:?}", e)))
+                    Err(e) => Err(ProtocolError::ApplicationStopFailed(format!("{:?}", e))),
                 }
-            },
+            }
 
             Request::KillApp(id) => {
                 info!("Killing application: {:?}", id);
@@ -203,9 +209,9 @@ impl Manager {
 
                 match app.kill().await {
                     Ok(()) => Ok(Response::Success()),
-                    Err(e) => Err(ProtocolError::ApplicationKillFailed(format!("{:?}", e)))
+                    Err(e) => Err(ProtocolError::ApplicationKillFailed(format!("{:?}", e))),
                 }
-            },
+            }
 
             Request::CheckIsRunning(id) => {
                 info!("Checking if application is running: {:?}", id);
@@ -214,14 +220,14 @@ impl Manager {
                 match app.try_wait().await {
                     Ok(Some(status)) => Ok(Response::ApplicationExited(status.into_raw())),
                     Ok(None) => Ok(Response::ApplicationIsRunning()),
-                    Err(e) => Err(ProtocolError::ApplicationWaitFailed(format!("{:?}", e)))
+                    Err(e) => Err(ProtocolError::ApplicationWaitFailed(format!("{:?}", e))),
                 }
-            },
+            }
 
             Request::Shutdown() => {
-                info!("PErforming system shutdown");
+                info!("Performing system shutdown");
                 self.perform_reboot(RebootAction::Shutdown).await
-            },
+            }
 
             Request::Reboot() => {
                 info!("Performing system reboot");
@@ -235,20 +241,16 @@ impl Manager {
 
         match self.handle_request(request).await {
             Ok(response) => response,
-            Err(e) => Response::Error(e)
+            Err(e) => Response::Error(e),
         }
     }
 
     pub async fn handle_events(&mut self) -> Result<()> {
         loop {
             let response = match self.recv_msg().await {
-                Ok(r) => {
-                    self.handle_valid_request(r).await
-                },
+                Ok(r) => self.handle_valid_request(r).await,
 
-                Err(e) => {
-                    Response::Error(ProtocolError::InvalidRequest(format!("{:?}", e)))
-                }
+                Err(e) => Response::Error(ProtocolError::InvalidRequest(format!("{:?}", e))),
             };
 
             debug!("Sending response: {:?}", response);

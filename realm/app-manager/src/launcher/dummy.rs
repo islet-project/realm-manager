@@ -5,9 +5,8 @@ use nix::libc::{getgid, getuid};
 use thiserror::Error;
 use tokio::fs;
 
-
-use super::{ApplicationHandler, Launcher, Result};
 use super::handler::{ExecConfig, SimpleApplicationHandler};
+use super::{ApplicationHandler, Launcher, Result};
 
 #[derive(Debug, Error)]
 pub enum DummyLauncherError {
@@ -18,9 +17,7 @@ pub enum DummyLauncherError {
     FileWriteError(#[source] std::io::Error),
 }
 
-pub struct DummyLauncher {
-
-}
+pub struct DummyLauncher {}
 
 const SCRIPT: &str = r#"
 while true; do echo "I'm alive"; sleep 1; done
@@ -58,7 +55,7 @@ impl Launcher for DummyLauncher {
             uid: unsafe { getuid() },
             gid: unsafe { getgid() },
             chroot: Some(path.to_owned()),
-            chdir: Some(PathBuf::from("/"))
+            chdir: Some(PathBuf::from("/")),
         };
 
         let handler = SimpleApplicationHandler::new(config);

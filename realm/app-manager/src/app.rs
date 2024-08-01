@@ -1,24 +1,27 @@
-use std::sync::Arc;
-use std::process::ExitStatus;
-use std::path::{Path, PathBuf};
 use std::os::linux::fs::MetadataExt;
+use std::path::{Path, PathBuf};
+use std::process::ExitStatus;
+use std::sync::Arc;
 
+use log::info;
 use nix::libc::{major, makedev, minor, S_IFBLK};
 use serde::{Deserialize, Serialize};
 use thiserror::Error;
 use uuid::Uuid;
-use log::info;
 use warden_realm::ApplicationInfo;
 
-use crate::util::serde::{json_dump, json_load};
-use crate::util::fs::{dirname, formatfs, mkdirp, mknod, mount, mount_overlayfs, read_to_string, stat, umount, write_to_string, Filesystem};
-use crate::util::disk::read_device_size;
-use crate::launcher::{ApplicationHandler, Launcher};
-use crate::key::KeySealing;
-use crate::key::ring::KernelKeyring;
-use crate::dm::DeviceMapper;
-use crate::dm::device::{DeviceHandleWrapper, DeviceHandleWrapperExt};
 use crate::dm::crypt::{CryptDevice, CryptoParams, DmCryptTable, Key};
+use crate::dm::device::{DeviceHandleWrapper, DeviceHandleWrapperExt};
+use crate::dm::DeviceMapper;
+use crate::key::ring::KernelKeyring;
+use crate::key::KeySealing;
+use crate::launcher::{ApplicationHandler, Launcher};
+use crate::util::disk::read_device_size;
+use crate::util::fs::{
+    dirname, formatfs, mkdirp, mknod, mount, mount_overlayfs, read_to_string, stat, umount,
+    write_to_string, Filesystem,
+};
+use crate::util::serde::{json_dump, json_load};
 
 use super::Result;
 
@@ -28,12 +31,12 @@ pub enum ApplicationError {
     PartitionNotFound(),
 
     #[error("Application not provishioned")]
-    NotInstalled()
+    NotInstalled(),
 }
 
 #[derive(Serialize, Deserialize)]
 pub struct ApplicationMetadata {
-    salt: Vec<u8>
+    salt: Vec<u8>,
 }
 
 pub struct Application {
@@ -42,7 +45,7 @@ pub struct Application {
     devicemapper: Arc<DeviceMapper>,
     keyring: KernelKeyring,
     handler: Option<Box<dyn ApplicationHandler + Send + Sync>>,
-    devices: Vec<CryptDevice>
+    devices: Vec<CryptDevice>,
 }
 
 impl Application {
@@ -53,16 +56,22 @@ impl Application {
             devicemapper: Arc::new(DeviceMapper::init()?),
             keyring: KernelKeyring::new(keyutils::SpecialKeyring::User)?,
             handler: None,
-            devices: Vec::new()
+            devices: Vec::new(),
         })
     }
 
-    async fn decrypt_partition(&self, part_uuid: &Uuid, params: &CryptoParams, key: Key, dst: impl AsRef<Path>) -> Result<CryptDevice> {
+    async fn decrypt_partition(
+        &self,
+        part_uuid: &Uuid,
+        params: &CryptoParams,
+        key: Key,
+        dst: impl AsRef<Path>,
+    ) -> Result<CryptDevice> {
         let uuid_str = part_uuid.to_string();
         let path = Path::new("/dev/disk/by-partuuid/").join(&uuid_str);
 
         if !path.is_symlink() {
-            return Err(ApplicationError::PartitionNotFound().into())
+            return Err(ApplicationError::PartitionNotFound().into());
         }
 
         let metadata = stat(&path).await?;
@@ -75,27 +84,35 @@ impl Application {
             start: 0,
             len: size,
             params,
-            offset: 0
+            offset: 0,
         };
 
-        let device: CryptDevice = self.devicemapper.create_device(device_name, None::<Uuid>, None)?;
+        let device: CryptDevice =
+            self.devicemapper
+                .create_device(device_name, None::<Uuid>, None)?;
         device.load(
             table,
             &crate::dm::crypt::DevicePath::MajorMinor(major, minor),
             &key,
-            None
+            None,
         )?;
         device.resume()?;
 
         mkdirp(dirname(&dst).await?).await?;
         let (crypt_major, crypt_minor) = device.get_major_minor();
         let crypt_dev_t = makedev(crypt_major, crypt_minor);
-        mknod(dst, 0o666|S_IFBLK, crypt_dev_t)?;
+        mknod(dst, 0o666 | S_IFBLK, crypt_dev_t)?;
 
         Ok(device)
     }
 
-    async fn try_mount_or_format_partition<'a>(&self, src: impl AsRef<Path>, dst: impl AsRef<Path>, fs: &Filesystem, label: Option<impl AsRef<str>>) -> Result<()> {
+    async fn try_mount_or_format_partition<'a>(
+        &self,
+        src: impl AsRef<Path>,
+        dst: impl AsRef<Path>,
+        fs: &Filesystem,
+        label: Option<impl AsRef<str>>,
+    ) -> Result<()> {
         mkdirp(&dst).await?;
         let result = mount(fs, &src, &dst, None::<&str>);
 
@@ -107,11 +124,20 @@ impl Application {
         Ok(())
     }
 
-    fn derive_key_for(&mut self, label: impl AsRef<str>, keyseal: &(dyn KeySealing + Send + Sync), infos: &[&[u8]]) -> Result<Key> {
+    fn derive_key_for(
+        &mut self,
+        label: impl AsRef<str>,
+        keyseal: &(dyn KeySealing + Send + Sync),
+        infos: &[&[u8]],
+    ) -> Result<Key> {
         const SUBCLASS: &str = "app-manager";
         let raw_key = keyseal.derive_key(&mut infos.iter())?;
         self.keyring.logon_seal(SUBCLASS, &label, &raw_key)?;
-        Ok(Key::Keyring { key_size: raw_key.len(), key_type: crate::dm::crypt::KeyType::Logon, key_desc: format!("{}:{}", SUBCLASS, label.as_ref()) })
+        Ok(Key::Keyring {
+            key_size: raw_key.len(),
+            key_type: crate::dm::crypt::KeyType::Logon,
+            key_desc: format!("{}:{}", SUBCLASS, label.as_ref()),
+        })
     }
 
     async fn application_metadata(&self, path: impl AsRef<Path>) -> Result<ApplicationMetadata> {
@@ -122,9 +148,7 @@ impl Application {
             Ok(json_load(content)?)
         } else {
             // TODO: Generare a random salt
-            let metadata = ApplicationMetadata {
-                salt: Vec::new()
-            };
+            let metadata = ApplicationMetadata { salt: Vec::new() };
 
             write_to_string(metadata_path, json_dump(&metadata)?).await?;
 
@@ -132,25 +156,47 @@ impl Application {
         }
     }
 
-    pub async fn setup(&mut self, params: CryptoParams, mut launcher: Box<dyn Launcher + Send + Sync>, keyseal: Box<dyn KeySealing + Send + Sync>) -> Result<()> {
+    pub async fn setup(
+        &mut self,
+        params: CryptoParams,
+        mut launcher: Box<dyn Launcher + Send + Sync>,
+        keyseal: Box<dyn KeySealing + Send + Sync>,
+    ) -> Result<()> {
         let decrypted_partinions_dir = self.workdir.join("crypt");
-        let app_image_key = self.derive_key_for(self.info.image_part_uuid.to_string(), keyseal.as_ref(), &[
-            "App manager label".as_bytes()
-        ])?;
+        let app_image_key = self.derive_key_for(
+            self.info.image_part_uuid.to_string(),
+            keyseal.as_ref(),
+            &["App manager label".as_bytes()],
+        )?;
         let app_image_crypt_device = decrypted_partinions_dir.join("image");
-        let device = self.decrypt_partition(&self.info.image_part_uuid, &params, app_image_key, &app_image_crypt_device).await?;
+        let device = self
+            .decrypt_partition(
+                &self.info.image_part_uuid,
+                &params,
+                app_image_key,
+                &app_image_crypt_device,
+            )
+            .await?;
         self.devices.push(device);
 
         // TODO: Parametrize this
         const FS: Filesystem = Filesystem::Ext2;
 
         let app_image_dir = self.workdir.join("image");
-        self.try_mount_or_format_partition(&app_image_crypt_device, &app_image_dir, &FS, Some("image")).await?;
+        self.try_mount_or_format_partition(
+            &app_image_crypt_device,
+            &app_image_dir,
+            &FS,
+            Some("image"),
+        )
+        .await?;
 
         let app_image_root_dir = app_image_dir.join("root");
         mkdirp(&app_image_root_dir).await?;
         info!("Installing application");
-        launcher.install(&app_image_root_dir, &self.info.name, &self.info.version).await?;
+        launcher
+            .install(&app_image_root_dir, &self.info.name, &self.info.version)
+            .await?;
 
         let mut vendor_data = launcher.read_vendor_data(&app_image_root_dir).await?;
         let app_metadata = self.application_metadata(&app_image_dir).await?;
@@ -159,16 +205,31 @@ impl Application {
         let keyseal = keyseal.seal(&mut infos.iter())?;
 
         let app_name = self.info.name.as_bytes().to_owned();
-        let app_data_key = self.derive_key_for(self.info.data_part_uuid.to_string(), keyseal.as_ref(), &[
-            app_name.as_slice()
-        ])?;
+        let app_data_key = self.derive_key_for(
+            self.info.data_part_uuid.to_string(),
+            keyseal.as_ref(),
+            &[app_name.as_slice()],
+        )?;
         let app_data_crypt_device = decrypted_partinions_dir.join("data");
-        let device = self.decrypt_partition(&self.info.data_part_uuid, &params, app_data_key, &app_data_crypt_device).await?;
+        let device = self
+            .decrypt_partition(
+                &self.info.data_part_uuid,
+                &params,
+                app_data_key,
+                &app_data_crypt_device,
+            )
+            .await?;
         self.devices.push(device);
 
         info!("Mounting data partition");
         let app_data_dir = self.workdir.join("data");
-        self.try_mount_or_format_partition(&app_data_crypt_device, &app_data_dir, &FS, Some("data")).await?;
+        self.try_mount_or_format_partition(
+            &app_data_crypt_device,
+            &app_data_dir,
+            &FS,
+            Some("data"),
+        )
+        .await?;
 
         info!("Mounting overlayfs");
         let app_overlay_dir = self.workdir.join("overlay");
@@ -180,7 +241,12 @@ impl Application {
         mkdirp(&overlay_workdir).await?;
         mkdirp(&overlay_upper).await?;
 
-        mount_overlayfs(&overlay_lower, &overlay_upper, &overlay_workdir, &app_overlay_dir)?;
+        mount_overlayfs(
+            &overlay_lower,
+            &overlay_upper,
+            &overlay_workdir,
+            &app_overlay_dir,
+        )?;
 
         self.handler = Some(launcher.prepare(&app_overlay_dir).await?);
 
@@ -192,7 +258,11 @@ impl Application {
     }
 
     fn get_handler(&mut self) -> Result<&mut (dyn ApplicationHandler + Send + Sync)> {
-        Ok(self.handler.as_mut().ok_or(ApplicationError::NotInstalled())?.as_mut())
+        Ok(self
+            .handler
+            .as_mut()
+            .ok_or(ApplicationError::NotInstalled())?
+            .as_mut())
     }
 
     pub async fn start(&mut self) -> Result<()> {
@@ -205,7 +275,6 @@ impl Application {
         self.get_handler()?.stop().await?;
 
         Ok(())
-
     }
 
     pub async fn kill(&mut self) -> Result<()> {

@@ -1,25 +1,25 @@
+use log::error;
 use nix::errno::Errno;
 use nix::libc::{LINUX_REBOOT_CMD_POWER_OFF, LINUX_REBOOT_CMD_RESTART};
 use thiserror::Error;
-use log::error;
 
 use super::Result;
 
 #[derive(Debug, Error)]
 pub enum OsError {
     #[error("Reboot error")]
-    RebootError(#[source] Errno)
+    RebootError(#[source] Errno),
 }
 
 pub enum RebootAction {
     Reboot,
-    Shutdown
+    Shutdown,
 }
 
 pub fn reboot(action: RebootAction) -> Result<()> {
     let op = match action {
         RebootAction::Reboot => LINUX_REBOOT_CMD_RESTART,
-        RebootAction::Shutdown => LINUX_REBOOT_CMD_POWER_OFF
+        RebootAction::Shutdown => LINUX_REBOOT_CMD_POWER_OFF,
     };
 
     unsafe {

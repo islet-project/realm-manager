@@ -1,12 +1,14 @@
 use std::ffi::c_void;
 use std::fmt;
-use std::os::unix::ffi::OsStrExt;
 use std::fs::Metadata;
+use std::os::unix::ffi::OsStrExt;
 use std::path::{Path, PathBuf};
+
 use nix::errno::Errno;
 use nix::libc::{c_char, dev_t, mode_t};
 use thiserror::Error;
 use tokio::{fs, process::Command};
+
 use super::{cstring_from_path, cstring_from_str, cstring_from_vec, Result};
 
 #[derive(Debug, Error)]
@@ -45,14 +47,14 @@ pub enum FsError {
     PathCanonicalizeError(#[source] std::io::Error),
 
     #[error("Path has not parent")]
-    PathHasNoParent()
+    PathHasNoParent(),
 }
 
 #[allow(dead_code)]
 pub enum Filesystem {
     Ext2,
     Ext3,
-    Ext4
+    Ext4,
 }
 
 impl fmt::Display for Filesystem {
@@ -73,7 +75,11 @@ fn check_libc_error(result: i32, f: impl FnOnce(Errno) -> FsError) -> Result<()>
     }
 }
 
-pub async fn formatfs(ty: &Filesystem, device: impl AsRef<Path>, label: Option<impl AsRef<str>>) -> Result<()> {
+pub async fn formatfs(
+    ty: &Filesystem,
+    device: impl AsRef<Path>,
+    label: Option<impl AsRef<str>>,
+) -> Result<()> {
     let mut cmd = Command::new(format!("/sbin/mkfs.{}", ty));
 
     if let Some(l) = label.as_ref() {
@@ -82,17 +88,19 @@ pub async fn formatfs(ty: &Filesystem, device: impl AsRef<Path>, label: Option<i
 
     cmd.arg(device.as_ref());
 
-    let mut child = cmd.spawn()
-        .map_err(FsError::MkfsStartFailure)?;
+    let mut child = cmd.spawn().map_err(FsError::MkfsStartFailure)?;
 
-    child.wait()
-        .await
-        .map_err(FsError::MkfsFormatError)?;
+    child.wait().await.map_err(FsError::MkfsFormatError)?;
 
     Ok(())
 }
 
-pub fn mount(fs: &Filesystem, src: impl AsRef<Path>, dst: impl AsRef<Path>, opt: Option<impl AsRef<str>>) -> Result<()> {
+pub fn mount(
+    fs: &Filesystem,
+    src: impl AsRef<Path>,
+    dst: impl AsRef<Path>,
+    opt: Option<impl AsRef<str>>,
+) -> Result<()> {
     let fs = cstring_from_str(fs.to_string())?;
     let src = cstring_from_path(src)?;
     let dst = cstring_from_path(dst)?;
@@ -104,7 +112,7 @@ pub fn mount(fs: &Filesystem, src: impl AsRef<Path>, dst: impl AsRef<Path>, opt:
             dst.as_ptr() as *const c_char,
             fs.as_ptr() as *const c_char,
             0,
-            opt.map_or(std::ptr::null(), |i| i.as_ptr() as *const c_void)
+            opt.map_or(std::ptr::null(), |i| i.as_ptr() as *const c_void),
         )
     };
 
@@ -114,20 +122,32 @@ pub fn mount(fs: &Filesystem, src: impl AsRef<Path>, dst: impl AsRef<Path>, opt:
 pub fn umount(path: impl AsRef<Path>) -> Result<()> {
     let path = cstring_from_path(path)?;
 
-    let result = unsafe {
-        nix::libc::umount(path.as_ptr() as *const c_char)
-    };
+    let result = unsafe { nix::libc::umount(path.as_ptr() as *const c_char) };
 
     check_libc_error(result, FsError::UmountError)
 }
 
-pub fn mount_overlayfs(lower: impl AsRef<Path>, upper: impl AsRef<Path>, workdir: impl AsRef<Path>, dst: impl AsRef<Path>) -> Result<()> {
+pub fn mount_overlayfs(
+    lower: impl AsRef<Path>,
+    upper: impl AsRef<Path>,
+    workdir: impl AsRef<Path>,
+    dst: impl AsRef<Path>,
+) -> Result<()> {
     let fs = cstring_from_str("overlay")?;
-    let opt = cstring_from_vec([
-        b"lowerdir=", lower.as_ref().as_os_str().as_bytes(), b",",
-        b"upperdir=", upper.as_ref().as_os_str().as_bytes(), b",",
-        b"workdir=", workdir.as_ref().as_os_str().as_bytes(), b"\x00"
-    ].concat())?;
+    let opt = cstring_from_vec(
+        [
+            b"lowerdir=",
+            lower.as_ref().as_os_str().as_bytes(),
+            b",",
+            b"upperdir=",
+            upper.as_ref().as_os_str().as_bytes(),
+            b",",
+            b"workdir=",
+            workdir.as_ref().as_os_str().as_bytes(),
+            b"\x00",
+        ]
+        .concat(),
+    )?;
     let dst = cstring_from_path(dst)?;
 
     let result = unsafe {
@@ -136,7 +156,7 @@ pub fn mount_overlayfs(lower: impl AsRef<Path>, upper: impl AsRef<Path>, workdir
             dst.as_ptr() as *const c_char,
             fs.as_ptr() as *const c_char,
             0,
-            opt.as_ptr() as *const c_void
+            opt.as_ptr() as *const c_void,
         )
     };
 
@@ -146,13 +166,7 @@ pub fn mount_overlayfs(lower: impl AsRef<Path>, upper: impl AsRef<Path>, workdir
 pub fn mknod(path: impl AsRef<Path>, mode: mode_t, dev: dev_t) -> Result<()> {
     let path = cstring_from_path(path)?;
 
-    let result = unsafe {
-        nix::libc::mknod(
-            path.as_ptr() as *const c_char,
-            mode,
-            dev
-        )
-    };
+    let result = unsafe { nix::libc::mknod(path.as_ptr() as *const c_char, mode, dev) };
 
     check_libc_error(result, FsError::MknodError)
 }
@@ -166,24 +180,17 @@ pub async fn mkdirp(path: impl AsRef<Path>) -> Result<()> {
 }
 
 pub async fn readlink(path: impl AsRef<Path>) -> Result<PathBuf> {
-    Ok(fs::read_link(path)
-        .await
-        .map_err(FsError::ReadLinkError)?
-    )
+    Ok(fs::read_link(path).await.map_err(FsError::ReadLinkError)?)
 }
 
 pub async fn stat(path: impl AsRef<Path>) -> Result<Metadata> {
-    Ok(fs::metadata(path)
-        .await
-        .map_err(FsError::StatError)?
-    )
+    Ok(fs::metadata(path).await.map_err(FsError::StatError)?)
 }
 
 pub async fn read_to_string(path: impl AsRef<Path>) -> Result<String> {
     Ok(fs::read_to_string(path)
         .await
-        .map_err(FsError::FileReadError)?
-    )
+        .map_err(FsError::FileReadError)?)
 }
 
 pub async fn write_to_string(path: impl AsRef<Path>, content: impl AsRef<[u8]>) -> Result<()> {
@@ -195,9 +202,9 @@ pub async fn write_to_string(path: impl AsRef<Path>, content: impl AsRef<[u8]>) 
 }
 
 pub async fn dirname(path: impl AsRef<Path>) -> Result<PathBuf> {
-    Ok(
-        path.as_ref().parent()
-            .ok_or(FsError::PathHasNoParent())?
-            .to_owned()
-    )
+    Ok(path
+        .as_ref()
+        .parent()
+        .ok_or(FsError::PathHasNoParent())?
+        .to_owned())
 }

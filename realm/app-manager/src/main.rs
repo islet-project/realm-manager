@@ -1,14 +1,15 @@
-use app::ApplicationError;
 use clap::Parser;
+use log::info;
+use thiserror::Error;
+
+use app::ApplicationError;
 use cli::Args;
 use config::{Config, ConfigError};
 use dm::DeviceMapperError;
 use key::KeyError;
 use launcher::LauncherError;
 use manager::{Manager, ManagerError};
-use thiserror::Error;
 use util::UtilsError;
-use log::info;
 
 mod app;
 mod cli;
@@ -40,7 +41,7 @@ pub enum Error {
     ManagerError(#[from] ManagerError),
 
     #[error("Utilities error")]
-    UtilError(#[from] UtilsError)
+    UtilError(#[from] UtilsError),
 }
 
 pub type Result<T> = std::result::Result<T, Error>;

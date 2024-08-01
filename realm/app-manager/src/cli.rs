@@ -11,5 +11,5 @@ pub struct Args {
 
     /// Log level
     #[arg(short = 'l', long, default_value_t = log::Level::Info)]
-    pub log_level: log::Level
+    pub log_level: log::Level,
 }
