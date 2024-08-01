@@ -1,14 +1,24 @@
-use std::{os::linux::fs::MetadataExt, path::{self, Path, PathBuf}, process::ExitStatus, sync::Arc};
+use std::sync::Arc;
+use std::process::ExitStatus;
+use std::path::{Path, PathBuf};
+use std::os::linux::fs::MetadataExt;
 
 use nix::libc::{major, makedev, minor, S_IFBLK};
 use serde::{Deserialize, Serialize};
 use thiserror::Error;
-use tokio::fs;
 use uuid::Uuid;
 use log::info;
 use warden_realm::ApplicationInfo;
 
-use crate::{app, dm::{crypt::{CryptDevice, CryptoParams, DmCryptTable, Key}, device::{DeviceHandleWrapper, DeviceHandleWrapperExt}, DeviceMapper}, key::{ring::KernelKeyring, KeySealing}, launcher::{ApplicationHandler, Launcher}, util::{disk::read_device_size, fs::{dirname, formatfs, mkdirp, mknod, mount, mount_overlayfs, read_to_string, readlink, stat, umount, write_to_string, Filesystem}, serde::{json_dump, json_load}}};
+use crate::util::serde::{json_dump, json_load};
+use crate::util::fs::{dirname, formatfs, mkdirp, mknod, mount, mount_overlayfs, read_to_string, stat, umount, write_to_string, Filesystem};
+use crate::util::disk::read_device_size;
+use crate::launcher::{ApplicationHandler, Launcher};
+use crate::key::KeySealing;
+use crate::key::ring::KernelKeyring;
+use crate::dm::DeviceMapper;
+use crate::dm::device::{DeviceHandleWrapper, DeviceHandleWrapperExt};
+use crate::dm::crypt::{CryptDevice, CryptoParams, DmCryptTable, Key};
 
 use super::Result;
 
@@ -80,7 +90,7 @@ impl Application {
         mkdirp(dirname(&dst).await?).await?;
         let (crypt_major, crypt_minor) = device.get_major_minor();
         let crypt_dev_t = makedev(crypt_major, crypt_minor);
-        mknod(dst, 0666|S_IFBLK, crypt_dev_t)?;
+        mknod(dst, 0o666|S_IFBLK, crypt_dev_t)?;
 
         Ok(device)
     }
@@ -89,7 +99,7 @@ impl Application {
         mkdirp(&dst).await?;
         let result = mount(fs, &src, &dst, None::<&str>);
 
-        if let Err(_) = result {
+        if result.is_err() {
             formatfs(fs, &src, label).await?;
             mount(fs, &src, &dst, None::<&str>)?;
         }
@@ -97,11 +107,11 @@ impl Application {
         Ok(())
     }
 
-    fn derive_key_for(&mut self, label: impl AsRef<str>, keyseal: &Box<dyn KeySealing + Send + Sync>, infos: &[&[u8]]) -> Result<Key> {
-        const subclass: &'static str = "app-manager";
+    fn derive_key_for(&mut self, label: impl AsRef<str>, keyseal: &(dyn KeySealing + Send + Sync), infos: &[&[u8]]) -> Result<Key> {
+        const SUBCLASS: &str = "app-manager";
         let raw_key = keyseal.derive_key(&mut infos.iter())?;
-        self.keyring.logon_seal(subclass, &label, &raw_key)?;
-        Ok(Key::Keyring { key_size: raw_key.len(), key_type: crate::dm::crypt::KeyType::Logon, key_desc: format!("{}:{}", subclass, label.as_ref()) })
+        self.keyring.logon_seal(SUBCLASS, &label, &raw_key)?;
+        Ok(Key::Keyring { key_size: raw_key.len(), key_type: crate::dm::crypt::KeyType::Logon, key_desc: format!("{}:{}", SUBCLASS, label.as_ref()) })
     }
 
     async fn application_metadata(&self, path: impl AsRef<Path>) -> Result<ApplicationMetadata> {
@@ -111,6 +121,7 @@ impl Application {
         if let Ok(content) = result {
             Ok(json_load(content)?)
         } else {
+            // TODO: Generare a random salt
             let metadata = ApplicationMetadata {
                 salt: Vec::new()
             };
@@ -123,7 +134,7 @@ impl Application {
 
     pub async fn setup(&mut self, params: CryptoParams, mut launcher: Box<dyn Launcher + Send + Sync>, keyseal: Box<dyn KeySealing + Send + Sync>) -> Result<()> {
         let decrypted_partinions_dir = self.workdir.join("crypt");
-        let app_image_key = self.derive_key_for(self.info.image_part_uuid.to_string(), &keyseal, &[
+        let app_image_key = self.derive_key_for(self.info.image_part_uuid.to_string(), keyseal.as_ref(), &[
             "App manager label".as_bytes()
         ])?;
         let app_image_crypt_device = decrypted_partinions_dir.join("image");
@@ -131,10 +142,10 @@ impl Application {
         self.devices.push(device);
 
         // TODO: Parametrize this
-        const fs: Filesystem = Filesystem::Ext2;
+        const FS: Filesystem = Filesystem::Ext2;
 
         let app_image_dir = self.workdir.join("image");
-        self.try_mount_or_format_partition(&app_image_crypt_device, &app_image_dir, &fs, Some("image")).await?;
+        self.try_mount_or_format_partition(&app_image_crypt_device, &app_image_dir, &FS, Some("image")).await?;
 
         let app_image_root_dir = app_image_dir.join("root");
         mkdirp(&app_image_root_dir).await?;
@@ -148,7 +159,7 @@ impl Application {
         let keyseal = keyseal.seal(&mut infos.iter())?;
 
         let app_name = self.info.name.as_bytes().to_owned();
-        let app_data_key = self.derive_key_for(self.info.data_part_uuid.to_string(), &keyseal, &[
+        let app_data_key = self.derive_key_for(self.info.data_part_uuid.to_string(), keyseal.as_ref(), &[
             app_name.as_slice()
         ])?;
         let app_data_crypt_device = decrypted_partinions_dir.join("data");
@@ -157,7 +168,7 @@ impl Application {
 
         info!("Mounting data partition");
         let app_data_dir = self.workdir.join("data");
-        self.try_mount_or_format_partition(&app_data_crypt_device, &app_data_dir, &fs, Some("data")).await?;
+        self.try_mount_or_format_partition(&app_data_crypt_device, &app_data_dir, &FS, Some("data")).await?;
 
         info!("Mounting overlayfs");
         let app_overlay_dir = self.workdir.join("overlay");

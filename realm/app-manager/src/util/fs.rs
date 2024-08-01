@@ -1,8 +1,13 @@
-use std::{ffi::c_void, fmt, fs::Metadata, os::unix::ffi::OsStrExt, path::{Path, PathBuf}};
-use nix::{errno::Errno, libc::{c_char, dev_t, mode_t}};
+use std::ffi::c_void;
+use std::fmt;
+use std::os::unix::ffi::OsStrExt;
+use std::fs::Metadata;
+use std::path::{Path, PathBuf};
+use nix::errno::Errno;
+use nix::libc::{c_char, dev_t, mode_t};
 use thiserror::Error;
 use tokio::{fs, process::Command};
-use super::{cstring_from_path, cstring_from_str, cstring_from_vec, Result, UtilsError};
+use super::{cstring_from_path, cstring_from_str, cstring_from_vec, Result};
 
 #[derive(Debug, Error)]
 pub enum FsError {
@@ -43,6 +48,7 @@ pub enum FsError {
     PathHasNoParent()
 }
 
+#[allow(dead_code)]
 pub enum Filesystem {
     Ext2,
     Ext3,
@@ -152,7 +158,7 @@ pub fn mknod(path: impl AsRef<Path>, mode: mode_t, dev: dev_t) -> Result<()> {
 }
 
 pub async fn mkdirp(path: impl AsRef<Path>) -> Result<()> {
-    let _ = fs::create_dir_all(path)
+    fs::create_dir_all(path)
         .await
         .map_err(FsError::MkdirpError)?;
 

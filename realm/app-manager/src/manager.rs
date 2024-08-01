@@ -1,14 +1,18 @@
-use std::{collections::HashMap, os::unix::process::ExitStatusExt, path::Path, sync::Arc, time::Duration};
+use std::{collections::HashMap, os::unix::process::ExitStatusExt};
 
 use thiserror::Error;
-use tokio::{task::{JoinError, JoinSet}, time::sleep};
+use tokio::task::{JoinError, JoinSet};
 use tokio_vsock::{VsockAddr, VsockStream, VMADDR_CID_HOST};
 use utils::serde::{JsonFramed, JsonFramedError};
 use uuid::Uuid;
 use log::{info, error, debug};
 use warden_realm::{ApplicationInfo, ProtocolError, Request, Response};
 
-use crate::{app::Application, config::{Config, KeySealingType, LauncherType}, dm::DeviceMapper, key::{dummy::DummyKeySealing, ring::KernelKeyring, KeySealing}, launcher::{dummy::DummyLauncher, Launcher, LauncherError}, util::os::{reboot, RebootAction}};
+use crate::util::os::{reboot, RebootAction};
+use crate::launcher::{dummy::DummyLauncher, Launcher};
+use crate::key::{dummy::DummyKeySealing, KeySealing};
+use crate::config::{Config, KeySealingType, LauncherType};
+use crate::app::Application;
 
 use super::Result;
 pub type ProtocolResult<T> = std::result::Result<T, ProtocolError>;
@@ -124,7 +128,7 @@ impl Manager {
         while let Some(result) = set.join_next().await {
             let app = result
                 .map_err(ManagerError::ProvisionJoinError)??;
-            let id = app.id().clone();
+            let id = *app.id();
             self.apps.insert(id, app);
             info!("Finished installing {}", id);
         }
@@ -229,12 +233,10 @@ impl Manager {
     async fn handle_valid_request(&mut self, request: Request) -> Response {
         debug!("Received request: {:?}", request);
 
-        let response = match self.handle_request(request).await {
+        match self.handle_request(request).await {
             Ok(response) => response,
             Err(e) => Response::Error(e)
-        };
-
-        response
+        }
     }
 
     pub async fn handle_events(&mut self) -> Result<()> {

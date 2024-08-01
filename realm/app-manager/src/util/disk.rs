@@ -1,8 +1,10 @@
-use std::{ffi::OsStr, num::ParseIntError, path::{Path, PathBuf}};
+use std::ffi::OsStr;
+use std::num::ParseIntError;
+use std::path::{Path, PathBuf};
 
 use thiserror::Error;
-use tokio::{fs::{self, File}, io::AsyncReadExt};
-use super::{fs::{read_to_string, readlink}, Result};
+use super::fs::{read_to_string, readlink};
+use super::Result;
 use std::str::FromStr;
 
 

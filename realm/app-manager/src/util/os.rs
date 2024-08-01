@@ -1,4 +1,5 @@
-use nix::{errno::Errno, libc::{sync, LINUX_REBOOT_CMD_POWER_OFF, LINUX_REBOOT_CMD_RESTART}};
+use nix::errno::Errno;
+use nix::libc::{LINUX_REBOOT_CMD_POWER_OFF, LINUX_REBOOT_CMD_RESTART};
 use thiserror::Error;
 use log::error;
 

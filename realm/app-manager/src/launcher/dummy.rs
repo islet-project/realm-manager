@@ -6,7 +6,8 @@ use thiserror::Error;
 use tokio::fs;
 
 
-use super::{handler::{ExecConfig, SimpleApplicationHandler}, ApplicationHandler, Launcher, Result};
+use super::{ApplicationHandler, Launcher, Result};
+use super::handler::{ExecConfig, SimpleApplicationHandler};
 
 #[derive(Debug, Error)]
 pub enum DummyLauncherError {
@@ -21,7 +22,7 @@ pub struct DummyLauncher {
 
 }
 
-const SCRIPT: &'static str = r#"
+const SCRIPT: &str = r#"
 while true; do echo "I'm alive"; sleep 1; done
 "#;
 
@@ -33,7 +34,7 @@ impl DummyLauncher {
 
 #[async_trait]
 impl Launcher for DummyLauncher {
-    async fn install(&mut self, path: &Path, _: &String, _: &String) -> Result<()> {
+    async fn install(&mut self, path: &Path, _: &str, _: &str) -> Result<()> {
         fs::copy("/usr/bin/busybox", path.join("busybox"))
             .await
             .map_err(DummyLauncherError::FileCopyError)?;

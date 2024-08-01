@@ -1,9 +1,10 @@
 use std::path::{Path, PathBuf};
 
-use serde::{Deserialize, Serialize};
+use serde::Deserialize;
 use thiserror::Error;
 use super::Result;
-use crate::{dm::crypt::CryptoParams, util::fs::read_to_string};
+use crate::util::fs::read_to_string;
+use crate::dm::crypt::CryptoParams;
 
 #[derive(Debug, Error)]
 pub enum ConfigError {
@@ -21,6 +22,8 @@ pub enum KeySealingType {
     Dummy
 }
 
+#[allow(dead_code)]
+#[non_exhaustive]
 #[derive(Debug, Deserialize)]
 pub struct Config {
     pub workdir: PathBuf,

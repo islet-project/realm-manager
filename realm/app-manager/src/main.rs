@@ -1,16 +1,14 @@
-use std::{path::Path, str::FromStr};
 use app::ApplicationError;
 use clap::Parser;
 use cli::Args;
 use config::{Config, ConfigError};
 use dm::DeviceMapperError;
 use key::KeyError;
-use launcher::{dummy::DummyLauncher, Launcher, LauncherError};
+use launcher::LauncherError;
 use manager::{Manager, ManagerError};
 use thiserror::Error;
 use util::UtilsError;
 use log::info;
-use uuid::Uuid;
 
 mod app;
 mod cli;
@@ -57,10 +55,10 @@ async fn main() -> Result<()> {
     let mut manager = Manager::new(config).await?;
 
     info!("Provishioning...");
-    let _ = manager.setup().await?;
+    manager.setup().await?;
 
     info!("Applications started entering event loop");
-    let _ = manager.handle_events().await?;
+    manager.handle_events().await?;
 
     Ok(())
 }

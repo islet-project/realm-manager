@@ -1,4 +1,4 @@
-use std::{collections::HashMap, env::set_current_dir, os::unix::fs::chroot, path::PathBuf, process::{ExitCode, ExitStatus, Stdio}};
+use std::{collections::HashMap, env::set_current_dir, os::unix::fs::chroot, path::PathBuf, process::{ExitStatus, Stdio}};
 
 use async_trait::async_trait;
 use log::info;
@@ -6,7 +6,6 @@ use nix::{errno::Errno, libc::{setgid, setuid}, sys::signal::{self, Signal}, uni
 use thiserror::Error;
 use tokio::{io::{AsyncBufRead, BufReader}, process::{Child, ChildStderr, ChildStdout, Command}, select, sync::mpsc::{self, Receiver, Sender}, task::{JoinError, JoinHandle}};
 use tokio::io::AsyncBufReadExt;
-use log::debug;
 
 use super::{ApplicationHandler, Result};
 
@@ -92,7 +91,7 @@ impl SimpleApplicationHandler {
         let (tx, rx) = self.channel.as_mut()
             .ok_or(ApplicationHandlerError::AppNotRunning())?;
 
-        let _ = tx.send(req)
+        tx.send(req)
             .await
             .map_err(ApplicationHandlerError::RequestChannelError)?;
 

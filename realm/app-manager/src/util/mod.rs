@@ -12,13 +12,13 @@ pub mod serde;
 #[derive(Debug, Error)]
 pub enum UtilsError {
     #[error("Filesystem util error")]
-    FsError(#[from] fs::FsError),
+    Fs(#[from] fs::FsError),
 
     #[error("Serde error")]
-    SerdeError(#[from] serde::JsonError),
+    Serde(#[from] serde::JsonError),
 
     #[error("Disk error")]
-    DiskError(#[from] DiskError),
+    Disk(#[from] DiskError),
 
     #[error("String conversion error to CString")]
     CstringConvError(#[from] NulError),
@@ -27,7 +27,7 @@ pub enum UtilsError {
     CstringFromVecConvError(#[from] FromVecWithNulError),
 
     #[error("OS error")]
-    OsError(#[from] OsError)
+    Os(#[from] OsError)
 }
 
 pub type Result<T> = std::result::Result<T, UtilsError>;

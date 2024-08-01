@@ -1,7 +1,7 @@
 use devicemapper::DmOptions;
 use thiserror::Error;
 use serde::Deserialize;
-use std::fmt::{write, Display};
+use std::fmt::Display;
 
 use super::{device::{DeviceHandle, DeviceHandleWrapper}, Result};
 
@@ -72,6 +72,7 @@ impl Display for BlockMode {
     }
 }
 
+#[allow(dead_code)]
 pub enum KeyType {
     Logon,
     User,
@@ -88,6 +89,7 @@ impl Display for KeyType {
     }
 }
 
+#[allow(dead_code)]
 pub enum Key {
     Raw(Vec<u8>),
     Hex(String),
@@ -109,6 +111,7 @@ impl Display for Key {
     }
 }
 
+#[allow(dead_code)]
 pub enum DevicePath {
     Name(String),
     MajorMinor(u32, u32)
@@ -165,7 +168,7 @@ impl CryptDevice {
             params
         )];
 
-        let _ = self.0.table_load(&table, options)?;
+        self.0.table_load(&table, options)?;
 
         Ok(())
     }

@@ -1,6 +1,5 @@
-use std::borrow::Borrow;
 
-use keyutils::{keytypes::Logon, KeyType, Keyring, SpecialKeyring};
+use keyutils::{keytypes::Logon, Keyring, SpecialKeyring};
 use thiserror::Error;
 
 use super::Result;

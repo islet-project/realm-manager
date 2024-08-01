@@ -1,8 +1,8 @@
-use std::{borrow::Borrow, sync::Arc};
+use std::sync::Arc;
 
 use crypt::CryptError;
 use device::{DeviceHandle, DeviceHandleError, DeviceHandleWrapper};
-use devicemapper::{DmError, DmName, DmOptions, DmUuid, DmUuidBuf, DM};
+use devicemapper::{DmError, DmName, DmOptions, DmUuid, DM};
 use thiserror::Error;
 use uuid::Uuid;
 
@@ -45,14 +45,14 @@ impl DeviceMapper {
     fn create_device_handle(&self, name: impl AsRef<str>, uuid: Option<impl AsRef<Uuid>>, opt: Option<DmOptions>) -> Result<DeviceHandle> {
         let name = DmName::new(name.as_ref())
             .map_err(|e| DeviceMapperError::InvalidName(name.as_ref().to_owned(), e))?;
-        let opt = opt.unwrap_or(DmOptions::default());
+        let opt = opt.unwrap_or_default();
 
         let result = if let Some(uuid) = uuid {
             let uuid_str = uuid.as_ref().to_string();
             let dm_uuid = DmUuid::new(&uuid_str)
                 .map_err(DeviceMapperError::DmUuidConversionError)?;
 
-            self.0.device_create(name, Some(&dm_uuid), opt)
+            self.0.device_create(name, Some(dm_uuid), opt)
         } else {
             self.0.device_create(name, None, opt)
         };
@@ -67,7 +67,7 @@ impl DeviceMapper {
     }
 
     pub fn remove_device(&self, device: impl DeviceHandleWrapper, opt: Option<DmOptions>) -> Result<()> {
-        self.0.device_remove(&device.handle().dev_id()?, opt.unwrap_or(DmOptions::default()))
+        self.0.device_remove(&device.handle().dev_id()?, opt.unwrap_or_default())
             .map_err(DeviceMapperError::RemoveDevice)?;
 
         Ok(())
