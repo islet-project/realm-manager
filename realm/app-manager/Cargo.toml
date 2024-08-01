@@ -4,7 +4,7 @@ version = "0.1.0"
 edition = "2021"
 
 [dependencies]
-devicemapper = { path = "../../../devicemapper-rs", default-features = false }
+devicemapper = { git = "https://github.com/L0czek/devicemapper-rs.git", default-features = false }
 anyhow = "*"
 log = "*"
 serde = { version = "*", features = ["derive", "alloc"] }
