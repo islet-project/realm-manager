@@ -1,6 +1,6 @@
 use std::{collections::HashMap, os::unix::process::ExitStatusExt};
 
-use log::{debug, error, info};
+use log::{debug, error, info, warn};
 use thiserror::Error;
 use tokio::task::{JoinError, JoinSet};
 use tokio_vsock::{VsockAddr, VsockStream, VMADDR_CID_HOST};
@@ -11,8 +11,11 @@ use warden_realm::{ApplicationInfo, ProtocolError, Request, Response};
 use crate::app::Application;
 use crate::config::{Config, KeySealingType, LauncherType};
 use crate::key::{dummy::DummyKeySealing, KeySealing};
+use crate::launcher::handler::ApplicationHandlerError;
+use crate::launcher::LauncherError;
 use crate::launcher::{dummy::DummyLauncher, Launcher};
 use crate::util::os::{reboot, RebootAction};
+use crate::Error as MainError;
 
 use super::Result;
 pub type ProtocolResult<T> = std::result::Result<T, ProtocolError>;
@@ -161,7 +164,7 @@ impl Manager {
 
         for (id, app) in self.apps.iter_mut() {
             if let Err(e) = app.shutdown().await {
-                error!("Failed to stop app {:?}, error: {:?}", id, e);
+                warn!("Failed to stop app {:?}, error: {:?}", id, e);
             }
         }
     }
@@ -220,6 +223,9 @@ impl Manager {
                 match app.try_wait().await {
                     Ok(Some(status)) => Ok(Response::ApplicationExited(status.into_raw())),
                     Ok(None) => Ok(Response::ApplicationIsRunning()),
+                    Err(MainError::LauncherError(LauncherError::HandlerError(
+                        ApplicationHandlerError::AppNotRunning(),
+                    ))) => Ok(Response::ApplicationNotStarted()),
                     Err(e) => Err(ProtocolError::ApplicationWaitFailed(format!("{:?}", e))),
                 }
             }
