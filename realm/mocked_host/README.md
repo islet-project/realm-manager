@@ -3,13 +3,15 @@
 This python script was created to enable testing the realm daemon (app-manager) without the rest of this setup i. e. the warden daemon.
 
 ## Setting up
-Ensure you set up netwkirng as described in [Previous README](https://github.com/islet-project/realm-manager/tree/main/realm#starting-qemu-with-networking-support). After that start the `run.py` script. The scripts takes a couple of arguments:
+Ensure you set up networking as described in [Previous README](https://github.com/islet-project/realm-manager/tree/main/realm#starting-qemu-with-networking-support) and built the kernel image with QEMU by running `make compile`. After that start the `run.py` script. The scripts takes a couple of arguments:
 | Name | Description | Default value |
 |-|-|-|
 |--vsock-port| Listen port, ensure that the app-manager has the same number in config | 1337|
 |--guest-cid| The VSOCK guest address | 1337|
 |--tap-device | Tap used to provide networking | tap100|
 |--qemu-serial | Arguments passed to QEMU's `-serial` oprion, use either `tcp:<ip>:<port>` and then `nc -lvp <port>` or `file:<path>` and `tail -f <path>` to read logs from the realm | tcp:localhost:1337|
+|--test | Run some simple tests that start, stop, kill and reboot stuff | N/A |
+
 ## Controlling the realm
 After the realm has been launched you should see this on the terminal (using tail -f in my case):
 ```
