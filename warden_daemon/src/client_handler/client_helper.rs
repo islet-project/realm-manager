@@ -1,6 +1,6 @@
 use crate::managers::{
     application::ApplicationConfig,
-    realm::{RealmData, RealmDescription, State},
+    realm::{RealmDescription, State},
     realm_configuration::{CpuConfig, KernelConfig, MemoryConfig, NetworkConfig, RealmConfig},
 };
 
@@ -24,17 +24,6 @@ impl From<warden_client::realm::State> for State {
             CState::Provisioning => Self::Provisioning,
             CState::Running => Self::Running,
             CState::NeedReboot => Self::NeedReboot,
-        }
-    }
-}
-
-impl From<warden_client::realm::RealmDescription> for RealmDescription {
-    fn from(value: warden_client::realm::RealmDescription) -> Self {
-        Self {
-            uuid: value.uuid,
-            realm_data: RealmData {
-                state: value.state.into(),
-            },
         }
     }
 }
@@ -100,6 +89,7 @@ impl From<RealmDescription> for warden_client::realm::RealmDescription {
         RealmDescription {
             uuid: val.uuid,
             state: val.realm_data.state.into(),
+            applications: val.realm_data.applications,
         }
     }
 }

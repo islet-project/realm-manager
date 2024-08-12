@@ -11,7 +11,7 @@ use thiserror::Error;
 use tokio::sync::Mutex;
 use tokio::{net::UnixStream, select};
 use tokio_util::sync::CancellationToken;
-use utils::serde::{JsonFramed, JsonFramedError};
+use utils::serde::json_framed::{JsonFramed, JsonFramedError};
 use uuid::Uuid;
 use warden_client::warden::{WardenCommand, WardenDaemonError, WardenResponse};
 
@@ -115,6 +115,7 @@ impl ClientHandler {
                     .lock()
                     .await
                     .create_realm(RealmConfig::from(config))
+                    .await
                     .map_err(ClientError::WardenDaemonError)?;
                 info!("Realm: {uuid} created.");
                 Ok(WardenResponse::CreatedRealm { uuid })
@@ -188,6 +189,7 @@ impl ClientHandler {
                     .lock()
                     .await
                     .create_application(config.into())
+                    .await
                     .map_err(ClientError::RealmManagerError)?;
                 info!("Created application with id: {application_uuid} in realm: {realm_uuid}.");
                 Ok(WardenResponse::CreatedApplication {
@@ -304,7 +306,7 @@ mod test {
         realm::{Realm, RealmData, RealmError, State},
         warden::WardenError,
     };
-    use crate::test_utilities::{
+    use crate::utils::test_utilities::{
         create_example_realm_description, create_example_uuid, MockApplication, MockRealm,
         MockWardenDaemon,
     };
@@ -312,7 +314,7 @@ mod test {
     use std::{path::PathBuf, sync::Arc};
     use tokio::{net::UnixStream, sync::Mutex};
     use tokio_util::sync::CancellationToken;
-    use utils::serde::JsonFramed;
+    use utils::serde::json_framed::JsonFramed;
     use uuid::Uuid;
     use warden_client::{
         applciation::ApplicationConfig,
@@ -469,6 +471,7 @@ mod test {
                     .expect_get_realm_data()
                     .returning(|| RealmData {
                         state: State::Halted,
+                        applications: vec![],
                     });
                 realm_manager
                     .expect_get_application()

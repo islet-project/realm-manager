@@ -14,6 +14,7 @@ pub enum State {
 pub struct RealmDescription {
     pub uuid: Uuid,
     pub state: State,
+    pub applications: Vec<Uuid>
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, PartialOrd)]

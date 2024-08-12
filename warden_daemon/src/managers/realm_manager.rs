@@ -1,5 +1,7 @@
-use super::application::{Application, ApplicationConfig, ApplicationCreator};
-use super::realm::{Realm, RealmData, RealmError, State};
+use crate::utils::repository::Repository;
+
+use super::application::{Application, ApplicationConfig};
+use super::realm::{ApplicationCreator, Realm, RealmData, RealmError, State};
 use super::realm_client::{RealmClient, RealmProvisioningConfig};
 use super::realm_configuration::*;
 
@@ -41,23 +43,24 @@ type AppsMap = HashMap<Uuid, Arc<Mutex<Box<dyn Application + Send + Sync>>>>;
 
 pub struct RealmManager {
     state: State,
-    config: RealmConfig,
     applications: AppsMap,
+    config: Box<dyn Repository<Data = RealmConfig> + Send + Sync>,
     vm_manager: Box<dyn VmManager + Send + Sync>,
     realm_client_handler: Arc<Mutex<Box<dyn RealmClient + Send + Sync>>>,
-    application_fabric: Arc<Box<dyn ApplicationCreator + Send + Sync>>,
+    application_fabric: Box<dyn ApplicationCreator + Send + Sync>,
 }
 
 impl RealmManager {
     pub fn new(
-        config: RealmConfig,
+        config: Box<dyn Repository<Data = RealmConfig> + Send + Sync>,
+        applications: AppsMap,
         vm_manager: Box<dyn VmManager + Send + Sync>,
         realm_client_handler: Arc<Mutex<Box<dyn RealmClient + Send + Sync>>>,
-        application_fabric: Arc<Box<dyn ApplicationCreator + Send + Sync>>,
+        application_fabric: Box<dyn ApplicationCreator + Send + Sync>,
     ) -> Self {
         RealmManager {
             state: State::Halted,
-            applications: HashMap::new(),
+            applications,
             config,
             vm_manager,
             realm_client_handler,
@@ -70,11 +73,12 @@ impl RealmManager {
     }
 
     fn setup_vm(&mut self) -> Result<(), RealmError> {
-        self.vm_manager.setup_cpu(&self.config.cpu);
-        self.vm_manager.setup_kernel(&self.config.kernel);
-        self.vm_manager.setup_memory(&self.config.memory);
-        self.vm_manager.setup_machine(&self.config.machine);
-        self.vm_manager.setup_network(&self.config.network);
+        let config = self.config.get();
+        self.vm_manager.setup_cpu(&config.cpu);
+        self.vm_manager.setup_kernel(&config.kernel);
+        self.vm_manager.setup_memory(&config.memory);
+        self.vm_manager.setup_machine(&config.machine);
+        self.vm_manager.setup_network(&config.network);
         self.vm_manager
             .launch_vm()
             .map_err(|err| RealmError::RealmLaunchFail(err.to_string()))
@@ -112,7 +116,7 @@ impl Realm for RealmManager {
             .await
             .send_realm_provisioning_config(
                 self.create_provisioning_config(),
-                self.config.network.vsock_cid,
+                self.config.get().network.vsock_cid,
             )
             .await
         {
@@ -151,18 +155,17 @@ impl Realm for RealmManager {
         self.start().await
     }
 
-    fn create_application(&mut self, config: ApplicationConfig) -> Result<Uuid, RealmError> {
+    async fn create_application(&mut self, config: ApplicationConfig) -> Result<Uuid, RealmError> {
         if self.state != State::Halted {
             return Err(RealmError::UnsupportedAction(
                 "Can't create application when realm is not halted.".to_string(),
             ));
         }
         let uuid = Uuid::new_v4();
-        let application = self.application_fabric.create_application(
-            uuid,
-            config,
-            self.realm_client_handler.clone(),
-        );
+        let application = self
+            .application_fabric
+            .create_application(uuid, config, self.realm_client_handler.clone())
+            .await?;
 
         let _ = self
             .applications
@@ -210,6 +213,7 @@ impl Realm for RealmManager {
     fn get_realm_data(&self) -> RealmData {
         RealmData {
             state: self.state.clone(),
+            applications: self.applications.keys().into_iter().copied().collect(),
         }
     }
 }
@@ -218,11 +222,12 @@ impl Realm for RealmManager {
 mod test {
     use super::{RealmError, RealmManager, VmManagerError};
     use crate::managers::{realm::Realm, realm_client::RealmClientError, realm_manager::State};
-    use crate::test_utilities::{
+    use crate::utils::test_utilities::{
         create_example_app_config, create_example_realm_config, MockApplication,
-        MockApplicationFabric, MockRealmClient, MockVmManager,
+        MockApplicationFabric, MockRealmClient, MockRealmRepository, MockVmManager,
     };
     use parameterized::parameterized;
+    use std::collections::HashMap;
     use std::{io::Error, sync::Arc};
     use tokio::sync::Mutex;
     use uuid::Uuid;
@@ -343,7 +348,9 @@ mod test {
     #[tokio::test]
     async fn create_application() {
         let mut realm_manager = create_realm_manager(None, None);
-        let uuid = realm_manager.create_application(create_example_app_config());
+        let uuid = realm_manager
+            .create_application(create_example_app_config())
+            .await;
         assert_eq!(realm_manager.state, State::Halted);
         assert!(uuid.is_ok());
         assert!(realm_manager.applications.contains_key(&uuid.unwrap()));
@@ -354,7 +361,9 @@ mod test {
     async fn create_application_invalid_state(state: State) {
         let mut realm_manager = create_realm_manager(None, None);
         realm_manager.state = state;
-        let uuid_res = realm_manager.create_application(create_example_app_config());
+        let uuid_res = realm_manager
+            .create_application(create_example_app_config())
+            .await;
         assert_eq!(
             uuid_res,
             Err(RealmError::UnsupportedAction(
@@ -370,6 +379,7 @@ mod test {
         let mut realm_manager = create_realm_manager(None, None);
         let uuid = realm_manager
             .create_application(create_example_app_config())
+            .await
             .unwrap();
         realm_manager.state = state;
         let uuid_res = realm_manager
@@ -384,6 +394,7 @@ mod test {
         let mut realm_manager = create_realm_manager(None, None);
         let uuid = realm_manager
             .create_application(create_example_app_config())
+            .await
             .unwrap();
         realm_manager.state = State::Provisioning;
         let uuid_res = realm_manager
@@ -440,6 +451,7 @@ mod test {
         let mut realm_manager = create_realm_manager(None, None);
         let uuid = realm_manager
             .create_application(create_example_app_config())
+            .await
             .unwrap();
         realm_manager.state = state;
         assert!(realm_manager.get_application(&uuid).is_ok());
@@ -476,12 +488,19 @@ mod test {
         let mut creator_mock = MockApplicationFabric::new();
         creator_mock
             .expect_create_application()
-            .return_once(move |_, _, _| Box::new(app_mock));
+            .return_once(move |_, _, _| Ok(Box::new(app_mock)));
+
+        let mut repository = MockRealmRepository::new();
+        repository
+            .expect_get()
+            .return_const(create_example_realm_config());
+        repository.expect_save().returning(|| Ok(()));
         RealmManager::new(
-            create_example_realm_config(),
+            Box::new(repository),
+            HashMap::new(),
             Box::new(vm_manager),
             Arc::new(Mutex::new(Box::new(realm_client_handler))),
-            Arc::new(Box::new(creator_mock)),
+            Box::new(creator_mock),
         )
     }
 }
