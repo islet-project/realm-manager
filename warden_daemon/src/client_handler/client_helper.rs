@@ -1,6 +1,9 @@
+use warden_realm::ApplicationInfo;
+
 use crate::managers::{
     application::ApplicationConfig,
     realm::{RealmDescription, State},
+    realm_client::RealmProvisioningConfig,
     realm_configuration::{CpuConfig, KernelConfig, MemoryConfig, NetworkConfig, RealmConfig},
 };
 
@@ -91,5 +94,11 @@ impl From<RealmDescription> for warden_client::realm::RealmDescription {
             state: val.realm_data.state.into(),
             applications: val.realm_data.applications,
         }
+    }
+}
+
+impl Into<Vec<ApplicationInfo>> for RealmProvisioningConfig {
+    fn into(self) -> Vec<ApplicationInfo> {
+        vec![]
     }
 }

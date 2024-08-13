@@ -65,7 +65,6 @@ impl VmManager for QemuRunner {
             .spawn()
             .map(|child| {
                 self.vm = Some(child);
-                self.command = Command::new(self.command.get_program());
             })
             .map_err(VmManagerError::LaunchFail)
     }

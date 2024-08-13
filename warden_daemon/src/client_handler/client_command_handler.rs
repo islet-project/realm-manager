@@ -127,6 +127,7 @@ impl ClientHandler {
                     .lock()
                     .await
                     .stop()
+                    .await
                     .map_err(ClientError::RealmManagerError)?;
                 info!("Realm: {uuid} stopped.");
                 Ok(WardenResponse::Ok)

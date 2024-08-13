@@ -3,20 +3,17 @@ use std::io;
 use std::sync::Arc;
 
 use async_trait::async_trait;
-use futures::SinkExt;
 use log::{info, trace};
 use thiserror::Error;
 use tokio::select;
 use tokio::sync::oneshot::{Receiver, Sender};
 use tokio::sync::{oneshot, Mutex};
-use tokio_serde::formats::SymmetricalJson;
-use tokio_util::codec::{FramedWrite, LengthDelimitedCodec};
 use tokio_util::sync::CancellationToken;
 use tokio_vsock::{VsockAddr, VsockListener, VsockStream};
+use utils::serde::json_framed::JsonFramed;
+use warden_realm::{Request, Response};
 
-use crate::client_handler::realm_client_handler::{
-    RealmCommand, RealmConnector, RealmSender, RealmSenderError,
-};
+use crate::client_handler::realm_client_handler::{RealmConnector, RealmSender, RealmSenderError};
 
 pub struct VSockServerConfig {
     pub cid: u32,
@@ -89,32 +86,29 @@ impl VSockServer {
 }
 
 struct VSockClient {
-    stream: tokio_serde::Framed<
-        FramedWrite<VsockStream, LengthDelimitedCodec>,
-        RealmCommand,
-        RealmCommand,
-        tokio_serde::formats::Json<RealmCommand, RealmCommand>,
-    >,
+    stream: JsonFramed<VsockStream, Response, Request>,
 }
 
 impl VSockClient {
     fn new(stream: VsockStream) -> Self {
-        let length_delimited = FramedWrite::new(stream, LengthDelimitedCodec::new());
-        let serialized = tokio_serde::SymmetricallyFramed::new(
-            length_delimited,
-            SymmetricalJson::<RealmCommand>::default(),
-        );
-        VSockClient { stream: serialized }
+        VSockClient {
+            stream: JsonFramed::<VsockStream, Response, Request>::new(stream),
+        }
     }
 }
 
 #[async_trait]
 impl RealmSender for VSockClient {
-    async fn send(&mut self, data: RealmCommand) -> Result<(), RealmSenderError> {
+    async fn send(&mut self, request: Request) -> Result<Response, RealmSenderError> {
         self.stream
-            .send(data)
+            .send(request)
             .await
-            .map_err(RealmSenderError::SendFail)
+            .map_err(RealmSenderError::CommunicationFail)?;
+        Ok(self
+            .stream
+            .recv()
+            .await
+            .map_err(RealmSenderError::CommunicationFail)?)
     }
 }
 

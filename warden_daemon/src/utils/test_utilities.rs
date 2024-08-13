@@ -1,7 +1,5 @@
 use super::repository::{Repository, RepositoryError};
-use crate::client_handler::realm_client_handler::{
-    RealmCommand, RealmConnector, RealmSender, RealmSenderError,
-};
+use crate::client_handler::realm_client_handler::{RealmConnector, RealmSender, RealmSenderError};
 use crate::managers::realm_manager::{VmManager, VmManagerError};
 use crate::managers::{
     application::{Application, ApplicationConfig, ApplicationError},
@@ -16,6 +14,7 @@ use std::process::ExitStatus;
 use std::{path::PathBuf, str::FromStr, sync::Arc};
 use tokio::sync::oneshot::Receiver;
 use uuid::Uuid;
+use warden_realm::{Request, Response};
 
 pub fn create_example_realm_data() -> RealmData {
     RealmData {
@@ -85,7 +84,7 @@ mock! {
     #[async_trait]
     impl Realm for Realm {
         async fn start(&mut self) -> Result<(), RealmError>;
-        fn stop(&mut self) -> Result<(), RealmError>;
+        async fn stop(&mut self) -> Result<(), RealmError>;
         async fn reboot(&mut self) -> Result<(), RealmError>;
         async fn create_application(&mut self, config: ApplicationConfig) -> Result<Uuid, RealmError>;
         fn get_realm_data(& self) -> RealmData;
@@ -121,7 +120,7 @@ mock! {
 
     #[async_trait]
     impl RealmSender for RealmSender {
-        async fn send(&mut self, data: RealmCommand) -> Result<(), RealmSenderError>;
+        async fn send(&mut self, data: Request) -> Result<Response, RealmSenderError>;
     }
 }
 
@@ -130,13 +129,16 @@ mock! {
 
     #[async_trait]
     impl RealmClient for RealmClient {
-        async fn send_realm_provisioning_config(
+        async fn provision_applications(
             &mut self,
             realm_provisioning_config: RealmProvisioningConfig,
             cid: u32,
         ) -> Result<(), RealmClientError>;
         async fn start_application(&mut self, application_uuid: &Uuid) -> Result<(), RealmClientError>;
         async fn stop_application(&mut self, application_uuid: &Uuid) -> Result<(), RealmClientError>;
+        async fn kill_application(&mut self, application_uuid: &Uuid) -> Result<(), RealmClientError>;
+        async fn shutdown_realm(&mut self) -> Result<(), RealmClientError>;
+        async fn reboot_realm(&mut self) -> Result<(), RealmClientError>;
     }
 }
 

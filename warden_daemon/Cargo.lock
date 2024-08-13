@@ -943,6 +943,15 @@ dependencies = [
  "utils",
  "uuid",
  "warden_client",
+ "warden_realm",
+]
+
+[[package]]
+name = "warden_realm"
+version = "0.1.0"
+dependencies = [
+ "serde",
+ "uuid",
 ]
 
 [[package]]
