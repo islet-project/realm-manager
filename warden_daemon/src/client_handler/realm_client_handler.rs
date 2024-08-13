@@ -88,8 +88,7 @@ impl RealmClient for RealmClientHandler {
                 let _ = self.sender.insert(realm_sender.map_err(|err| RealmClientError::RealmConnectionFail(err.to_string()))?);
                 match self.send_command(Request::ProvisionInfo(realm_provisioning_config.into())).await? {
                     Response::ProvisioningFinished() => Ok(()),
-                    Response::Error(protocol_error) => Err(RealmClientError::RealmDaemonError(format!("{:#?}", protocol_error))),
-                    invalid_response => Err(RealmClientError::InvalidResponse(format!("{:#?}", invalid_response))),
+                    other_response => Err(RealmClientHandler::handle_invalid_response(other_response)),
                 }
             }
             _ = sleep(WAITING_TIME) => {

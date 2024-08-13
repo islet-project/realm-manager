@@ -97,8 +97,8 @@ impl From<RealmDescription> for warden_client::realm::RealmDescription {
     }
 }
 
-impl Into<Vec<ApplicationInfo>> for RealmProvisioningConfig {
-    fn into(self) -> Vec<ApplicationInfo> {
+impl From<RealmProvisioningConfig> for Vec<ApplicationInfo> {
+    fn from(val: RealmProvisioningConfig) -> Self {
         vec![]
     }
 }
