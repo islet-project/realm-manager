@@ -318,7 +318,7 @@ mod test {
     use utils::serde::json_framed::JsonFramed;
     use uuid::Uuid;
     use warden_client::{
-        applciation::ApplicationConfig,
+        application::ApplicationConfig,
         realm::{CpuConfig, KernelConfig, MemoryConfig, NetworkConfig, RealmConfig},
         warden::{WardenCommand, WardenResponse},
     };
@@ -538,6 +538,12 @@ mod test {
     }
 
     fn create_example_client_app_config() -> ApplicationConfig {
-        ApplicationConfig {}
+        ApplicationConfig {
+            name: String::new(),
+            version: String::new(),
+            image_registry: String::new(),
+            image_storage_size_mb: 0,
+            data_storage_size_mb: 0,
+        }
     }
 }

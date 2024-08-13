@@ -8,7 +8,7 @@ use tokio::net::UnixStream;
 use utils::serde::json_framed::JsonFramed;
 use uuid::Uuid;
 use warden_client::{
-    applciation::ApplicationConfig,
+    application::ApplicationConfig,
     realm::{RealmConfig, RealmDescription},
     warden::{WardenCommand, WardenResponse},
 };

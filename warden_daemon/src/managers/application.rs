@@ -1,6 +1,7 @@
 use async_trait::async_trait;
 use serde::{Deserialize, Serialize};
 use thiserror::Error;
+use uuid::Uuid;
 
 #[derive(Debug, Error, PartialEq, PartialOrd, Serialize, Deserialize)]
 pub enum ApplicationError {
@@ -18,7 +19,24 @@ pub trait Application {
     async fn stop(&mut self) -> Result<(), ApplicationError>;
     async fn start(&mut self) -> Result<(), ApplicationError>;
     fn update(&mut self, config: ApplicationConfig);
+    fn get_data(&self) -> ApplicationData;
 }
 
 #[derive(Debug, Serialize, Deserialize, Clone, PartialEq, PartialOrd)]
-pub struct ApplicationConfig {}
+pub struct ApplicationConfig {
+    pub name: String,
+    pub version: String,
+    pub image_registry: String,
+    pub image_storage_size_mb: usize,
+    pub data_storage_size_mb: usize,
+}
+
+#[derive(Debug, Serialize, Deserialize, Clone, PartialEq, PartialOrd)]
+pub struct ApplicationData {
+    pub id: Uuid,
+    pub name: String,
+    pub version: String,
+    pub image_registry: String,
+    pub image_part_uuid: Uuid,
+    pub data_part_uuid: Uuid,
+}

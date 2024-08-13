@@ -1,5 +1,6 @@
 use super::repository::{Repository, RepositoryError};
 use crate::client_handler::realm_client_handler::{RealmConnector, RealmSender, RealmSenderError};
+use crate::managers::application::ApplicationData;
 use crate::managers::realm_manager::{VmManager, VmManagerError};
 use crate::managers::{
     application::{Application, ApplicationConfig, ApplicationError},
@@ -56,11 +57,19 @@ pub fn create_example_realm_config() -> RealmConfig {
 }
 
 pub fn create_example_app_config() -> ApplicationConfig {
-    ApplicationConfig {}
+    ApplicationConfig {
+        name: String::new(),
+        version: String::new(),
+        image_registry: String::new(),
+        image_storage_size_mb: 0,
+        data_storage_size_mb: 0,
+    }
 }
 
 pub fn create_realm_provisioning_config() -> RealmProvisioningConfig {
-    RealmProvisioningConfig {}
+    RealmProvisioningConfig {
+        applications_data: vec![],
+    }
 }
 
 mock! {
@@ -99,6 +108,7 @@ mock! {
     impl Application for Application {
         async fn stop(&mut self) -> Result<(), ApplicationError>;
         async fn start(&mut self) -> Result<(), ApplicationError>;
+        fn get_data(&self) -> ApplicationData;
         fn update(&mut self, config: ApplicationConfig);
     }
 }

@@ -63,8 +63,12 @@ impl RealmManager {
         }
     }
 
-    fn create_provisioning_config(&self) -> RealmProvisioningConfig {
-        RealmProvisioningConfig {}
+    async fn create_provisioning_config(&self) -> RealmProvisioningConfig {
+        let mut applications_data = vec![];
+        for app in self.applications.values() {
+            applications_data.push(app.lock().await.get_data());
+        }
+        RealmProvisioningConfig { applications_data }
     }
 }
 
@@ -100,7 +104,7 @@ impl Realm for RealmManager {
             .lock()
             .await
             .provision_applications(
-                self.create_provisioning_config(),
+                self.create_provisioning_config().await,
                 self.config.get().network.vsock_cid,
             )
             .await

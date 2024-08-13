@@ -3,6 +3,8 @@ use serde::{Deserialize, Serialize};
 use thiserror::Error;
 use uuid::Uuid;
 
+use super::application::ApplicationData;
+
 #[derive(Debug, Error, PartialEq, PartialOrd)]
 pub enum RealmClientError {
     #[error("Can't connect with the Realm: {0}")]
@@ -16,7 +18,9 @@ pub enum RealmClientError {
 }
 
 #[derive(Debug, Serialize, Deserialize)]
-pub struct RealmProvisioningConfig {}
+pub struct RealmProvisioningConfig {
+    pub applications_data: Vec<ApplicationData>,
+}
 
 #[async_trait]
 pub trait RealmClient {

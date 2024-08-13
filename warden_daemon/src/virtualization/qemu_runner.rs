@@ -104,4 +104,3 @@ impl VmManager for QemuRunner {
         None
     }
 }
-

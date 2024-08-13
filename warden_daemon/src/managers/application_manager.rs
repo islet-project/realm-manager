@@ -1,7 +1,7 @@
 use crate::utils::repository::Repository;
 
 use super::{
-    application::{Application, ApplicationConfig, ApplicationError},
+    application::{Application, ApplicationConfig, ApplicationData, ApplicationError},
     realm_client::RealmClient,
 };
 
@@ -12,7 +12,7 @@ use uuid::Uuid;
 
 pub struct ApplicationManager {
     uuid: Uuid,
-    _config: Box<dyn Repository<Data = ApplicationConfig> + Send + Sync>,
+    config: Box<dyn Repository<Data = ApplicationConfig> + Send + Sync>,
     realm_client_handler: Arc<Mutex<Box<dyn RealmClient + Send + Sync>>>,
     new_config: Option<ApplicationConfig>,
 }
@@ -25,7 +25,7 @@ impl ApplicationManager {
     ) -> Self {
         ApplicationManager {
             uuid,
-            _config: config,
+            config,
             realm_client_handler,
             new_config: None,
         }
@@ -51,6 +51,18 @@ impl Application for ApplicationManager {
             .await
             .map_err(|err| ApplicationError::ApplicationStartFail(err.to_string()))?;
         Ok(())
+    }
+
+    fn get_data(&self) -> ApplicationData {
+        let config = self.config.get();
+        ApplicationData {
+            id: self.uuid,
+            name: config.name.clone(),
+            version: config.version.clone(),
+            image_registry: config.image_registry.clone(),
+            image_part_uuid: Uuid::new_v4(), // TODO: implement partition's creation
+            data_part_uuid: Uuid::new_v4(),  // TODO: implement partition's creation
+        }
     }
 
     fn update(&mut self, config: ApplicationConfig) {
