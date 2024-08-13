@@ -146,11 +146,6 @@ mock! {
     pub VmManager {}
 
     impl VmManager for VmManager {
-        fn setup_network(&mut self, config: &NetworkConfig);
-        fn setup_cpu(&mut self, config: &CpuConfig);
-        fn setup_kernel(&mut self, config: &KernelConfig);
-        fn setup_memory(&mut self, config: &MemoryConfig);
-        fn setup_machine(&mut self, name: &str);
         fn launch_vm(&mut self) -> Result<(), VmManagerError>;
         fn stop_vm(&mut self) -> Result<(), VmManagerError>;
         fn delete_vm(&mut self) -> Result<(), VmManagerError>;

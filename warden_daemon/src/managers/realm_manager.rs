@@ -19,11 +19,6 @@ pub trait VmManager {
     fn delete_vm(&mut self) -> Result<(), VmManagerError>;
     fn get_exit_status(&mut self) -> Option<ExitStatus>;
     fn launch_vm(&mut self) -> Result<(), VmManagerError>;
-    fn setup_cpu(&mut self, config: &CpuConfig);
-    fn setup_kernel(&mut self, config: &KernelConfig);
-    fn setup_machine(&mut self, name: &str);
-    fn setup_memory(&mut self, config: &MemoryConfig);
-    fn setup_network(&mut self, config: &NetworkConfig);
     fn stop_vm(&mut self) -> Result<(), VmManagerError>;
 }
 
@@ -71,18 +66,6 @@ impl RealmManager {
     fn create_provisioning_config(&self) -> RealmProvisioningConfig {
         RealmProvisioningConfig {}
     }
-
-    fn setup_vm(&mut self) -> Result<(), RealmError> {
-        let config = self.config.get();
-        self.vm_manager.setup_cpu(&config.cpu);
-        self.vm_manager.setup_kernel(&config.kernel);
-        self.vm_manager.setup_memory(&config.memory);
-        self.vm_manager.setup_machine(&config.machine);
-        self.vm_manager.setup_network(&config.network);
-        self.vm_manager
-            .launch_vm()
-            .map_err(|err| RealmError::RealmLaunchFail(err.to_string()))
-    }
 }
 
 impl Drop for RealmManager {
@@ -106,7 +89,9 @@ impl Realm for RealmManager {
             )));
         }
 
-        self.setup_vm()?;
+        self.vm_manager
+            .launch_vm()
+            .map_err(|err| RealmError::RealmLaunchFail(err.to_string()))?;
 
         self.state = State::Provisioning;
 
@@ -281,11 +266,6 @@ mod test {
     #[tokio::test]
     async fn realm_start_launching_vm_error() {
         let mut vm_manager_mock = MockVmManager::new();
-        vm_manager_mock.expect_setup_cpu().returning(|_| ());
-        vm_manager_mock.expect_setup_kernel().returning(|_| ());
-        vm_manager_mock.expect_setup_machine().returning(|_| ());
-        vm_manager_mock.expect_setup_memory().returning(|_| ());
-        vm_manager_mock.expect_setup_network().returning(|_| ());
         vm_manager_mock
             .expect_launch_vm()
             .returning(|| Err(VmManagerError::LaunchFail(Error::other(""))));
@@ -481,11 +461,6 @@ mod test {
         realm_client_handler: Option<MockRealmClient>,
     ) -> RealmManager {
         let mut vm_manager = vm_manager.unwrap_or_default();
-        vm_manager.expect_setup_cpu().returning(|_| ());
-        vm_manager.expect_setup_kernel().returning(|_| ());
-        vm_manager.expect_setup_machine().returning(|_| ());
-        vm_manager.expect_setup_memory().returning(|_| ());
-        vm_manager.expect_setup_network().returning(|_| ());
         vm_manager.expect_launch_vm().returning(|| Ok(()));
         vm_manager.expect_stop_vm().returning(|| Ok(()));
         vm_manager.expect_delete_vm().returning(|| Ok(()));

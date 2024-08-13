@@ -9,6 +9,7 @@ use crate::socket::vsocket_server::VSockServer;
 use crate::storage::{
     create_config_path, create_workdir_path_with_uuid, read_subfolders_uuids, YamlConfigRepository,
 };
+use crate::utils::repository::Repository;
 use crate::virtualization::qemu_runner::QemuRunner;
 
 use async_trait::async_trait;
@@ -76,6 +77,7 @@ impl RealmCreator for RealmManagerFabric {
         tokio::fs::create_dir(&realm_workdir)
             .await
             .map_err(|err| WardenError::RealmCreationFail(err.to_string()))?;
+        let runner = QemuRunner::new(self.qemu_path.clone(), &config);
         Ok(Box::new(RealmManager::new(
             Box::new(
                 YamlConfigRepository::<RealmConfig>::new(
@@ -86,7 +88,7 @@ impl RealmCreator for RealmManagerFabric {
                 .map_err(|err| WardenError::RealmCreationFail(err.to_string()))?,
             ),
             HashMap::new(),
-            Box::new(QemuRunner::new(self.qemu_path.clone())),
+            Box::new(runner),
             Arc::new(Mutex::new(Box::new(RealmClientHandler::new(
                 self.vsock_server.clone(),
             )))),
@@ -111,14 +113,15 @@ impl RealmCreator for RealmManagerFabric {
                 realm_client_handler.clone(),
             )
             .await?;
+        let repository =
+            YamlConfigRepository::<RealmConfig>::from(&create_config_path(realm_workdir_path))
+                .await
+                .map_err(|err| WardenError::RealmCreationFail(err.to_string()))?;
+        let runner = QemuRunner::new(self.qemu_path.clone(), repository.get());
         Ok(Box::new(RealmManager::new(
-            Box::new(
-                YamlConfigRepository::<RealmConfig>::from(&create_config_path(realm_workdir_path))
-                    .await
-                    .map_err(|err| WardenError::RealmCreationFail(err.to_string()))?,
-            ),
+            Box::new(repository),
             loaded_applications,
-            Box::new(QemuRunner::new(self.qemu_path.clone())),
+            Box::new(runner),
             realm_client_handler,
             Box::new(application_fabric),
         )))
