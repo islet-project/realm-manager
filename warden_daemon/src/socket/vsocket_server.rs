@@ -1,5 +1,5 @@
 use std::collections::HashMap;
-use std::io;
+use std::io::{self, ErrorKind};
 use std::sync::Arc;
 use std::time::Duration;
 
@@ -112,7 +112,7 @@ impl RealmSender for VSockClient {
             response = self.stream.recv() => {
                 response.map_err(|err| {
                     match err {
-                        JsonFramedError::StreamIsClosed() => RealmSenderError::Disconnection,
+                        JsonFramedError::SerdeReadError(err) if err.kind() == ErrorKind::ConnectionReset => RealmSenderError::Disconnection,
                         err => RealmSenderError::ReceiveFail(err),
                     }
                 })

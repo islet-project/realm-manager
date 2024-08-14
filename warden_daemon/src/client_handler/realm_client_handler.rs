@@ -160,7 +160,6 @@ impl RealmClient for RealmClientHandler {
         cid: u32,
     ) -> Result<(), RealmClientError> {
         self.send_command(Request::Reboot()).await?;
-        self.handle_shutdown_response().await?;
         self.provision_applications(realm_provisioning_config, cid)
             .await
     }
