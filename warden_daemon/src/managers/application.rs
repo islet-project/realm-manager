@@ -6,9 +6,11 @@ use uuid::Uuid;
 #[derive(Debug, Error, PartialEq, PartialOrd, Serialize, Deserialize)]
 pub enum ApplicationError {
     #[error("Can't start the application: {0}")]
-    ApplicationStartFail(String),
+    ApplicationStart(String),
     #[error("Can't stop the application: {0}")]
-    ApplicationStopFail(String),
+    ApplicationStop(String),
+    #[error("Can't update the application configuration: {0}")]
+    ConfigUpdate(String),
 }
 
 #[derive(Debug, Error, PartialEq, PartialOrd, Serialize, Deserialize)]
@@ -18,7 +20,7 @@ pub enum ApplicationClientError {}
 pub trait Application {
     async fn stop(&mut self) -> Result<(), ApplicationError>;
     async fn start(&mut self) -> Result<(), ApplicationError>;
-    fn update(&mut self, config: ApplicationConfig);
+    async fn update(&mut self, config: ApplicationConfig) -> Result<(), ApplicationError>;
     fn get_data(&self) -> ApplicationData;
 }
 

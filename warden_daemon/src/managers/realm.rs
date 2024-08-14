@@ -27,6 +27,8 @@ pub enum RealmError {
     VmDestroyFail(String),
     #[error("Can't create application: {0}")]
     ApplicationCreationFail(String),
+    #[error("Can't update application: {0}")]
+    ApplicationUpdateFail(String),
 }
 
 #[async_trait]

@@ -196,7 +196,12 @@ impl Realm for RealmManager {
         }
         match self.applications.get(uuid) {
             Some(app_manager) => {
-                app_manager.lock().await.update(new_config);
+                app_manager
+                    .lock()
+                    .await
+                    .update(new_config)
+                    .await
+                    .map_err(|err| RealmError::ApplicationUpdateFail(err.to_string()))?;
                 if self.state == State::Running {
                     self.state = State::NeedReboot;
                 }
@@ -493,7 +498,7 @@ mod test {
         vm_manager.expect_get_exit_status().returning(|| None);
 
         let mut app_mock = MockApplication::new();
-        app_mock.expect_update().returning(|_| ());
+        app_mock.expect_update().returning(|_| Ok(()));
 
         let mut creator_mock = MockApplicationFabric::new();
         creator_mock

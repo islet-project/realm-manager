@@ -110,7 +110,7 @@ mock! {
         async fn stop(&mut self) -> Result<(), ApplicationError>;
         async fn start(&mut self) -> Result<(), ApplicationError>;
         fn get_data(&self) -> ApplicationData;
-        fn update(&mut self, config: ApplicationConfig);
+        async fn update(&mut self, config: ApplicationConfig) -> Result<(), ApplicationError>;
     }
 }
 
@@ -202,6 +202,7 @@ mock! {
     impl Repository for ApplicationRepository {
         type Data = ApplicationConfig;
         fn get(&self) -> &ApplicationConfig;
+        fn get_mut(&mut self) -> &mut ApplicationConfig;
         async fn save(&mut self) -> Result<(), RepositoryError>;
     }
 }
@@ -213,6 +214,7 @@ mock! {
     impl Repository for RealmRepository {
         type Data = RealmConfig;
         fn get(&self) -> &RealmConfig;
+        fn get_mut(&mut self) -> &mut RealmConfig;
         async fn save(&mut self) -> Result<(), RepositoryError>;
     }
 }

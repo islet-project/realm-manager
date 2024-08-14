@@ -14,7 +14,6 @@ pub struct ApplicationManager {
     uuid: Uuid,
     config: Box<dyn Repository<Data = ApplicationConfig> + Send + Sync>,
     realm_client_handler: Arc<Mutex<Box<dyn RealmClient + Send + Sync>>>,
-    new_config: Option<ApplicationConfig>,
 }
 
 impl ApplicationManager {
@@ -27,7 +26,6 @@ impl ApplicationManager {
             uuid,
             config,
             realm_client_handler,
-            new_config: None,
         }
     }
 }
@@ -40,7 +38,7 @@ impl Application for ApplicationManager {
             .await
             .stop_application(&self.uuid)
             .await
-            .map_err(|err| ApplicationError::ApplicationStopFail(err.to_string()))?;
+            .map_err(|err| ApplicationError::ApplicationStop(err.to_string()))?;
         Ok(())
     }
     async fn start(&mut self) -> Result<(), ApplicationError> {
@@ -49,7 +47,7 @@ impl Application for ApplicationManager {
             .await
             .start_application(&self.uuid)
             .await
-            .map_err(|err| ApplicationError::ApplicationStartFail(err.to_string()))?;
+            .map_err(|err| ApplicationError::ApplicationStart(err.to_string()))?;
         Ok(())
     }
 
@@ -65,8 +63,13 @@ impl Application for ApplicationManager {
         }
     }
 
-    fn update(&mut self, config: ApplicationConfig) {
-        self.new_config = Some(config);
+    async fn update(&mut self, config: ApplicationConfig) -> Result<(), ApplicationError> {
+        let own_config = self.config.get_mut();
+        *own_config = config;
+        self.config
+            .save()
+            .await
+            .map_err(|err| ApplicationError::ConfigUpdate(err.to_string()))
     }
 }
 
@@ -87,15 +90,9 @@ mod test {
 
     use super::ApplicationManager;
 
-    #[test]
-    fn new() {
-        let application_manager = create_application_manager(None);
-        assert_eq!(application_manager.new_config, None);
-    }
-
     #[tokio::test]
     async fn stop() {
-        let mut application_manager = create_application_manager(None);
+        let mut application_manager = create_application_manager(None, None);
         assert!(application_manager.stop().await.is_ok());
     }
 
@@ -105,10 +102,10 @@ mod test {
         realm_client
             .expect_stop_application()
             .returning(|_| Err(RealmClientError::RealmConnectionFail(String::from(""))));
-        let mut application_manager = create_application_manager(Some(realm_client));
+        let mut application_manager = create_application_manager(Some(realm_client), None);
         assert_eq!(
             application_manager.stop().await,
-            Err(ApplicationError::ApplicationStopFail(
+            Err(ApplicationError::ApplicationStop(
                 RealmClientError::RealmConnectionFail(String::from("")).to_string()
             ))
         );
@@ -116,7 +113,7 @@ mod test {
 
     #[tokio::test]
     async fn start() {
-        let mut application_manager = create_application_manager(None);
+        let mut application_manager = create_application_manager(None, None);
         assert!(application_manager.start().await.is_ok());
     }
 
@@ -126,24 +123,33 @@ mod test {
         realm_client
             .expect_start_application()
             .returning(|_| Err(RealmClientError::RealmConnectionFail(String::from(""))));
-        let mut application_manager = create_application_manager(Some(realm_client));
+        let mut application_manager = create_application_manager(Some(realm_client), None);
         assert_eq!(
             application_manager.start().await,
-            Err(ApplicationError::ApplicationStartFail(
+            Err(ApplicationError::ApplicationStart(
                 RealmClientError::RealmConnectionFail(String::from("")).to_string()
             ))
         );
     }
 
-    #[test]
-    fn update() {
-        let mut application_manager = create_application_manager(None);
-        let app_config = create_example_app_config();
-        application_manager.update(app_config.clone());
-        assert_eq!(application_manager.new_config, Some(app_config));
+    #[tokio::test]
+    async fn update() {
+        const APP_NEW_NAME: &str = "NEW_NAME";
+        let mut repository = MockApplicationRepository::new();
+        repository
+            .expect_get_mut()
+            .return_var(create_example_app_config());
+        repository.expect_save().returning(|| Ok(()));
+        let mut application_manager = create_application_manager(None, Some(repository));
+        let mut app_config = create_example_app_config();
+        app_config.name = APP_NEW_NAME.to_string();
+        assert!(application_manager.update(app_config.clone()).await.is_ok());
     }
 
-    fn create_application_manager(realm_client: Option<MockRealmClient>) -> ApplicationManager {
+    fn create_application_manager(
+        realm_client: Option<MockRealmClient>,
+        repository: Option<MockApplicationRepository>,
+    ) -> ApplicationManager {
         let realm_client = realm_client.unwrap_or({
             let mut realm_client = MockRealmClient::new();
             realm_client
@@ -152,9 +158,16 @@ mod test {
             realm_client.expect_stop_application().returning(|_| Ok(()));
             realm_client
         });
+        let repository_mock = repository.unwrap_or({
+            let mut mock = MockApplicationRepository::new();
+            mock.expect_get_mut()
+                .return_var(create_example_app_config());
+            mock.expect_save().returning(|| Ok(()));
+            mock
+        });
         ApplicationManager::new(
             Uuid::new_v4(),
-            Box::new(MockApplicationRepository::new()),
+            Box::new(repository_mock),
             Arc::new(Mutex::new(Box::new(realm_client))),
         )
     }

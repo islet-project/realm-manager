@@ -232,7 +232,7 @@ impl ClientHandler {
                 application_uuid,
                 config,
             } => {
-                info!("Starting application: {application_uuid} in realm: {realm_uuid}.");
+                info!("Updating application: {application_uuid} in realm: {realm_uuid}.");
                 self.get_realm(&realm_uuid)
                     .await?
                     .lock()
@@ -240,7 +240,7 @@ impl ClientHandler {
                     .update_application(&application_uuid, config.into())
                     .await
                     .map_err(ClientError::RealmManagerError)?;
-                info!("Started application: {application_uuid} in realm: {realm_uuid}.");
+                info!("Updated application: {application_uuid} in realm: {realm_uuid}.");
                 Ok(WardenResponse::Ok)
             }
         }
@@ -458,7 +458,7 @@ mod test {
                 let mut realm_manager = MockApplication::new();
                 realm_manager.expect_start().returning(|| Ok(()));
                 realm_manager.expect_stop().returning(|| Ok(()));
-                realm_manager.expect_update().returning(|_| ());
+                realm_manager.expect_update().returning(|_| Ok(()));
                 realm_manager
             })));
 
