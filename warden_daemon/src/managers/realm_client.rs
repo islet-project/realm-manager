@@ -15,6 +15,8 @@ pub enum RealmClientError {
     RealmDaemonError(String),
     #[error("Invalid response from Realm: {0}")]
     InvalidResponse(String),
+    #[error("Realm disconnected.")]
+    RealmDisconnection(),
 }
 
 #[derive(Debug, Serialize, Deserialize)]
@@ -33,5 +35,9 @@ pub trait RealmClient {
     async fn stop_application(&mut self, application_uuid: &Uuid) -> Result<(), RealmClientError>;
     async fn kill_application(&mut self, application_uuid: &Uuid) -> Result<(), RealmClientError>;
     async fn shutdown_realm(&mut self) -> Result<(), RealmClientError>;
-    async fn reboot_realm(&mut self) -> Result<(), RealmClientError>;
+    async fn reboot_realm(
+        &mut self,
+        realm_provisioning_config: RealmProvisioningConfig,
+        cid: u32,
+    ) -> Result<(), RealmClientError>;
 }

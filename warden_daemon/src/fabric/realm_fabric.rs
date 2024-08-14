@@ -16,6 +16,7 @@ use async_trait::async_trait;
 use std::collections::HashMap;
 use std::path::{Path, PathBuf};
 use std::sync::Arc;
+use std::time::Duration;
 use tokio::sync::Mutex;
 use uuid::Uuid;
 
@@ -25,6 +26,7 @@ pub struct RealmManagerFabric {
     qemu_path: PathBuf,
     vsock_server: Arc<Mutex<VSockServer>>,
     warden_workdir_path: PathBuf,
+    realm_connection_wait_time: Duration,
 }
 
 impl RealmManagerFabric {
@@ -32,11 +34,13 @@ impl RealmManagerFabric {
         qemu_path: PathBuf,
         vsock_server: Arc<Mutex<VSockServer>>,
         warden_workdir_path: PathBuf,
+        realm_connection_wait_time: Duration,
     ) -> Self {
         RealmManagerFabric {
             qemu_path,
             vsock_server,
             warden_workdir_path,
+            realm_connection_wait_time,
         }
     }
 
@@ -91,6 +95,7 @@ impl RealmCreator for RealmManagerFabric {
             Box::new(runner),
             Arc::new(Mutex::new(Box::new(RealmClientHandler::new(
                 self.vsock_server.clone(),
+                self.realm_connection_wait_time,
             )))),
             Box::new(ApplicationFabric::new(realm_workdir)),
         )))
@@ -103,9 +108,11 @@ impl RealmCreator for RealmManagerFabric {
         let realm_workdir_path =
             create_workdir_path_with_uuid(self.warden_workdir_path.clone(), realm_id);
         let application_fabric = ApplicationFabric::new(realm_workdir_path.clone());
-        let realm_client_handler: Arc<Mutex<Box<dyn RealmClient + Send + Sync>>> = Arc::new(
-            Mutex::new(Box::new(RealmClientHandler::new(self.vsock_server.clone()))),
-        );
+        let realm_client_handler: Arc<Mutex<Box<dyn RealmClient + Send + Sync>>> =
+            Arc::new(Mutex::new(Box::new(RealmClientHandler::new(
+                self.vsock_server.clone(),
+                self.realm_connection_wait_time,
+            ))));
         let loaded_applications = self
             .load_applications(
                 &realm_workdir_path,

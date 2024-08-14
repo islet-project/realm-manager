@@ -156,7 +156,10 @@ impl Realm for RealmManager {
         self.realm_client_handler
             .lock()
             .await
-            .reboot_realm()
+            .reboot_realm(
+                self.create_provisioning_config().await,
+                self.config.get().network.vsock_cid,
+            )
             .await
             .map_err(|err| RealmError::RealmStopFail(err.to_string()))?;
         self.state = State::Running;
@@ -483,7 +486,7 @@ mod test {
             .returning(|| Ok(()));
         realm_client_handler
             .expect_reboot_realm()
-            .returning(|| Ok(()));
+            .returning(|_, _| Ok(()));
         realm_client_handler
             .expect_kill_application()
             .returning(|_| Ok(()));

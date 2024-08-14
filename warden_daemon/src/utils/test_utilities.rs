@@ -12,6 +12,7 @@ use crate::managers::{
 use async_trait::async_trait;
 use mockall::mock;
 use std::process::ExitStatus;
+use std::time::Duration;
 use std::{path::PathBuf, str::FromStr, sync::Arc};
 use tokio::sync::oneshot::Receiver;
 use uuid::Uuid;
@@ -130,7 +131,8 @@ mock! {
 
     #[async_trait]
     impl RealmSender for RealmSender {
-        async fn send(&mut self, data: Request) -> Result<Response, RealmSenderError>;
+        async fn send(&mut self, data: Request) -> Result<(), RealmSenderError>;
+        async fn receive_response(&mut self, timeout: Duration) -> Result<Response, RealmSenderError>;
     }
 }
 
@@ -148,7 +150,9 @@ mock! {
         async fn stop_application(&mut self, application_uuid: &Uuid) -> Result<(), RealmClientError>;
         async fn kill_application(&mut self, application_uuid: &Uuid) -> Result<(), RealmClientError>;
         async fn shutdown_realm(&mut self) -> Result<(), RealmClientError>;
-        async fn reboot_realm(&mut self) -> Result<(), RealmClientError>;
+        async fn reboot_realm(&mut self,
+            realm_provisioning_config: RealmProvisioningConfig,
+            cid: u32,) -> Result<(), RealmClientError>;
     }
 }
 

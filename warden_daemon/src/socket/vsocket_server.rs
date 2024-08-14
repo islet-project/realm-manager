@@ -1,6 +1,7 @@
 use std::collections::HashMap;
 use std::io;
 use std::sync::Arc;
+use std::time::Duration;
 
 use async_trait::async_trait;
 use log::{info, trace};
@@ -8,9 +9,10 @@ use thiserror::Error;
 use tokio::select;
 use tokio::sync::oneshot::{Receiver, Sender};
 use tokio::sync::{oneshot, Mutex};
+use tokio::time::sleep;
 use tokio_util::sync::CancellationToken;
 use tokio_vsock::{VsockAddr, VsockListener, VsockStream};
-use utils::serde::json_framed::JsonFramed;
+use utils::serde::json_framed::{JsonFramed, JsonFramedError};
 use warden_realm::{Request, Response};
 
 use crate::client_handler::realm_client_handler::{RealmConnector, RealmSender, RealmSenderError};
@@ -99,16 +101,26 @@ impl VSockClient {
 
 #[async_trait]
 impl RealmSender for VSockClient {
-    async fn send(&mut self, request: Request) -> Result<Response, RealmSenderError> {
+    async fn send(&mut self, request: Request) -> Result<(), RealmSenderError> {
         self.stream
             .send(request)
             .await
-            .map_err(RealmSenderError::CommunicationFail)?;
-        Ok(self
-            .stream
-            .recv()
-            .await
-            .map_err(RealmSenderError::CommunicationFail)?)
+            .map_err(RealmSenderError::SendFail)
+    }
+    async fn receive_response(&mut self, timeout: Duration) -> Result<Response, RealmSenderError> {
+        select! {
+            response = self.stream.recv() => {
+                response.map_err(|err| {
+                    match err {
+                        JsonFramedError::StreamIsClosed() => RealmSenderError::Disconnection,
+                        err => RealmSenderError::ReceiveFail(err),
+                    }
+                })
+            }
+            _ = sleep(timeout) => {
+                Err(RealmSenderError::Timeout)
+            }
+        }
     }
 }
 
