@@ -97,11 +97,11 @@ pub enum Command {
 
         /// Application image storage size
         #[clap(short = 'o', long)]
-        image_storage_size_mb: usize,
+        image_storage_size_mb: u32,
 
         /// Application data storage size
         #[clap(short, long)]
-        data_storage_size_mb: usize,
+        data_storage_size_mb: u32,
     },
 
     StartApplication {
@@ -147,10 +147,10 @@ pub enum Command {
 
         /// Application image storage size
         #[clap(short = 'o', long)]
-        image_storage_size_mb: usize,
+        image_storage_size_mb: u32,
 
         /// Application data storage size
         #[clap(short, long)]
-        data_storage_size_mb: usize,
+        data_storage_size_mb: u32,
     },
 }

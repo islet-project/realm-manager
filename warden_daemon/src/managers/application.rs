@@ -29,8 +29,14 @@ pub struct ApplicationConfig {
     pub name: String,
     pub version: String,
     pub image_registry: String,
-    pub image_storage_size_mb: usize,
-    pub data_storage_size_mb: usize,
+    pub image_storage_size_mb: u32,
+    pub data_storage_size_mb: u32,
+}
+
+#[derive(Debug, Serialize, Deserialize, Clone, PartialEq, PartialOrd)]
+pub struct ApplicationDisk {
+    pub image_partition_uuid: Uuid,
+    pub data_partition_uuid: Uuid,
 }
 
 #[derive(Debug, Serialize, Deserialize, Clone, PartialEq, PartialOrd, Default)]

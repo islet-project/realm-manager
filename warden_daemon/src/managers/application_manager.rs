@@ -1,7 +1,9 @@
 use crate::utils::repository::Repository;
 
 use super::{
-    application::{Application, ApplicationConfig, ApplicationData, ApplicationError},
+    application::{
+        Application, ApplicationConfig, ApplicationData, ApplicationDisk, ApplicationError,
+    },
     realm_client::RealmClient,
 };
 
@@ -13,6 +15,7 @@ use uuid::Uuid;
 pub struct ApplicationManager {
     uuid: Uuid,
     config: Box<dyn Repository<Data = ApplicationConfig> + Send + Sync>,
+    disk_data: ApplicationDisk,
     realm_client_handler: Arc<Mutex<Box<dyn RealmClient + Send + Sync>>>,
 }
 
@@ -20,11 +23,13 @@ impl ApplicationManager {
     pub fn new(
         uuid: Uuid,
         config: Box<dyn Repository<Data = ApplicationConfig> + Send + Sync>,
+        disk_data: ApplicationDisk,
         realm_client_handler: Arc<Mutex<Box<dyn RealmClient + Send + Sync>>>,
     ) -> Self {
         ApplicationManager {
             uuid,
             config,
+            disk_data,
             realm_client_handler,
         }
     }
@@ -58,8 +63,8 @@ impl Application for ApplicationManager {
             name: config.name.clone(),
             version: config.version.clone(),
             image_registry: config.image_registry.clone(),
-            image_part_uuid: Uuid::new_v4(), // TODO: implement partition's creation
-            data_part_uuid: Uuid::new_v4(),  // TODO: implement partition's creation
+            image_part_uuid: self.disk_data.image_partition_uuid,
+            data_part_uuid: self.disk_data.data_partition_uuid,
         }
     }
 
@@ -79,7 +84,9 @@ mod test {
     use tokio::sync::Mutex;
     use uuid::Uuid;
 
-    use crate::utils::test_utilities::{MockApplicationRepository, MockRealmClient};
+    use crate::utils::test_utilities::{
+        create_example_app_disk_data, MockApplicationRepository, MockRealmClient,
+    };
     use crate::{
         managers::{
             application::{Application, ApplicationError},
@@ -168,6 +175,7 @@ mod test {
         ApplicationManager::new(
             Uuid::new_v4(),
             Box::new(repository_mock),
+            create_example_app_disk_data(),
             Arc::new(Mutex::new(Box::new(realm_client))),
         )
     }

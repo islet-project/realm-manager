@@ -5,7 +5,10 @@ use crate::{
         realm::{ApplicationCreator, RealmError},
         realm_client::RealmClient,
     },
-    storage::{create_config_path, create_workdir_path_with_uuid, YamlConfigRepository},
+    storage::{
+        create_config_path, create_workdir_path_with_uuid, ApplicationDiskManager,
+        YamlConfigRepository,
+    },
 };
 
 use async_trait::async_trait;
@@ -35,6 +38,12 @@ impl ApplicationCreator for ApplicationFabric {
         tokio::fs::create_dir(&path)
             .await
             .map_err(|err| RealmError::ApplicationCreationFail(err.to_string()))?;
+        let application_disk_data = ApplicationDiskManager::create_application_disk(
+            &path,
+            config.image_storage_size_mb,
+            config.data_storage_size_mb,
+        )
+        .map_err(|err| RealmError::ApplicationCreationFail(err.to_string()))?;
         Ok(Box::new(ApplicationManager::new(
             uuid,
             Box::new(
@@ -42,6 +51,7 @@ impl ApplicationCreator for ApplicationFabric {
                     .await
                     .map_err(|err| RealmError::ApplicationCreationFail(err.to_string()))?,
             ),
+            application_disk_data,
             realm_client_handler,
         )))
     }
@@ -52,6 +62,8 @@ impl ApplicationCreator for ApplicationFabric {
         realm_client_handler: Arc<Mutex<Box<dyn RealmClient + Send + Sync>>>,
     ) -> Result<Box<dyn Application + Send + Sync>, RealmError> {
         let path = create_workdir_path_with_uuid(self.realm_workdir_path.clone(), uuid);
+        let application_data_disk = ApplicationDiskManager::load_application_disk_data(&path)
+            .map_err(|err| RealmError::ApplicationCreationFail(err.to_string()))?;
         Ok(Box::new(ApplicationManager::new(
             *uuid,
             Box::new(
@@ -59,6 +71,7 @@ impl ApplicationCreator for ApplicationFabric {
                     .await
                     .map_err(|err| RealmError::ApplicationCreationFail(err.to_string()))?,
             ),
+            application_data_disk,
             realm_client_handler,
         )))
     }

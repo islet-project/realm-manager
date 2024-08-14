@@ -5,11 +5,15 @@ use std::{
 };
 
 use async_trait::async_trait;
-use serde::{de::DeserializeOwned, Serialize};
+use serde::{de::DeserializeOwned, Deserialize, Serialize};
+use thiserror::Error;
 use utils::file_system::fs_repository::FileRepository;
 use uuid::Uuid;
 
-use crate::utils::repository::{Repository, RepositoryError};
+use crate::{
+    managers::application::ApplicationDisk,
+    utils::repository::{Repository, RepositoryError},
+};
 
 pub async fn read_subfolders_uuids(root_folder: &Path) -> Result<Vec<Uuid>, io::Error> {
     let mut uuids: Vec<Uuid> = Vec::new();
@@ -25,6 +29,27 @@ pub async fn read_subfolders_uuids(root_folder: &Path) -> Result<Vec<Uuid>, io::
         }
     }
     Ok(uuids)
+}
+
+#[derive(Error, Debug, PartialEq, PartialOrd, Clone, Serialize, Deserialize)]
+pub enum ApplicationDiskManagerError {}
+
+pub struct ApplicationDiskManager;
+
+impl ApplicationDiskManager {
+    pub fn create_application_disk(
+        workdir_path: &Path,
+        image_partition_size: u32,
+        data_partition_size: u32,
+    ) -> Result<ApplicationDisk, ApplicationDiskManagerError> {
+        Ok(ApplicationDisk { image_partition_uuid: Uuid::new_v4(), data_partition_uuid: Uuid::new_v4() })
+    }
+
+    pub fn load_application_disk_data(
+        workdir_path: &Path,
+    ) -> Result<ApplicationDisk, ApplicationDiskManagerError> {
+        Ok(ApplicationDisk { image_partition_uuid: Uuid::new_v4(), data_partition_uuid: Uuid::new_v4() })
+    }
 }
 
 pub fn create_config_path(mut root_path: PathBuf) -> PathBuf {

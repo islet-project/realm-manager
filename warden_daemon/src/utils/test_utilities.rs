@@ -1,6 +1,6 @@
 use super::repository::{Repository, RepositoryError};
 use crate::client_handler::realm_client_handler::{RealmConnector, RealmSender, RealmSenderError};
-use crate::managers::application::ApplicationData;
+use crate::managers::application::{ApplicationData, ApplicationDisk};
 use crate::managers::realm_manager::{VmManager, VmManagerError};
 use crate::managers::{
     application::{Application, ApplicationConfig, ApplicationError},
