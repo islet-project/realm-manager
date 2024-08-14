@@ -47,10 +47,11 @@ impl RealmClientHandler {
         realm_connector: Arc<Mutex<dyn RealmConnector + Send + Sync>>,
         realm_connection_wait_time: Duration,
     ) -> Self {
-        RealmClientHandler {
+        const RESPONSE_TIMEOUT: Duration = Duration::from_secs(3);
+        Self {
             connector: realm_connector,
             connection_wait_time: realm_connection_wait_time,
-            response_timeout: Duration::from_secs(3),
+            response_timeout: RESPONSE_TIMEOUT,
             sender: None,
         }
     }
@@ -91,7 +92,7 @@ impl RealmClientHandler {
                 self.sender = None;
                 Ok(())
             }
-            Ok(resp) => Err(RealmClientHandler::handle_invalid_response(resp)),
+            Ok(resp) => Err(Self::handle_invalid_response(resp)),
             err => err.map(|_| ()),
         }
     }
@@ -110,7 +111,7 @@ impl RealmClientHandler {
     fn handle_success_command(response: Response) -> Result<(), RealmClientError> {
         match response {
             Response::Success() => Ok(()),
-            other_response => Err(RealmClientHandler::handle_invalid_response(other_response)),
+            other_response => Err(Self::handle_invalid_response(other_response)),
         }
     }
 }
@@ -128,7 +129,7 @@ impl RealmClient for RealmClientHandler {
             realm_sender = realm_sender_receiver => {
                 let _ = self.sender.insert(realm_sender.map_err(|err| RealmClientError::RealmConnectionFail(err.to_string()))?);
                 self.send_command(Request::ProvisionInfo(realm_provisioning_config.into())).await?;
-                RealmClientHandler::handle_success_command(self.read_response().await?)
+                Self::handle_success_command(self.read_response().await?)
             }
             _ = sleep(self.connection_wait_time) => {
                 Err(RealmClientError::RealmConnectionFail(String::from("Timeout on listening for realm connection.")))
@@ -138,17 +139,17 @@ impl RealmClient for RealmClientHandler {
     async fn start_application(&mut self, application_uuid: &Uuid) -> Result<(), RealmClientError> {
         self.send_command(Request::StartApp(*application_uuid))
             .await?;
-        RealmClientHandler::handle_success_command(self.read_response().await?)
+        Self::handle_success_command(self.read_response().await?)
     }
     async fn stop_application(&mut self, application_uuid: &Uuid) -> Result<(), RealmClientError> {
         self.send_command(Request::StopApp(*application_uuid))
             .await?;
-        RealmClientHandler::handle_success_command(self.read_response().await?)
+        Self::handle_success_command(self.read_response().await?)
     }
     async fn kill_application(&mut self, application_uuid: &Uuid) -> Result<(), RealmClientError> {
         self.send_command(Request::KillApp(*application_uuid))
             .await?;
-        RealmClientHandler::handle_success_command(self.read_response().await?)
+        Self::handle_success_command(self.read_response().await?)
     }
     async fn shutdown_realm(&mut self) -> Result<(), RealmClientError> {
         self.send_command(Request::Shutdown()).await?;
@@ -202,23 +203,19 @@ mod test {
 
         let mut realm_client_handler = create_realm_client_handler(None, None);
         realm_client_handler.sender = Some(Box::new(realm_sender_mock));
-        assert!(
-            match realm_client_handler.send_command(Request::Reboot()).await {
-                Err(RealmClientError::CommunicationFail(_)) => true,
-                _ => false,
-            }
-        );
+        assert!(matches!(
+            realm_client_handler.send_command(Request::Reboot()).await,
+            Err(RealmClientError::CommunicationFail(_))
+        ));
     }
 
     #[tokio::test]
     async fn send_command_connection_issue() {
         let mut realm_client_handler = create_realm_client_handler(None, None);
-        assert!(
-            match realm_client_handler.send_command(Request::Reboot()).await {
-                Err(RealmClientError::RealmConnectionFail(_)) => true,
-                _ => false,
-            }
-        );
+        assert!(matches!(
+            realm_client_handler.send_command(Request::Reboot()).await,
+            Err(RealmClientError::RealmConnectionFail(_))
+        ));
     }
 
     #[tokio::test]
@@ -333,37 +330,37 @@ mod test {
     #[test]
     fn handle_success_response() {
         const RESP: Response = Response::Success();
-        assert!(match RealmClientHandler::handle_success_command(RESP) {
-            Ok(()) => true,
-            _ => false,
-        })
+        assert!(matches!(
+            RealmClientHandler::handle_success_command(RESP),
+            Ok(())
+        ));
     }
 
     #[test]
     fn handle_not_success_response() {
         const RESP: Response = Response::ApplicationNotStarted();
-        assert!(match RealmClientHandler::handle_success_command(RESP) {
-            Ok(()) => false,
-            _ => true,
-        })
+        assert!(matches!(
+            RealmClientHandler::handle_success_command(RESP),
+            Err(RealmClientError::InvalidResponse(_))
+        ))
     }
 
     #[test]
     fn handle_invalid_response() {
         const RESP: Response = Response::Error(ProtocolError::ApplicationsAlreadyProvisioned());
-        assert!(match RealmClientHandler::handle_invalid_response(RESP) {
-            RealmClientError::RealmDaemonError(_) => true,
-            _ => false,
-        })
+        assert!(matches!(
+            RealmClientHandler::handle_invalid_response(RESP),
+            RealmClientError::RealmDaemonError(_)
+        ))
     }
 
     #[test]
     fn handle_invalid_other_response() {
         const RESP: Response = Response::ApplicationNotStarted();
-        assert!(match RealmClientHandler::handle_invalid_response(RESP) {
-            RealmClientError::InvalidResponse(_) => true,
-            _ => false,
-        })
+        assert!(matches!(
+            RealmClientHandler::handle_invalid_response(RESP),
+            RealmClientError::InvalidResponse(_)
+        ))
     }
 
     #[tokio::test]
