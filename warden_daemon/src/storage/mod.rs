@@ -1,21 +1,18 @@
 use std::{
-    io,
     path::{Path, PathBuf},
     str::FromStr,
 };
 
 use async_trait::async_trait;
-use serde::{de::DeserializeOwned, Deserialize, Serialize};
-use thiserror::Error;
+use serde::{de::DeserializeOwned, Serialize};
 use utils::file_system::fs_repository::FileRepository;
 use uuid::Uuid;
 
-use crate::{
-    managers::application::ApplicationDisk,
-    utils::repository::{Repository, RepositoryError},
-};
+use crate::utils::repository::{Repository, RepositoryError};
 
-pub async fn read_subfolders_uuids(root_folder: &Path) -> Result<Vec<Uuid>, io::Error> {
+pub mod app_disk_manager;
+
+pub async fn read_subfolders_uuids(root_folder: &Path) -> Result<Vec<Uuid>, std::io::Error> {
     let mut uuids: Vec<Uuid> = Vec::new();
     let mut read_dir = tokio::fs::read_dir(root_folder).await?;
     while let Ok(Some(entry)) = read_dir.next_entry().await {
@@ -23,33 +20,12 @@ pub async fn read_subfolders_uuids(root_folder: &Path) -> Result<Vec<Uuid>, io::
             if file_type.is_dir() {
                 uuids.push(
                     Uuid::from_str(entry.file_name().to_string_lossy().as_ref())
-                        .map_err(|err| io::Error::other(err.to_string()))?,
+                        .map_err(|err| std::io::Error::other(err.to_string()))?,
                 );
             }
         }
     }
     Ok(uuids)
-}
-
-#[derive(Error, Debug, PartialEq, PartialOrd, Clone, Serialize, Deserialize)]
-pub enum ApplicationDiskManagerError {}
-
-pub struct ApplicationDiskManager;
-
-impl ApplicationDiskManager {
-    pub fn create_application_disk(
-        workdir_path: &Path,
-        image_partition_size: u32,
-        data_partition_size: u32,
-    ) -> Result<ApplicationDisk, ApplicationDiskManagerError> {
-        Ok(ApplicationDisk { image_partition_uuid: Uuid::new_v4(), data_partition_uuid: Uuid::new_v4() })
-    }
-
-    pub fn load_application_disk_data(
-        workdir_path: &Path,
-    ) -> Result<ApplicationDisk, ApplicationDiskManagerError> {
-        Ok(ApplicationDisk { image_partition_uuid: Uuid::new_v4(), data_partition_uuid: Uuid::new_v4() })
-    }
 }
 
 pub fn create_config_path(mut root_path: PathBuf) -> PathBuf {
