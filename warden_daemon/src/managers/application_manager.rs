@@ -2,7 +2,7 @@ use crate::utils::repository::Repository;
 
 use super::{
     application::{
-        Application, ApplicationConfig, ApplicationData, ApplicationDisk, ApplicationError,
+        Application, ApplicationConfig, ApplicationData, ApplicationDiskData, ApplicationError,
     },
     realm_client::RealmClient,
 };
@@ -15,7 +15,7 @@ use uuid::Uuid;
 pub struct ApplicationManager {
     uuid: Uuid,
     config: Box<dyn Repository<Data = ApplicationConfig> + Send + Sync>,
-    disk_data: ApplicationDisk,
+    disk_data: ApplicationDiskData,
     realm_client_handler: Arc<Mutex<Box<dyn RealmClient + Send + Sync>>>,
 }
 
@@ -23,7 +23,7 @@ impl ApplicationManager {
     pub fn new(
         uuid: Uuid,
         config: Box<dyn Repository<Data = ApplicationConfig> + Send + Sync>,
-        disk_data: ApplicationDisk,
+        disk_data: ApplicationDiskData,
         realm_client_handler: Arc<Mutex<Box<dyn RealmClient + Send + Sync>>>,
     ) -> Self {
         ApplicationManager {

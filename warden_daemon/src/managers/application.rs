@@ -34,7 +34,7 @@ pub struct ApplicationConfig {
 }
 
 #[derive(Debug, Serialize, Deserialize, Clone, PartialEq, PartialOrd)]
-pub struct ApplicationDisk {
+pub struct ApplicationDiskData {
     pub image_partition_uuid: Uuid,
     pub data_partition_uuid: Uuid,
 }
