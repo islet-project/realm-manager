@@ -44,6 +44,7 @@ impl ApplicationCreator for ApplicationFabric {
             config.image_storage_size_mb,
             config.data_storage_size_mb,
         )
+        .map_err(|err| RealmError::ApplicationCreationFail(err.to_string()))?
         .create_application_disk()
         .await
         .map_err(|err| RealmError::ApplicationCreationFail(err.to_string()))?;
@@ -75,6 +76,7 @@ impl ApplicationCreator for ApplicationFabric {
             app_config.image_storage_size_mb,
             app_config.data_storage_size_mb,
         )
+        .map_err(|err| RealmError::ApplicationCreationFail(err.to_string()))?
         .load_application_disk_data()
         .map_err(|err| RealmError::ApplicationCreationFail(err.to_string()))?;
         Ok(Box::new(ApplicationManager::new(

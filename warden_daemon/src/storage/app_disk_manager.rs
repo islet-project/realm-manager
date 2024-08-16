@@ -17,6 +17,8 @@ use crate::managers::application::ApplicationDisk;
 
 #[derive(Error, Debug, PartialEq, PartialOrd, Clone, Serialize, Deserialize)]
 pub enum ApplicationDiskManagerError {
+    #[error("Requested too big partition: {0}")]
+    RequestedTooBigPartition(String),
     #[error("Can't create disk image: {0}")]
     DiskCreation(String),
     #[error("Failed to write MBA: {0}")]
@@ -40,19 +42,36 @@ impl ApplicationDiskManager {
     const IMAGE_PARTITION: &'static str = "image";
     const DATA_PARTITION: &'static str = "data";
     const LBA_SIZE: gpt::disk::LogicalBlockSize = gpt::disk::LogicalBlockSize::Lb512;
+    const MAX_PARTITION_SIZE_MB: u32 = 100 * 1024; // 100 GB
 
     pub fn new(
         mut workdir_path: PathBuf,
         image_partition_size_mb: u32,
         data_partition_size_mb: u32,
-    ) -> Self {
-        let data_partition_size: u64 = (data_partition_size_mb * 1024 * 1024).into();
-        let image_partition_size: u64 = (image_partition_size_mb * 1024 * 1024).into();
+    ) -> Result<Self, ApplicationDiskManagerError> {
+        let data_partition_size = Self::convert_to_bytes_and_validate(data_partition_size_mb)?;
+        let image_partition_size = Self::convert_to_bytes_and_validate(image_partition_size_mb)?;
         workdir_path.push(Self::DISK_NAME);
-        Self {
+        Ok(Self {
             file_path: workdir_path,
             image_partition_size,
             data_partition_size,
+        })
+    }
+
+    fn convert_to_bytes_and_validate(
+        partition_size_mb: u32,
+    ) -> Result<u64, ApplicationDiskManagerError> {
+        if partition_size_mb > Self::MAX_PARTITION_SIZE_MB {
+            Err(ApplicationDiskManagerError::RequestedTooBigPartition(
+                format!(
+                    "Requested size is: {}, maximum size is: {}.",
+                    partition_size_mb,
+                    Self::MAX_PARTITION_SIZE_MB
+                ),
+            ))
+        } else {
+            Ok((partition_size_mb * 1024 * 1024).into())
         }
     }
 
@@ -206,7 +225,7 @@ mod test {
     async fn create_disk_and_partition() {
         let path_holder = FilePathHolder::new();
         let path = PathBuf::from_str(path_holder.disk_file_path).unwrap();
-        let disk_manager = ApplicationDiskManager::new(path, 10, 10);
+        let disk_manager = ApplicationDiskManager::new(path, 10, 10).unwrap();
         assert!(disk_manager.create_application_disk().await.is_ok());
     }
 }
