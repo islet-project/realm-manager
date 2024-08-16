@@ -1,6 +1,6 @@
 use std::{
     collections::{BTreeMap, HashMap},
-    io::SeekFrom,
+    io::{self, SeekFrom},
     path::PathBuf,
 };
 
@@ -27,16 +27,24 @@ pub enum ApplicationDiskManagerError {
     PartitionMetadataWrite(String),
     #[error("Failed to configure GPT: {0}")]
     GPTConfiguration(String),
+    #[error("Failed to configure GPT: {0}")]
+    GPTUpdate(String),
     #[error("Failed to create partition: {0}")]
     PartitionCreation(String),
-    #[error("Missing partition: {0}")]
-    MissingPartition(String),
+    #[error("Failed to read GPT: {0}")]
+    GPTRead(String),
+    #[error("Failed to write GPT configuration: {0}")]
+    GPTSave(String),
+    #[error("Missing Data partition.")]
+    DataPartitionNotFound(),
+    #[error("Missing Image partition.")]
+    ImagePartitionNotFounds(),
 }
 
 pub struct ApplicationDiskManager {
     file_path: PathBuf,
-    image_partition_size: u64,
-    data_partition_size: u64,
+    image_part_bytes_size: u64,
+    data_part_bytes_size: u64,
 }
 
 impl ApplicationDiskManager {
@@ -56,9 +64,28 @@ impl ApplicationDiskManager {
         workdir_path.push(Self::DISK_NAME);
         Ok(Self {
             file_path: workdir_path,
-            image_partition_size,
-            data_partition_size,
+            image_part_bytes_size: image_partition_size,
+            data_part_bytes_size: data_partition_size,
         })
+    }
+
+    pub fn load_application_disk_data(
+        &self,
+    ) -> Result<ApplicationDiskData, ApplicationDiskManagerError> {
+        self.load_paritions_uuids_from_disk()
+    }
+
+    pub async fn create_application_disk(
+        &self,
+    ) -> Result<ApplicationDiskData, ApplicationDiskManagerError> {
+        let file = self
+            .create_disk_device()
+            .await
+            .map_err(|err| ApplicationDiskManagerError::DiskCreation(err.to_string()))?;
+        self.create_gpt_and_partitions(&file)?;
+        Self::sync_file(file).await?;
+
+        self.load_paritions_uuids_from_disk()
     }
 
     fn validate_and_convert_to_bytes(
@@ -79,27 +106,17 @@ impl ApplicationDiskManager {
         }
     }
 
-    pub async fn create_application_disk(
-        &self,
-    ) -> Result<ApplicationDiskData, ApplicationDiskManagerError> {
-        let file = self.create_disk_device().await?;
-        self.create_gpt_and_partitions(&file)?;
-        Self::sync_file(file).await?;
-
-        self.load_paritions_uuids_from_disk()
-    }
-
     fn load_paritions_uuids_from_disk(
         &self,
     ) -> Result<ApplicationDiskData, ApplicationDiskManagerError> {
         let partitions_data = self.read_partitions_uuids()?;
         Ok(ApplicationDiskData {
-            image_partition_uuid: *partitions_data.get(Self::IMAGE_PARTITION).ok_or(
-                ApplicationDiskManagerError::MissingPartition("no Image partition".to_string()),
-            )?,
-            data_partition_uuid: *partitions_data.get(Self::DATA_PARTITION).ok_or(
-                ApplicationDiskManagerError::MissingPartition("no Data partition".to_string()),
-            )?,
+            image_partition_uuid: *partitions_data
+                .get(Self::IMAGE_PARTITION)
+                .ok_or(ApplicationDiskManagerError::ImagePartitionNotFounds())?,
+            data_partition_uuid: *partitions_data
+                .get(Self::DATA_PARTITION)
+                .ok_or(ApplicationDiskManagerError::DataPartitionNotFound())?,
         })
     }
 
@@ -108,7 +125,7 @@ impl ApplicationDiskManager {
             .writable(false)
             .initialized(true)
             .open(&self.file_path)
-            .map_err(|err| ApplicationDiskManagerError::GPTConfiguration(err.to_string()))?;
+            .map_err(|err| ApplicationDiskManagerError::GPTRead(err.to_string()))?;
 
         Ok(gpt
             .partitions()
@@ -124,24 +141,19 @@ impl ApplicationDiskManager {
             .map_err(|err| ApplicationDiskManagerError::PartitionCreation(err.to_string()))
     }
 
-    async fn create_disk_device(&self) -> Result<std::fs::File, ApplicationDiskManagerError> {
-        let mut file = File::create_new(&self.file_path)
-            .await
-            .map_err(|err| ApplicationDiskManagerError::DiskCreation(err.to_string()))?;
+    async fn create_disk_device(&self) -> Result<std::fs::File, io::Error> {
+        let mut file = File::create_new(&self.file_path).await?;
         file.seek(SeekFrom::Start(self.calculate_total_size() - 1))
-            .await
-            .map_err(|err| ApplicationDiskManagerError::DiskCreation(err.to_string()))?;
-        file.write_all(&[0u8])
-            .await
-            .map_err(|err| ApplicationDiskManagerError::DiskCreation(err.to_string()))?;
-        file.seek(SeekFrom::Start(0u64))
-            .await
-            .map_err(|err| ApplicationDiskManagerError::DiskCreation(err.to_string()))?;
+            .await?;
+        file.write_all(&[0u8]).await?;
+        file.seek(SeekFrom::Start(0u64)).await?;
         Ok(file.into_std().await)
     }
 
     fn calculate_total_size(&self) -> u64 {
-        self.data_partition_size + self.image_partition_size + (34 * 2 * u64::from(Self::LBA_SIZE))
+        self.data_part_bytes_size
+            + self.image_part_bytes_size
+            + (34 * 2 * u64::from(Self::LBA_SIZE))
         // 68 LBA sectors for GPT
     }
 
@@ -183,21 +195,14 @@ impl ApplicationDiskManager {
             .create_from_device(Box::new(&mut file), None)
             .map_err(|err| ApplicationDiskManagerError::GPTConfiguration(err.to_string()))?;
         gpt.update_partitions(BTreeMap::new())
-            .map_err(|err| ApplicationDiskManagerError::GPTConfiguration(err.to_string()))?;
+            .map_err(|err| ApplicationDiskManagerError::GPTUpdate(err.to_string()))?;
 
-        Self::create_partition(&mut gpt, Self::IMAGE_PARTITION, self.image_partition_size)?;
-        Self::create_partition(&mut gpt, Self::DATA_PARTITION, self.data_partition_size)?;
+        Self::create_partition(&mut gpt, Self::IMAGE_PARTITION, self.image_part_bytes_size)?;
+        Self::create_partition(&mut gpt, Self::DATA_PARTITION, self.data_part_bytes_size)?;
 
         gpt.write()
-            .map_err(|err| ApplicationDiskManagerError::PartitionCreation(err.to_string()))?;
+            .map_err(|err| ApplicationDiskManagerError::GPTSave(err.to_string()))?;
         Ok(())
-    }
-
-    pub fn load_application_disk_data(
-        &self,
-    ) -> Result<ApplicationDiskData, ApplicationDiskManagerError> {
-        self.read_partitions_uuids()?;
-        self.load_paritions_uuids_from_disk()
     }
 }
 
