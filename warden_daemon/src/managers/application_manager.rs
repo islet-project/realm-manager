@@ -80,7 +80,7 @@ impl Application for ApplicationManager {
 
     async fn reboot(&mut self) -> Result<(), ApplicationError> {
         if self.stop().await.is_err() {
-            self.kill().await?;
+            let _ = self.kill().await; // We assume that we've killed application
         }
         let config = self.config.get();
         self.application_disk

@@ -55,11 +55,6 @@ pub struct ApplicationDiskManager {
 impl ApplicationDisk for ApplicationDiskManager {
     async fn create_disk_with_partitions(&self) -> Result<(), ApplicationError> {
         if self.load_application_disk_data().await.is_err() {
-            remove_file(&self.file_path).await.map_err(|err| {
-                ApplicationError::DiskOpertaion(
-                    ApplicationDiskManagerError::DiskDeletion(err.to_string()).to_string(),
-                )
-            })?;
             self.create_application_disk()
                 .await
                 .map_err(|err| ApplicationError::DiskOpertaion(err.to_string()))?
@@ -71,13 +66,18 @@ impl ApplicationDisk for ApplicationDiskManager {
         new_data_part_size_mb: u32,
         new_image_part_size_mb: u32,
     ) -> Result<(), ApplicationError> {
-        self.image_part_bytes_size = Self::validate_and_convert_to_bytes(new_image_part_size_mb)
+        let new_image_part_bytes_size = Self::validate_and_convert_to_bytes(new_image_part_size_mb)
             .map_err(|err| ApplicationError::DiskOpertaion(err.to_string()))?;
-        self.data_part_bytes_size = Self::validate_and_convert_to_bytes(new_data_part_size_mb)
+        let new_data_part_bytes_size = Self::validate_and_convert_to_bytes(new_data_part_size_mb)
             .map_err(|err| ApplicationError::DiskOpertaion(err.to_string()))?;
-        self.load_application_disk_data()
-            .await
-            .map_err(|err| ApplicationError::DiskOpertaion(err.to_string()))
+        if new_image_part_bytes_size != self.image_part_bytes_size || new_data_part_bytes_size != self.data_part_bytes_size {
+            self.image_part_bytes_size = new_image_part_bytes_size;
+            self.data_part_bytes_size = new_data_part_bytes_size;
+            self.load_application_disk_data()
+                .await
+                .map_err(|err| ApplicationError::DiskOpertaion(err.to_string()))?
+        }
+        Ok(())
     }
     async fn get_data_partition_uuid(&self) -> Result<Uuid, ApplicationError> {
         let partitions = self
@@ -212,7 +212,7 @@ impl ApplicationDiskManager {
     }
 
     async fn create_disk_device(&self) -> Result<std::fs::File, io::Error> {
-        let mut file = File::create_new(&self.file_path).await?;
+        let mut file = File::options().read(true).write(true).create(true).open(&self.file_path).await?;
         file.seek(SeekFrom::Start(self.calculate_total_size() - 1))
             .await?;
         file.write_all(&[0u8]).await?;
