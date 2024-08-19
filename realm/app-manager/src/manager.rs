@@ -13,7 +13,7 @@ use crate::config::{Config, KeySealingType, LauncherType};
 use crate::error::Error;
 use crate::key::{dummy::DummyKeySealing, KeySealing};
 use crate::launcher::handler::ApplicationHandlerError;
-use crate::launcher::LauncherError;
+use crate::launcher::{ApplicationHandler, LauncherError};
 use crate::launcher::{dummy::DummyLauncher, Launcher};
 use crate::util::os::{reboot, SystemPowerAction};
 
@@ -40,7 +40,7 @@ pub enum ManagerError {
 
 pub struct Manager {
     config: Config,
-    apps: HashMap<Uuid, Application>,
+    apps: HashMap<Uuid, (Application, Box<dyn ApplicationHandler + Send + Sync>)>,
     conn: JsonFramed<VsockStream, Request, Response>,
 }
 
@@ -117,7 +117,7 @@ impl Manager {
 
         info!("Starting installation");
 
-        let mut set = JoinSet::<Result<Application>>::new();
+        let mut set = JoinSet::<Result<(Application, Box<dyn ApplicationHandler + Send + Sync>)>>::new();
         let autostart = self.config.autostartall;
 
         for app_info in apps_info.into_iter() {
@@ -128,20 +128,20 @@ impl Manager {
 
             set.spawn(async move {
                 let mut app = Application::new(app_info, app_dir)?;
-                app.setup(params, launcher, keyseal).await?;
+                let mut handler = app.setup(params, launcher, keyseal).await?;
 
                 if autostart {
-                    app.start().await?;
+                    handler.start().await?;
                 }
 
-                Ok(app)
+                Ok((app, handler))
             });
         }
 
         while let Some(result) = set.join_next().await {
-            let app = result.map_err(ManagerError::ProvisionJoinError)??;
+            let (app, handler) = result.map_err(ManagerError::ProvisionJoinError)??;
             let id = *app.id();
-            self.apps.insert(id, app);
+            self.apps.insert(id, (app, handler));
             info!("Finished installing {}", id);
         }
 
@@ -151,18 +151,23 @@ impl Manager {
         Ok(())
     }
 
-    fn get_app(&mut self, id: &Uuid) -> ProtocolResult<&mut Application> {
-        self.apps
+    fn get_handler(&mut self, id: &Uuid) -> ProtocolResult<&mut (dyn ApplicationHandler + Send + Sync)> {
+        Ok(self.apps
             .get_mut(id)
-            .ok_or(ProtocolError::ApplicationNotFound())
+            .ok_or(ProtocolError::ApplicationNotFound())?.1
+            .as_mut())
     }
 
     async fn shutdown_all_apps(&mut self) {
         info!("Shutting down all applications");
 
-        for (id, app) in self.apps.iter_mut() {
-            if let Err(e) = app.shutdown().await {
+        for (id, (app, handler)) in self.apps.iter_mut() {
+            if let Err(e) = handler.stop().await {
                 warn!("Failed to stop app {:?}, error: {:?}", id, e);
+            }
+
+            if let Err(e) = app.cleanup().await {
+                warn!("Failed to cleanup app {:?}, error: {:?}", id, e);
             }
         }
     }
@@ -184,9 +189,9 @@ impl Manager {
 
             Request::StartApp(id) => {
                 info!("Starting application: {:?}", id);
-                let app = self.get_app(&id)?;
+                let handler = self.get_handler(&id)?;
 
-                match app.start().await {
+                match handler.start().await {
                     Ok(()) => Ok(Response::Success()),
                     Err(e) => Err(ProtocolError::ApplicationLaunchFailed(format!("{:?}", e))),
                 }
@@ -194,9 +199,9 @@ impl Manager {
 
             Request::StopApp(id) => {
                 info!("Stopping application: {:?}", id);
-                let app = self.get_app(&id)?;
+                let handler = self.get_handler(&id)?;
 
-                match app.stop().await {
+                match handler.stop().await {
                     Ok(()) => Ok(Response::Success()),
                     Err(e) => Err(ProtocolError::ApplicationStopFailed(format!("{:?}", e))),
                 }
@@ -204,9 +209,9 @@ impl Manager {
 
             Request::KillApp(id) => {
                 info!("Killing application: {:?}", id);
-                let app = self.get_app(&id)?;
+                let handler = self.get_handler(&id)?;
 
-                match app.kill().await {
+                match handler.kill().await {
                     Ok(()) => Ok(Response::Success()),
                     Err(e) => Err(ProtocolError::ApplicationKillFailed(format!("{:?}", e))),
                 }
@@ -214,14 +219,14 @@ impl Manager {
 
             Request::CheckStatus(id) => {
                 info!("Checking if application is running: {:?}", id);
-                let app = self.get_app(&id)?;
+                let handler = self.get_handler(&id)?;
 
-                match app.try_wait().await {
+                match handler.try_wait().await {
                     Ok(Some(status)) => Ok(Response::ApplicationExited(status.into_raw())),
                     Ok(None) => Ok(Response::ApplicationIsRunning()),
-                    Err(Error::LauncherError(LauncherError::HandlerError(
-                        ApplicationHandlerError::AppNotRunning(),
-                    ))) => Ok(Response::ApplicationNotStarted()),
+                    Err(LauncherError::HandlerError(
+                        ApplicationHandlerError::AppNotRunning()
+                    )) => Ok(Response::ApplicationNotStarted()),
                     Err(e) => Err(ProtocolError::ApplicationWaitFailed(format!("{:?}", e))),
                 }
             }

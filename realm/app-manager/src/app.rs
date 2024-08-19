@@ -44,7 +44,6 @@ pub struct Application {
     workdir: PathBuf,
     devicemapper: Arc<DeviceMapper>,
     keyring: KernelKeyring,
-    handler: Option<Box<dyn ApplicationHandler + Send + Sync>>,
     devices: Vec<CryptDevice>,
 }
 
@@ -55,7 +54,6 @@ impl Application {
             workdir,
             devicemapper: Arc::new(DeviceMapper::init()?),
             keyring: KernelKeyring::new(keyutils::SpecialKeyring::User)?,
-            handler: None,
             devices: Vec::new(),
         })
     }
@@ -161,7 +159,7 @@ impl Application {
         params: CryptoParams,
         mut launcher: Box<dyn Launcher + Send + Sync>,
         keyseal: Box<dyn KeySealing + Send + Sync>,
-    ) -> Result<()> {
+    ) -> Result<Box<dyn ApplicationHandler + Send + Sync>> {
         let decrypted_partinions_dir = self.workdir.join("crypt");
         let app_image_key = self.derive_key_for(
             self.info.image_part_uuid.to_string(),
@@ -248,60 +246,14 @@ impl Application {
             &app_overlay_dir,
         )?;
 
-        self.handler = Some(launcher.prepare(&app_overlay_dir).await?);
-
-        Ok(())
+        Ok(launcher.prepare(&app_overlay_dir).await?)
     }
 
     pub fn id(&self) -> &Uuid {
         &self.info.id
     }
 
-    fn get_handler(&mut self) -> Result<&mut (dyn ApplicationHandler + Send + Sync)> {
-        Ok(self
-            .handler
-            .as_mut()
-            .ok_or(ApplicationError::NotInstalled())?
-            .as_mut())
-    }
-
-    pub async fn start(&mut self) -> Result<()> {
-        self.get_handler()?.start().await?;
-
-        Ok(())
-    }
-
-    pub async fn stop(&mut self) -> Result<()> {
-        self.get_handler()?.stop().await?;
-
-        Ok(())
-    }
-
-    pub async fn kill(&mut self) -> Result<()> {
-        self.get_handler()?.kill().await?;
-
-        Ok(())
-    }
-
-    pub async fn wait(&mut self) -> Result<ExitStatus> {
-        let status = self.get_handler()?.wait().await?;
-
-        Ok(status)
-    }
-
-    pub async fn try_wait(&mut self) -> Result<Option<ExitStatus>> {
-        let status = self.get_handler()?.try_wait().await?;
-
-        Ok(status)
-    }
-
-    pub async fn shutdown(&mut self) -> Result<()> {
-        if let Some(handler) = self.handler.as_mut() {
-            info!("Stopping {:?}", self.info.id);
-            handler.stop().await?;
-        }
-        self.handler = None;
-
+    pub async fn cleanup(&mut self) -> Result<()> {
         let app_image_dir = self.workdir.join("image");
         let app_data_dir = self.workdir.join("data");
         let app_overlay_dir = self.workdir.join("overlay");
