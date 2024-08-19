@@ -4,35 +4,14 @@ use super::application::{Application, ApplicationConfig};
 use super::realm::{ApplicationCreator, Realm, RealmData, RealmError, State};
 use super::realm_client::{RealmClient, RealmProvisioningConfig};
 use super::realm_configuration::*;
+use super::vm_manager::VmManager;
 
 use async_trait::async_trait;
 use log::{debug, error};
 use std::collections::HashMap;
-use std::io;
-use std::process::ExitStatus;
 use std::sync::Arc;
-use thiserror::Error;
 use tokio::sync::Mutex;
 use uuid::Uuid;
-
-pub trait VmManager {
-    fn delete_vm(&mut self) -> Result<(), VmManagerError>;
-    fn get_exit_status(&mut self) -> Option<ExitStatus>;
-    fn launch_vm(&mut self) -> Result<(), VmManagerError>;
-    fn stop_vm(&mut self) -> Result<(), VmManagerError>;
-}
-
-#[derive(Debug, Error)]
-pub enum VmManagerError {
-    #[error("Unable to launch Vm: {0}")]
-    LaunchFail(#[from] io::Error),
-    #[error("To stop realm's vm you need to launch it first.")]
-    VmNotLaunched,
-    #[error("Unable to stop realm's vm.")]
-    StopFail,
-    #[error("Unable to destroy realm's vm: {0}")]
-    DestroyFail(String),
-}
 
 type AppsMap = HashMap<Uuid, Arc<Mutex<Box<dyn Application + Send + Sync>>>>;
 
@@ -93,8 +72,10 @@ impl Realm for RealmManager {
             )));
         }
 
+        let apps_uuids: Vec<&Uuid> = self.applications.keys().into_iter().collect();
+
         self.vm_manager
-            .launch_vm()
+            .launch_vm(&apps_uuids)
             .map_err(|err| RealmError::RealmLaunchFail(err.to_string()))?;
 
         self.state = State::Provisioning;
@@ -236,7 +217,8 @@ impl Realm for RealmManager {
 
 #[cfg(test)]
 mod test {
-    use super::{RealmError, RealmManager, VmManagerError};
+    use super::{RealmError, RealmManager};
+    use crate::managers::vm_manager::VmManagerError;
     use crate::managers::{realm::Realm, realm_client::RealmClientError, realm_manager::State};
     use crate::utils::test_utilities::{
         create_example_app_config, create_example_realm_config, MockApplication,
@@ -280,7 +262,7 @@ mod test {
         let mut vm_manager_mock = MockVmManager::new();
         vm_manager_mock
             .expect_launch_vm()
-            .returning(|| Err(VmManagerError::LaunchFail(Error::other(""))));
+            .returning(|_| Err(VmManagerError::LaunchFail(Error::other(""))));
         let mut realm_manager = create_realm_manager(Some(vm_manager_mock), None);
         assert_eq!(
             realm_manager.start().await,
@@ -473,7 +455,7 @@ mod test {
         realm_client_handler: Option<MockRealmClient>,
     ) -> RealmManager {
         let mut vm_manager = vm_manager.unwrap_or_default();
-        vm_manager.expect_launch_vm().returning(|| Ok(()));
+        vm_manager.expect_launch_vm().returning(|_| Ok(()));
         vm_manager.expect_stop_vm().returning(|| Ok(()));
         vm_manager.expect_delete_vm().returning(|| Ok(()));
         let mut realm_client_handler = realm_client_handler.unwrap_or_default();

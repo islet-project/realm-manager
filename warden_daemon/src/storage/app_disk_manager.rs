@@ -48,7 +48,7 @@ pub struct ApplicationDiskManager {
 }
 
 impl ApplicationDiskManager {
-    const DISK_NAME: &'static str = "disk.raw";
+    pub const DISK_NAME: &'static str = "disk.raw";
     const IMAGE_PARTITION: &'static str = "image";
     const DATA_PARTITION: &'static str = "data";
     const LBA_SIZE: gpt::disk::LogicalBlockSize = gpt::disk::LogicalBlockSize::Lb512;

@@ -1,7 +1,7 @@
 use super::repository::{Repository, RepositoryError};
 use crate::client_handler::realm_client_handler::{RealmConnector, RealmSender, RealmSenderError};
 use crate::managers::application::{ApplicationData, ApplicationDiskData};
-use crate::managers::realm_manager::{VmManager, VmManagerError};
+use crate::managers::vm_manager::{VmManager, VmManagerError};
 use crate::managers::{
     application::{Application, ApplicationConfig, ApplicationError},
     realm::{ApplicationCreator, Realm, RealmData, RealmDescription, RealmError, State},
@@ -145,10 +145,10 @@ mock! {
     pub VmManager {}
 
     impl VmManager for VmManager {
-        fn launch_vm(&mut self) -> Result<(), VmManagerError>;
-        fn stop_vm(&mut self) -> Result<(), VmManagerError>;
         fn delete_vm(&mut self) -> Result<(), VmManagerError>;
         fn get_exit_status(&mut self) -> Option<ExitStatus>;
+        fn launch_vm<'a>(& mut self, application_uuids:& [&'a Uuid]) -> Result<(), VmManagerError>;
+        fn stop_vm(&mut self) -> Result<(), VmManagerError>;
     }
 }
 
