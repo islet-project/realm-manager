@@ -10,5 +10,5 @@ pub enum ProtocolError {
     ApplicationStopFailed(String),
     ApplicationKillFailed(String),
     ApplicationWaitFailed(String),
-    RebootActionFailed(String)
+    SystemPowerActionFailed(String)
 }

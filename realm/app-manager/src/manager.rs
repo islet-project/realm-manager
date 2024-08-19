@@ -171,10 +171,8 @@ impl Manager {
 
     async fn perform_reboot(&mut self, action: SystemPowerAction) -> ProtocolResult<Response> {
         self.shutdown_all_apps().await;
-        match reboot(action) {
-            Ok(_) => unreachable!(), // Will never reach here
-            Err(e) => Err(ProtocolError::RebootActionFailed(format!("{:?}", e))),
-        }
+        let e = reboot(action);
+        Err(ProtocolError::SystemPowerActionFailed(format!("{:?}", e)))
     }
 
     async fn handle_request(&mut self, request: Request) -> ProtocolResult<Response> {

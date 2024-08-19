@@ -3,8 +3,6 @@ use nix::errno::Errno;
 use nix::libc::{LINUX_REBOOT_CMD_POWER_OFF, LINUX_REBOOT_CMD_RESTART};
 use thiserror::Error;
 
-use super::Result;
-
 #[derive(Debug, Error)]
 pub enum OsError {
     #[error("Reboot error")]
@@ -16,7 +14,7 @@ pub enum SystemPowerAction {
     Shutdown,
 }
 
-pub fn reboot(action: SystemPowerAction) -> Result<()> {
+pub fn reboot(action: SystemPowerAction) -> OsError {
     let op = match action {
         SystemPowerAction::Reboot => LINUX_REBOOT_CMD_RESTART,
         SystemPowerAction::Shutdown => LINUX_REBOOT_CMD_POWER_OFF,
@@ -29,5 +27,5 @@ pub fn reboot(action: SystemPowerAction) -> Result<()> {
 
     error!("Reboot has failed");
 
-    Err(OsError::RebootError(Errno::last()).into())
+    OsError::RebootError(Errno::last())
 }
