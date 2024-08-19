@@ -30,7 +30,7 @@ pub enum ApplicationError {
     #[error("Partition not found")]
     PartitionNotFound(),
 
-    #[error("Application not provishioned")]
+    #[error("Application not provisioned")]
     NotInstalled(),
 }
 
