@@ -28,7 +28,7 @@ class App:
     data_part_uuid: str
 
 class MockedWarden():
-    def __init__(self, vsock_port = 1337, guest_cid = 1227, tap_device = "tap100", qemu_serial = "tcp:localhost:1337"):
+    def __init__(self, kernel, vsock_port = 1337, guest_cid = 1227, tap_device = "tap100", qemu_serial = "tcp:localhost:1337"):
         self.vsock_port = vsock_port
         self.guest_cid = guest_cid
         self.tap_device = tap_device
@@ -36,6 +36,7 @@ class MockedWarden():
         self.sock = socket.socket(socket.AF_VSOCK, socket.SOCK_STREAM, 0)
         self.sock.bind((socket.VMADDR_CID_ANY, vsock_port))
         self.sock.listen(1)
+        self.kernel = kernel
 
     def prepare_disk(self):
         if not os.path.isfile("disk.raw"):
@@ -55,7 +56,7 @@ class MockedWarden():
         -machine virt \
         -cpu cortex-a57 \
         -nographic -smp 1 \
-        -kernel /home/m.szaknis/dev/realm-manager/realm/linux/arch/arm64/boot/Image \
+        -kernel {self.kernel} \
         -append "console=ttyAMA0" \
         -m 2048 -drive file=disk.raw  -netdev tap,id=mynet0,ifname={self.tap_device},script=no,downscript=no -device e1000,netdev=mynet0,mac=52:55:00:d1:55:01 \
         -device vhost-vsock-pci,id=vhost-vsock-pci0,guest-cid={self.guest_cid} \
@@ -134,6 +135,7 @@ def main():
     main_parser.add_argument("--guest-cid", type=int, default=1337)
     main_parser.add_argument("--tap-device", type=str, default="tap100")
     main_parser.add_argument("--qemu-serial", type=str, default="tcp:localhost:1337")
+    main_parser.add_argument('--kernel', type=str, default='../linux/arch/arm64/boot/Image')
     main_parser.add_argument("--test", action='store_true', default=False)
     args = main_parser.parse_args()
 
@@ -159,7 +161,7 @@ def main():
     _ = subparsers.add_parser("invalid_json")
     _ = subparsers.add_parser("exit")
 
-    host = MockedWarden(vsock_port=args.vsock_port, guest_cid=args.guest_cid, tap_device=args.tap_device, qemu_serial=args.qemu_serial)
+    host = MockedWarden(kernel=args.kernel, vsock_port=args.vsock_port, guest_cid=args.guest_cid, tap_device=args.tap_device, qemu_serial=args.qemu_serial)
     host.start()
     r = host.send_exmaple_provision_info()
 
