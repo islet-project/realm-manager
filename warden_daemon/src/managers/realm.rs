@@ -25,10 +25,10 @@ pub enum RealmError {
     VmStopFail(String),
     #[error("Realm's vm can't be destroyed: {0}")]
     VmDestroyFail(String),
+    #[error("Can't perform action on Application: {0}")]
+    ApplicationOperation(String),
     #[error("Can't create application: {0}")]
     ApplicationCreationFail(String),
-    #[error("Can't update application: {0}")]
-    ApplicationUpdateFail(String),
 }
 
 #[async_trait]

@@ -4,17 +4,17 @@ use std::{
     path::PathBuf,
 };
 
-use gpt::{mbr::ProtectiveMBR, DiskDevice, GptConfig, GptDisk};
+use async_trait::async_trait;
+use gpt::{mbr::ProtectiveMBR, partition::Partition, DiskDevice, GptConfig, GptDisk};
 use serde::{Deserialize, Serialize};
 use thiserror::Error;
 use tokio::{
-    fs::File,
+    fs::{remove_file, File},
     io::{AsyncSeekExt, AsyncWriteExt},
 };
 use uuid::Uuid;
 
-use crate::managers::application::ApplicationDiskData;
-
+use crate::managers::application::{ApplicationDisk, ApplicationError};
 #[derive(Error, Debug, PartialEq, PartialOrd, Clone, Serialize, Deserialize)]
 pub enum ApplicationDiskManagerError {
     #[error("Requested empty partition.")]
@@ -23,6 +23,8 @@ pub enum ApplicationDiskManagerError {
     RequestedTooBigPartition(String),
     #[error("Can't create disk image: {0}")]
     DiskCreation(String),
+    #[error("Can't delete disk image: {0}")]
+    DiskDeletion(String),
     #[error("Failed to write MBA: {0}")]
     PartitionMetadataWrite(String),
     #[error("Failed to configure GPT: {0}")]
@@ -35,6 +37,8 @@ pub enum ApplicationDiskManagerError {
     GPTRead(String),
     #[error("Failed to write GPT configuration: {0}")]
     GPTSave(String),
+    #[error("Failed to read partition size: {0}")]
+    GetPartitionSize(String),
     #[error("Missing Data partition.")]
     DataPartitionNotFound(),
     #[error("Missing Image partition.")]
@@ -45,6 +49,54 @@ pub struct ApplicationDiskManager {
     file_path: PathBuf,
     image_part_bytes_size: u64,
     data_part_bytes_size: u64,
+}
+
+#[async_trait]
+impl ApplicationDisk for ApplicationDiskManager {
+    async fn create_disk_with_partitions(&self) -> Result<(), ApplicationError> {
+        if self.load_application_disk_data().await.is_err() {
+            remove_file(&self.file_path).await.map_err(|err| {
+                ApplicationError::DiskOpertaion(
+                    ApplicationDiskManagerError::DiskDeletion(err.to_string()).to_string(),
+                )
+            })?;
+            self.create_application_disk()
+                .await
+                .map_err(|err| ApplicationError::DiskOpertaion(err.to_string()))?
+        }
+        Ok(())
+    }
+    async fn update_disk_with_partitions(
+        &mut self,
+        new_data_part_size_mb: u32,
+        new_image_part_size_mb: u32,
+    ) -> Result<(), ApplicationError> {
+        self.image_part_bytes_size = Self::validate_and_convert_to_bytes(new_image_part_size_mb)
+            .map_err(|err| ApplicationError::DiskOpertaion(err.to_string()))?;
+        self.data_part_bytes_size = Self::validate_and_convert_to_bytes(new_data_part_size_mb)
+            .map_err(|err| ApplicationError::DiskOpertaion(err.to_string()))?;
+        self.load_application_disk_data()
+            .await
+            .map_err(|err| ApplicationError::DiskOpertaion(err.to_string()))
+    }
+    async fn get_data_partition_uuid(&self) -> Result<Uuid, ApplicationError> {
+        let partitions = self
+            .read_partitions()
+            .map_err(|err| ApplicationError::DiskOpertaion(err.to_string()))?;
+        Ok(self
+            .get_data_partition(&partitions)
+            .map_err(|err| ApplicationError::DiskOpertaion(err.to_string()))?
+            .part_guid)
+    }
+    async fn get_image_partition_uuid(&self) -> Result<Uuid, ApplicationError> {
+        let partitions = self
+            .read_partitions()
+            .map_err(|err| ApplicationError::DiskOpertaion(err.to_string()))?;
+        Ok(self
+            .get_image_partition(&partitions)
+            .map_err(|err| ApplicationError::DiskOpertaion(err.to_string()))?
+            .part_guid)
+    }
 }
 
 impl ApplicationDiskManager {
@@ -69,23 +121,35 @@ impl ApplicationDiskManager {
         })
     }
 
-    pub fn load_application_disk_data(
-        &self,
-    ) -> Result<ApplicationDiskData, ApplicationDiskManagerError> {
-        self.load_paritions_uuids_from_disk()
+    async fn load_application_disk_data(&self) -> Result<(), ApplicationDiskManagerError> {
+        let partitions = self.read_partitions()?;
+        let image_partition = self.get_image_partition(&partitions)?;
+        let data_partition = self.get_data_partition(&partitions)?;
+        if image_partition
+            .size()
+            .map_err(|err| ApplicationDiskManagerError::GetPartitionSize(err.to_string()))?
+            != self.image_part_bytes_size
+            && data_partition
+                .size()
+                .map_err(|err| ApplicationDiskManagerError::GetPartitionSize(err.to_string()))?
+                != self.data_part_bytes_size
+        {
+            remove_file(&self.file_path)
+                .await
+                .map_err(|err| ApplicationDiskManagerError::DiskDeletion(err.to_string()))?;
+            self.create_application_disk().await?;
+        }
+        Ok(())
     }
 
-    pub async fn create_application_disk(
-        &self,
-    ) -> Result<ApplicationDiskData, ApplicationDiskManagerError> {
+    async fn create_application_disk(&self) -> Result<(), ApplicationDiskManagerError> {
         let file = self
             .create_disk_device()
             .await
             .map_err(|err| ApplicationDiskManagerError::DiskCreation(err.to_string()))?;
         self.create_gpt_and_partitions(&file)?;
         Self::sync_file(file).await?;
-
-        self.load_paritions_uuids_from_disk()
+        Ok(())
     }
 
     fn validate_and_convert_to_bytes(
@@ -106,21 +170,27 @@ impl ApplicationDiskManager {
         }
     }
 
-    fn load_paritions_uuids_from_disk(
+    fn get_image_partition(
         &self,
-    ) -> Result<ApplicationDiskData, ApplicationDiskManagerError> {
-        let partitions_data = self.read_partitions_uuids()?;
-        Ok(ApplicationDiskData {
-            image_partition_uuid: *partitions_data
-                .get(Self::IMAGE_PARTITION)
-                .ok_or(ApplicationDiskManagerError::ImagePartitionNotFounds())?,
-            data_partition_uuid: *partitions_data
-                .get(Self::DATA_PARTITION)
-                .ok_or(ApplicationDiskManagerError::DataPartitionNotFound())?,
-        })
+        partitions: &HashMap<String, Partition>,
+    ) -> Result<Partition, ApplicationDiskManagerError> {
+        Ok(partitions
+            .get(Self::IMAGE_PARTITION)
+            .ok_or(ApplicationDiskManagerError::ImagePartitionNotFounds())?
+            .clone())
     }
 
-    fn read_partitions_uuids(&self) -> Result<HashMap<String, Uuid>, ApplicationDiskManagerError> {
+    fn get_data_partition(
+        &self,
+        partitions: &HashMap<String, Partition>,
+    ) -> Result<Partition, ApplicationDiskManagerError> {
+        Ok(partitions
+            .get(Self::DATA_PARTITION)
+            .ok_or(ApplicationDiskManagerError::DataPartitionNotFound())?
+            .clone())
+    }
+
+    fn read_partitions(&self) -> Result<HashMap<String, Partition>, ApplicationDiskManagerError> {
         let gpt = GptConfig::default()
             .writable(false)
             .initialized(true)
@@ -130,7 +200,7 @@ impl ApplicationDiskManager {
         Ok(gpt
             .partitions()
             .iter()
-            .map(|(_id, value)| (value.name.clone(), value.part_guid))
+            .map(|(_id, value)| (value.name.clone(), value.clone()))
             .collect())
     }
 
@@ -214,7 +284,10 @@ mod test {
         str::FromStr,
     };
 
-    use crate::storage::app_disk_manager::ApplicationDiskManagerError;
+    use crate::{
+        managers::application::ApplicationDisk,
+        storage::app_disk_manager::ApplicationDiskManagerError,
+    };
 
     use super::ApplicationDiskManager;
 
@@ -245,8 +318,16 @@ mod test {
     async fn create_disk_and_partition() {
         let path_holder = FilePathHolder::new();
         let path = PathBuf::from_str(path_holder.disk_file_path).unwrap();
-        let disk_manager = ApplicationDiskManager::new(path, 10, 10).unwrap();
-        assert!(disk_manager.create_application_disk().await.is_ok());
+        let mut disk_manager = ApplicationDiskManager::new(path, 10, 10).unwrap();
+        assert!(disk_manager.create_disk_with_partitions().await.is_ok());
+        assert!(disk_manager.get_data_partition_uuid().await.is_ok());
+        assert!(disk_manager.get_image_partition_uuid().await.is_ok());
+        assert!(disk_manager
+            .update_disk_with_partitions(20, 20)
+            .await
+            .is_ok());
+        assert!(disk_manager.get_data_partition_uuid().await.is_ok());
+        assert!(disk_manager.get_image_partition_uuid().await.is_ok());
     }
 
     #[test]

@@ -120,10 +120,11 @@ impl RealmCreator for RealmManagerFabric {
                 realm_client_handler.clone(),
             )
             .await?;
-        let repository =
-            YamlConfigRepository::<RealmConfig>::from(&create_config_path(realm_workdir_path.clone()))
-                .await
-                .map_err(|err| WardenError::RealmCreationFail(err.to_string()))?;
+        let repository = YamlConfigRepository::<RealmConfig>::from(&create_config_path(
+            realm_workdir_path.clone(),
+        ))
+        .await
+        .map_err(|err| WardenError::RealmCreationFail(err.to_string()))?;
         let runner = QemuRunner::new(self.qemu_path.clone(), realm_workdir_path, repository.get());
         Ok(Box::new(RealmManager::new(
             Box::new(repository),

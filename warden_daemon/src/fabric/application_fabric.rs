@@ -39,25 +39,29 @@ impl ApplicationCreator for ApplicationFabric {
         tokio::fs::create_dir(&path)
             .await
             .map_err(|err| RealmError::ApplicationCreationFail(err.to_string()))?;
-        let application_disk_data = ApplicationDiskManager::new(
+        let application_disk_manager = ApplicationDiskManager::new(
             path.clone(),
             config.image_storage_size_mb,
             config.data_storage_size_mb,
         )
-        .map_err(|err| RealmError::ApplicationCreationFail(err.to_string()))?
-        .create_application_disk()
-        .await
         .map_err(|err| RealmError::ApplicationCreationFail(err.to_string()))?;
-        Ok(Box::new(ApplicationManager::new(
-            uuid,
-            Box::new(
-                YamlConfigRepository::<ApplicationConfig>::new(config, &create_config_path(path))
+        Ok(Box::new(
+            ApplicationManager::new(
+                uuid,
+                Box::new(
+                    YamlConfigRepository::<ApplicationConfig>::new(
+                        config,
+                        &create_config_path(path),
+                    )
                     .await
                     .map_err(|err| RealmError::ApplicationCreationFail(err.to_string()))?,
-            ),
-            application_disk_data,
-            realm_client_handler,
-        )))
+                ),
+                Box::new(application_disk_manager),
+                realm_client_handler,
+            )
+            .await
+            .map_err(|err| RealmError::ApplicationCreationFail(err.to_string()))?,
+        ))
     }
 
     async fn load_application(
@@ -71,19 +75,21 @@ impl ApplicationCreator for ApplicationFabric {
                 .await
                 .map_err(|err| RealmError::ApplicationCreationFail(err.to_string()))?;
         let app_config = config.get();
-        let application_data_disk = ApplicationDiskManager::new(
+        let application_disk_manager = ApplicationDiskManager::new(
             path,
             app_config.image_storage_size_mb,
             app_config.data_storage_size_mb,
         )
-        .map_err(|err| RealmError::ApplicationCreationFail(err.to_string()))?
-        .load_application_disk_data()
         .map_err(|err| RealmError::ApplicationCreationFail(err.to_string()))?;
-        Ok(Box::new(ApplicationManager::new(
-            *uuid,
-            Box::new(config),
-            application_data_disk,
-            realm_client_handler,
-        )))
+        Ok(Box::new(
+            ApplicationManager::new(
+                *uuid,
+                Box::new(config),
+                Box::new(application_disk_manager),
+                realm_client_handler,
+            )
+            .await
+            .map_err(|err| RealmError::ApplicationCreationFail(err.to_string()))?,
+        ))
     }
 }

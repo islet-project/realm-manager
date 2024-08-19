@@ -42,12 +42,18 @@ impl RealmManager {
         }
     }
 
-    async fn create_provisioning_config(&self) -> RealmProvisioningConfig {
+    async fn create_provisioning_config(&self) -> Result<RealmProvisioningConfig, RealmError> {
         let mut applications_data = vec![];
         for app in self.applications.values() {
-            applications_data.push(app.lock().await.get_data());
+            applications_data.push(
+                app.lock()
+                    .await
+                    .get_data()
+                    .await
+                    .map_err(|err| RealmError::ApplicationOperation(err.to_string()))?,
+            );
         }
-        RealmProvisioningConfig { applications_data }
+        Ok(RealmProvisioningConfig { applications_data })
     }
 }
 
@@ -72,7 +78,7 @@ impl Realm for RealmManager {
             )));
         }
 
-        let apps_uuids: Vec<&Uuid> = self.applications.keys().into_iter().collect();
+        let apps_uuids: Vec<&Uuid> = self.applications.keys().collect();
 
         self.vm_manager
             .launch_vm(&apps_uuids)
@@ -85,7 +91,7 @@ impl Realm for RealmManager {
             .lock()
             .await
             .provision_applications(
-                self.create_provisioning_config().await,
+                self.create_provisioning_config().await?,
                 self.config.get().network.vsock_cid,
             )
             .await
@@ -134,11 +140,21 @@ impl Realm for RealmManager {
                 self.state
             )));
         }
+
+        for application in self.applications.values() {
+            application
+                .lock()
+                .await
+                .reboot()
+                .await
+                .map_err(|err| RealmError::ApplicationOperation(err.to_string()))?
+        }
+
         self.realm_client_handler
             .lock()
             .await
             .reboot_realm(
-                self.create_provisioning_config().await,
+                self.create_provisioning_config().await?,
                 self.config.get().network.vsock_cid,
             )
             .await
@@ -180,9 +196,9 @@ impl Realm for RealmManager {
                 app_manager
                     .lock()
                     .await
-                    .update(new_config)
+                    .update_config(new_config)
                     .await
-                    .map_err(|err| RealmError::ApplicationUpdateFail(err.to_string()))?;
+                    .map_err(|err| RealmError::ApplicationOperation(err.to_string()))?;
                 if self.state == State::Running {
                     self.state = State::NeedReboot;
                 }
@@ -480,7 +496,7 @@ mod test {
         vm_manager.expect_get_exit_status().returning(|| None);
 
         let mut app_mock = MockApplication::new();
-        app_mock.expect_update().returning(|_| Ok(()));
+        app_mock.expect_update_config().returning(|_| Ok(()));
 
         let mut creator_mock = MockApplicationFabric::new();
         creator_mock

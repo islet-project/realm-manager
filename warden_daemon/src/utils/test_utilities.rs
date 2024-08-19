@@ -1,6 +1,6 @@
 use super::repository::{Repository, RepositoryError};
 use crate::client_handler::realm_client_handler::{RealmConnector, RealmSender, RealmSenderError};
-use crate::managers::application::{ApplicationData, ApplicationDiskData};
+use crate::managers::application::{ApplicationData, ApplicationDisk};
 use crate::managers::vm_manager::{VmManager, VmManagerError};
 use crate::managers::{
     application::{Application, ApplicationConfig, ApplicationError},
@@ -94,8 +94,20 @@ mock! {
     impl Application for Application {
         async fn stop(&mut self) -> Result<(), ApplicationError>;
         async fn start(&mut self) -> Result<(), ApplicationError>;
-        fn get_data(&self) -> ApplicationData;
-        async fn update(&mut self, config: ApplicationConfig) -> Result<(), ApplicationError>;
+        async fn update_config(&mut self, config: ApplicationConfig) -> Result<(), ApplicationError>;
+        async fn reboot(&mut self) -> Result<(), ApplicationError>;
+        async fn get_data(&self) -> Result<ApplicationData, ApplicationError>;
+    }
+}
+
+mock! {
+    pub ApplicationDisk {}
+    #[async_trait]
+    impl ApplicationDisk for ApplicationDisk {
+        async fn create_disk_with_partitions(&self) -> Result<(), ApplicationError>;
+        async fn update_disk_with_partitions(&mut self, new_data_part_size_mb: u32, new_image_part_size_mb: u32) -> Result<(), ApplicationError>;
+        async fn get_data_partition_uuid(&self) -> Result<Uuid, ApplicationError>;
+        async fn get_image_partition_uuid(&self) -> Result<Uuid, ApplicationError>;
     }
 }
 

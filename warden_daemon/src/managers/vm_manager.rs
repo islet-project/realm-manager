@@ -18,7 +18,6 @@ pub enum VmManagerError {
 pub trait VmManager {
     fn delete_vm(&mut self) -> Result<(), VmManagerError>;
     fn get_exit_status(&mut self) -> Option<ExitStatus>;
-    fn launch_vm(&mut self, application_uuids:& [&Uuid]) -> Result<(), VmManagerError>;
+    fn launch_vm(&mut self, application_uuids: &[&Uuid]) -> Result<(), VmManagerError>;
     fn stop_vm(&mut self) -> Result<(), VmManagerError>;
 }
-
