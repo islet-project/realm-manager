@@ -11,15 +11,15 @@ pub enum OsError {
     RebootError(#[source] Errno),
 }
 
-pub enum RebootAction {
+pub enum SystemPowerAction {
     Reboot,
     Shutdown,
 }
 
-pub fn reboot(action: RebootAction) -> Result<()> {
+pub fn reboot(action: SystemPowerAction) -> Result<()> {
     let op = match action {
-        RebootAction::Reboot => LINUX_REBOOT_CMD_RESTART,
-        RebootAction::Shutdown => LINUX_REBOOT_CMD_POWER_OFF,
+        SystemPowerAction::Reboot => LINUX_REBOOT_CMD_RESTART,
+        SystemPowerAction::Shutdown => LINUX_REBOOT_CMD_POWER_OFF,
     };
 
     unsafe {

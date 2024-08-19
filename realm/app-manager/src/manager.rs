@@ -15,7 +15,7 @@ use crate::key::{dummy::DummyKeySealing, KeySealing};
 use crate::launcher::handler::ApplicationHandlerError;
 use crate::launcher::LauncherError;
 use crate::launcher::{dummy::DummyLauncher, Launcher};
-use crate::util::os::{reboot, RebootAction};
+use crate::util::os::{reboot, SystemPowerAction};
 
 use super::Result;
 pub type ProtocolResult<T> = std::result::Result<T, ProtocolError>;
@@ -169,7 +169,7 @@ impl Manager {
         }
     }
 
-    async fn perform_reboot(&mut self, action: RebootAction) -> ProtocolResult<Response> {
+    async fn perform_reboot(&mut self, action: SystemPowerAction) -> ProtocolResult<Response> {
         self.shutdown_all_apps().await;
         match reboot(action) {
             Ok(_) => unreachable!(), // Will never reach here
@@ -232,12 +232,12 @@ impl Manager {
 
             Request::Shutdown() => {
                 info!("Performing system shutdown");
-                self.perform_reboot(RebootAction::Shutdown).await
+                self.perform_reboot(SystemPowerAction::Shutdown).await
             }
 
             Request::Reboot() => {
                 info!("Performing system reboot");
-                self.perform_reboot(RebootAction::Reboot).await
+                self.perform_reboot(SystemPowerAction::Reboot).await
             }
         }
     }
@@ -263,7 +263,7 @@ impl Manager {
             if let Err(e) = self.send_msg(response).await {
                 error!("Failed to send data back to host ({})", e);
                 info!("Shutting down");
-                let _ = self.perform_reboot(RebootAction::Shutdown).await;
+                let _ = self.perform_reboot(SystemPowerAction::Shutdown).await;
 
                 unreachable!()
             }
