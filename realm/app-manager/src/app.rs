@@ -49,10 +49,10 @@ pub struct Application {
 }
 
 impl Application {
-    pub fn new(info: ApplicationInfo, workdir: impl ToOwned<Owned = PathBuf>) -> Result<Self> {
+    pub fn new(info: ApplicationInfo, workdir: PathBuf) -> Result<Self> {
         Ok(Self {
             info,
-            workdir: workdir.to_owned(),
+            workdir,
             devicemapper: Arc::new(DeviceMapper::init()?),
             keyring: KernelKeyring::new(keyutils::SpecialKeyring::User)?,
             handler: None,
