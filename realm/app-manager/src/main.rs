@@ -49,7 +49,8 @@ pub type Result<T> = std::result::Result<T, Error>;
 #[tokio::main]
 async fn main() -> Result<()> {
     let args = Args::parse();
-    simple_logger::init_with_level(args.log_level).unwrap();
+    simple_logger::init_with_level(args.log_level)
+        .expect("Cannot initialize logger.");
 
     info!("Reading config file: {:?}", args.config);
     let config = Config::read_from_file(args.config).await?;
