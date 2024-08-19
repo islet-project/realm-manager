@@ -242,7 +242,7 @@ impl Manager {
         }
     }
 
-    async fn handle_valid_request(&mut self, request: Request) -> Response {
+    async fn handle_received_request(&mut self, request: Request) -> Response {
         debug!("Received request: {:?}", request);
 
         match self.handle_request(request).await {
@@ -254,7 +254,7 @@ impl Manager {
     pub async fn handle_events(&mut self) -> Result<()> {
         loop {
             let response = match self.recv_msg().await {
-                Ok(r) => self.handle_valid_request(r).await,
+                Ok(r) => self.handle_received_request(r).await,
 
                 Err(e) => Response::Error(ProtocolError::InvalidRequest(format!("{:?}", e))),
             };
