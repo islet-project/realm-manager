@@ -118,6 +118,7 @@ impl Manager {
         info!("Starting installation");
 
         let mut set = JoinSet::<Result<Application>>::new();
+        let autostart = self.config.autostartall;
 
         for app_info in apps_info.into_iter() {
             let app_dir = self.config.workdir.join(app_info.id.to_string());
@@ -128,6 +129,10 @@ impl Manager {
             set.spawn(async move {
                 let mut app = Application::new(app_info, app_dir)?;
                 app.setup(params, launcher, keyseal).await?;
+
+                if autostart {
+                    app.start().await?;
+                }
 
                 Ok(app)
             });
@@ -142,13 +147,6 @@ impl Manager {
 
         info!("Provisioning finished");
         self.report_provision_success().await?;
-
-        if self.config.autostartall {
-            for (id, app) in self.apps.iter_mut() {
-                info!("Starting {:?}", id);
-                app.start().await?;
-            }
-        }
 
         Ok(())
     }
