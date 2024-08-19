@@ -10,12 +10,12 @@ use warden_realm::{ApplicationInfo, ProtocolError, Request, Response};
 
 use crate::app::Application;
 use crate::config::{Config, KeySealingType, LauncherType};
+use crate::error::Error;
 use crate::key::{dummy::DummyKeySealing, KeySealing};
 use crate::launcher::handler::ApplicationHandlerError;
 use crate::launcher::LauncherError;
 use crate::launcher::{dummy::DummyLauncher, Launcher};
 use crate::util::os::{reboot, RebootAction};
-use crate::Error as MainError;
 
 use super::Result;
 pub type ProtocolResult<T> = std::result::Result<T, ProtocolError>;
@@ -216,14 +216,14 @@ impl Manager {
                 }
             }
 
-            Request::CheckIsRunning(id) => {
+            Request::CheckStatus(id) => {
                 info!("Checking if application is running: {:?}", id);
                 let app = self.get_app(&id)?;
 
                 match app.try_wait().await {
                     Ok(Some(status)) => Ok(Response::ApplicationExited(status.into_raw())),
                     Ok(None) => Ok(Response::ApplicationIsRunning()),
-                    Err(MainError::LauncherError(LauncherError::HandlerError(
+                    Err(Error::LauncherError(LauncherError::HandlerError(
                         ApplicationHandlerError::AppNotRunning(),
                     ))) => Ok(Response::ApplicationNotStarted()),
                     Err(e) => Err(ProtocolError::ApplicationWaitFailed(format!("{:?}", e))),

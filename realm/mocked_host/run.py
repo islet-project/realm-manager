@@ -98,7 +98,7 @@ class MockedWarden():
         return self.transaction(o)
 
     def check_app(self, id=APP_ID):
-        o = {"CheckIsRunning": str(id)}
+        o = {"CheckStatus": str(id)}
         return self.transaction(o)
 
     def shutdown(self):
