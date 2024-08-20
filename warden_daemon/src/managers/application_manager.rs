@@ -34,15 +34,6 @@ impl ApplicationManager {
             realm_client_handler,
         })
     }
-    async fn kill(&mut self) -> Result<(), ApplicationError> {
-        self.realm_client_handler
-            .lock()
-            .await
-            .kill_application(&self.uuid)
-            .await
-            .map_err(|err| ApplicationError::ApplicationStop(err.to_string()))?;
-        Ok(())
-    }
 }
 
 #[async_trait]
@@ -78,10 +69,7 @@ impl Application for ApplicationManager {
         })
     }
 
-    async fn reboot(&mut self) -> Result<(), ApplicationError> {
-        if self.stop().await.is_err() {
-            let _ = self.kill().await; // We assume that we've killed application
-        }
+    async fn prepare_for_next_run(&mut self) -> Result<(), ApplicationError> {
         let config = self.config.get();
         self.application_disk
             .update_disk_with_partitions(config.data_storage_size_mb, config.image_storage_size_mb)

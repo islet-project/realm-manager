@@ -29,6 +29,8 @@ pub enum RealmError {
     ApplicationOperation(String),
     #[error("Can't create application: {0}")]
     ApplicationCreationFail(String),
+    #[error("Failed to prepare applications to start: {0}")]
+    PrepareApplications(String),
 }
 
 #[async_trait]

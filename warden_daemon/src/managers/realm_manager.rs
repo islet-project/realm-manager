@@ -11,6 +11,7 @@ use log::{debug, error};
 use std::collections::HashMap;
 use std::sync::Arc;
 use tokio::sync::Mutex;
+use tokio::task::JoinSet;
 use uuid::Uuid;
 
 type AppsMap = HashMap<Uuid, Arc<Mutex<Box<dyn Application + Send + Sync>>>>;
@@ -55,6 +56,24 @@ impl RealmManager {
         }
         Ok(RealmProvisioningConfig { applications_data })
     }
+
+    async fn prepare_applications(&mut self) -> Result<(), RealmError> {
+        let mut set = JoinSet::new();
+        for application in self.applications.values() {
+            let app = application.clone();
+            set.spawn(async move {
+                app.lock()
+                    .await
+                    .prepare_for_next_run()
+                    .await
+                    .map_err(|err| RealmError::ApplicationOperation(err.to_string()))
+            });
+        }
+        while let Some(res) = set.join_next().await {
+            res.map_err(|err| RealmError::PrepareApplications(err.to_string()))??;
+        }
+        Ok(())
+    }
 }
 
 impl Drop for RealmManager {
@@ -78,8 +97,9 @@ impl Realm for RealmManager {
             )));
         }
 
-        let apps_uuids: Vec<&Uuid> = self.applications.keys().collect();
+        self.prepare_applications().await?;
 
+        let apps_uuids: Vec<&Uuid> = self.applications.keys().collect();
         self.vm_manager
             .launch_vm(&apps_uuids)
             .map_err(|err| RealmError::RealmLaunchFail(err.to_string()))?;
@@ -141,14 +161,7 @@ impl Realm for RealmManager {
             )));
         }
 
-        for application in self.applications.values() {
-            application
-                .lock()
-                .await
-                .reboot()
-                .await
-                .map_err(|err| RealmError::ApplicationOperation(err.to_string()))?
-        }
+        self.prepare_applications().await?;
 
         self.realm_client_handler
             .lock()

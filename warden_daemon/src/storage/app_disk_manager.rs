@@ -9,7 +9,7 @@ use gpt::{mbr::ProtectiveMBR, partition::Partition, DiskDevice, GptConfig, GptDi
 use serde::{Deserialize, Serialize};
 use thiserror::Error;
 use tokio::{
-    fs::{remove_file, File},
+    fs::File,
     io::{AsyncSeekExt, AsyncWriteExt},
 };
 use uuid::Uuid;
@@ -43,6 +43,10 @@ pub enum ApplicationDiskManagerError {
     DataPartitionNotFound(),
     #[error("Missing Image partition.")]
     ImagePartitionNotFounds(),
+    #[error("Data partition size is incorrect.")]
+    DataPartitionSizeIncorrect(),
+    #[error("Image partition size is incorrect.")]
+    ImagePartitionSizeIncorrect(),
 }
 
 pub struct ApplicationDiskManager {
@@ -54,28 +58,32 @@ pub struct ApplicationDiskManager {
 #[async_trait]
 impl ApplicationDisk for ApplicationDiskManager {
     async fn create_disk_with_partitions(&self) -> Result<(), ApplicationError> {
-        if self.load_application_disk_data().await.is_err() {
-            self.create_application_disk()
-                .await
-                .map_err(|err| ApplicationError::DiskOpertaion(err.to_string()))?
-        }
-        Ok(())
+        self.create_application_disk()
+            .await
+            .map_err(|err| ApplicationError::DiskOpertaion(err.to_string()))?;
+        self.ensure_partitions_correctness()
+            .await
+            .map_err(|err| ApplicationError::DiskOpertaion(err.to_string()))
     }
     async fn update_disk_with_partitions(
         &mut self,
         new_data_part_size_mb: u32,
         new_image_part_size_mb: u32,
     ) -> Result<(), ApplicationError> {
+        self.ensure_partitions_correctness()
+            .await
+            .map_err(|err| ApplicationError::DiskOpertaion(err.to_string()))?;
         let new_image_part_bytes_size = Self::validate_and_convert_to_bytes(new_image_part_size_mb)
             .map_err(|err| ApplicationError::DiskOpertaion(err.to_string()))?;
-        let new_data_part_bytes_size = Self::validate_and_convert_to_bytes(new_data_part_size_mb)
-            .map_err(|err| ApplicationError::DiskOpertaion(err.to_string()))?;
-        if new_image_part_bytes_size != self.image_part_bytes_size || new_data_part_bytes_size != self.data_part_bytes_size {
+        let new_data_part_bytes_size =
+            Self::validate_and_convert_to_bytes(new_data_part_size_mb)
+                .map_err(|err| ApplicationError::DiskOpertaion(err.to_string()))?;
+        if new_image_part_bytes_size != self.image_part_bytes_size
+            || new_data_part_bytes_size != self.data_part_bytes_size
+        {
             self.image_part_bytes_size = new_image_part_bytes_size;
             self.data_part_bytes_size = new_data_part_bytes_size;
-            self.load_application_disk_data()
-                .await
-                .map_err(|err| ApplicationError::DiskOpertaion(err.to_string()))?
+            self.create_disk_with_partitions().await?;
         }
         Ok(())
     }
@@ -121,25 +129,22 @@ impl ApplicationDiskManager {
         })
     }
 
-    async fn load_application_disk_data(&self) -> Result<(), ApplicationDiskManagerError> {
+    async fn ensure_partitions_correctness(&self) -> Result<(), ApplicationDiskManagerError> {
         let partitions = self.read_partitions()?;
         let image_partition = self.get_image_partition(&partitions)?;
         let data_partition = self.get_data_partition(&partitions)?;
         if image_partition
-            .size()
+            .bytes_len(Self::LBA_SIZE)
             .map_err(|err| ApplicationDiskManagerError::GetPartitionSize(err.to_string()))?
-            != self.image_part_bytes_size
-            && data_partition
-                .size()
-                .map_err(|err| ApplicationDiskManagerError::GetPartitionSize(err.to_string()))?
-                != self.data_part_bytes_size
+            != self.image_part_bytes_size || data_partition
+            .bytes_len(Self::LBA_SIZE)
+            .map_err(|err| ApplicationDiskManagerError::GetPartitionSize(err.to_string()))?
+            != self.data_part_bytes_size
         {
-            remove_file(&self.file_path)
-                .await
-                .map_err(|err| ApplicationDiskManagerError::DiskDeletion(err.to_string()))?;
-            self.create_application_disk().await?;
+            Err(ApplicationDiskManagerError::ImagePartitionSizeIncorrect())
+        } else {
+            Ok(())
         }
-        Ok(())
     }
 
     async fn create_application_disk(&self) -> Result<(), ApplicationDiskManagerError> {
@@ -212,7 +217,13 @@ impl ApplicationDiskManager {
     }
 
     async fn create_disk_device(&self) -> Result<std::fs::File, io::Error> {
-        let mut file = File::options().read(true).write(true).create(true).open(&self.file_path).await?;
+        let mut file = File::options()
+            .read(true)
+            .write(true)
+            .create(true)
+            .truncate(true)
+            .open(&self.file_path)
+            .await?;
         file.seek(SeekFrom::Start(self.calculate_total_size() - 1))
             .await?;
         file.write_all(&[0u8]).await?;
@@ -323,11 +334,28 @@ mod test {
         assert!(disk_manager.get_data_partition_uuid().await.is_ok());
         assert!(disk_manager.get_image_partition_uuid().await.is_ok());
         assert!(disk_manager
-            .update_disk_with_partitions(20, 20)
+            .update_disk_with_partitions(20, 40)
             .await
             .is_ok());
         assert!(disk_manager.get_data_partition_uuid().await.is_ok());
         assert!(disk_manager.get_image_partition_uuid().await.is_ok());
+        let partitions = disk_manager.read_partitions().unwrap();
+        assert_eq!(
+            disk_manager
+                .get_data_partition(&partitions)
+                .unwrap()
+                .bytes_len(ApplicationDiskManager::LBA_SIZE)
+                .unwrap(),
+            20 * 1024 * 1024
+        );
+        assert_eq!(
+            disk_manager
+                .get_image_partition(&partitions)
+                .unwrap()
+                .bytes_len(ApplicationDiskManager::LBA_SIZE)
+                .unwrap(),
+            40 * 1024 * 1024
+        );
     }
 
     #[test]
