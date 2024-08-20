@@ -25,7 +25,6 @@ pub trait ApplicationHandler {
     async fn start(&mut self) -> Result<()>;
     async fn stop(&mut self) -> Result<()>;
     async fn kill(&mut self) -> Result<()>;
-    async fn wait(&mut self) -> Result<ExitStatus>;
     async fn try_wait(&mut self) -> Result<Option<ExitStatus>>;
 }
 

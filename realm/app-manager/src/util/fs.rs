@@ -43,9 +43,6 @@ pub enum FsError {
     #[error("File write error")]
     FileWriteError(#[source] std::io::Error),
 
-    #[error("Path canonicalization error")]
-    PathCanonicalizeError(#[source] std::io::Error),
-
     #[error("Path has not parent")]
     PathHasNoParent(),
 }

@@ -10,11 +10,10 @@ use warden_realm::{ApplicationInfo, ProtocolError, Request, Response};
 
 use crate::app::Application;
 use crate::config::{Config, KeySealingType, LauncherType};
-use crate::error::Error;
 use crate::key::{dummy::DummyKeySealing, KeySealing};
 use crate::launcher::handler::ApplicationHandlerError;
-use crate::launcher::{ApplicationHandler, LauncherError};
 use crate::launcher::{dummy::DummyLauncher, Launcher};
+use crate::launcher::{ApplicationHandler, LauncherError};
 use crate::util::os::{reboot, SystemPowerAction};
 
 use super::Result;
@@ -22,9 +21,6 @@ pub type ProtocolResult<T> = std::result::Result<T, ProtocolError>;
 
 #[derive(Debug, Error)]
 pub enum ManagerError {
-    #[error("Invalid launcher")]
-    InvalidLauncher(),
-
     #[error("Failed to join the provisioning thread")]
     ProvisionJoinError(#[source] JoinError),
 
@@ -117,7 +113,8 @@ impl Manager {
 
         info!("Starting installation");
 
-        let mut set = JoinSet::<Result<(Application, Box<dyn ApplicationHandler + Send + Sync>)>>::new();
+        let mut set =
+            JoinSet::<Result<(Application, Box<dyn ApplicationHandler + Send + Sync>)>>::new();
         let autostart = self.config.autostartall;
 
         for app_info in apps_info.into_iter() {
@@ -151,10 +148,15 @@ impl Manager {
         Ok(())
     }
 
-    fn get_handler(&mut self, id: &Uuid) -> ProtocolResult<&mut (dyn ApplicationHandler + Send + Sync)> {
-        Ok(self.apps
+    fn get_handler(
+        &mut self,
+        id: &Uuid,
+    ) -> ProtocolResult<&mut (dyn ApplicationHandler + Send + Sync)> {
+        Ok(self
+            .apps
             .get_mut(id)
-            .ok_or(ProtocolError::ApplicationNotFound())?.1
+            .ok_or(ProtocolError::ApplicationNotFound())?
+            .1
             .as_mut())
     }
 
@@ -224,10 +226,13 @@ impl Manager {
                 match handler.try_wait().await {
                     Ok(Some(status)) => Ok(Response::ApplicationExited(status.into_raw())),
                     Ok(None) => Ok(Response::ApplicationIsRunning()),
-                    Err(LauncherError::HandlerError(
-                        ApplicationHandlerError::AppNotRunning()
-                    )) => Ok(Response::ApplicationNotStarted()),
-                    Err(e) => Err(ProtocolError::ApplicationCheckStatusFailed(format!("{:?}", e))),
+                    Err(LauncherError::HandlerError(ApplicationHandlerError::AppNotRunning())) => {
+                        Ok(Response::ApplicationNotStarted())
+                    }
+                    Err(e) => Err(ProtocolError::ApplicationCheckStatusFailed(format!(
+                        "{:?}",
+                        e
+                    ))),
                 }
             }
 

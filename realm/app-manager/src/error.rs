@@ -1,12 +1,12 @@
 use thiserror::Error;
 
 use crate::app::ApplicationError;
+use crate::config::ConfigError;
 use crate::dm::DeviceMapperError;
 use crate::key::KeyError;
 use crate::launcher::LauncherError;
-use crate::util::UtilsError;
-use crate::config::ConfigError;
 use crate::manager::ManagerError;
+use crate::util::UtilsError;
 
 #[derive(Debug, Error)]
 pub enum Error {
@@ -33,4 +33,3 @@ pub enum Error {
 }
 
 pub type Result<T> = std::result::Result<T, Error>;
-

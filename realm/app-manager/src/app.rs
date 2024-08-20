@@ -1,6 +1,5 @@
 use std::os::linux::fs::MetadataExt;
 use std::path::{Path, PathBuf};
-use std::process::ExitStatus;
 use std::sync::Arc;
 
 use log::info;
@@ -10,6 +9,7 @@ use thiserror::Error;
 use uuid::Uuid;
 use warden_realm::ApplicationInfo;
 
+use super::Result;
 use crate::dm::crypt::{CryptDevice, CryptoParams, DmCryptTable, Key};
 use crate::dm::device::{DeviceHandleWrapper, DeviceHandleWrapperExt};
 use crate::dm::DeviceMapper;
@@ -23,15 +23,10 @@ use crate::util::fs::{
 };
 use crate::util::serde::{json_dump, json_load};
 
-use super::Result;
-
 #[derive(Debug, Error)]
 pub enum ApplicationError {
     #[error("Partition not found")]
     PartitionNotFound(),
-
-    #[error("Application not provisioned")]
-    NotInstalled(),
 }
 
 #[derive(Serialize, Deserialize)]

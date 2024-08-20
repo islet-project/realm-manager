@@ -60,9 +60,6 @@ pub enum ApplicationHandlerError {
 
     #[error("Error while awaiting the spawned application")]
     WaitpidError(#[source] std::io::Error),
-
-    #[error("Failed to kill the child after the parent is closing")]
-    FailedToKillChild(#[source] std::io::Error),
 }
 
 pub struct ExecConfig {
@@ -79,12 +76,10 @@ pub struct ExecConfig {
 pub enum Request {
     Stop,
     Kill,
-    Wait,
     TryWait,
 }
 #[derive(Debug)]
 pub enum Response {
-    Exited(ExitStatus),
     MaybeExited(Option<ExitStatus>),
     Stopped(),
 }
@@ -198,7 +193,6 @@ impl WardenThread {
 
         let resp = match req {
             Request::Stop | Request::Kill => Response::Stopped(),
-            Request::Wait => Response::Exited(status),
             Request::TryWait => Response::MaybeExited(Some(status)),
         };
         self.send_response(resp).await?;
@@ -237,7 +231,6 @@ impl WardenThread {
     async fn handle_request(&mut self, req: Request) -> Result<()> {
         match req {
             Request::Stop | Request::Kill => self.stop_and_respond(req).await,
-            Request::Wait => self.after_exit(req).await,
             Request::TryWait => self.try_wait().await,
         }
     }
@@ -382,16 +375,6 @@ impl ApplicationHandler for SimpleApplicationHandler {
 
         match resp {
             Response::Stopped() => Ok(()),
-            _ => Err(ApplicationHandlerError::AppHandlerInvalidResponse().into()),
-        }
-    }
-
-    async fn wait(&mut self) -> Result<ExitStatus> {
-        let resp = self.transaction(Request::Wait).await?;
-        self.join_handler_thread().await?;
-
-        match resp {
-            Response::Exited(status) => Ok(status),
             _ => Err(ApplicationHandlerError::AppHandlerInvalidResponse().into()),
         }
     }
