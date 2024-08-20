@@ -26,7 +26,7 @@ use crate::util::serde::{json_dump, json_load};
 #[derive(Debug, Error)]
 pub enum ApplicationError {
     #[error("Partition not found")]
-    PartitionNotFound(),
+    PartitionNotFound(Uuid),
 }
 
 #[derive(Serialize, Deserialize)]
@@ -64,7 +64,7 @@ impl Application {
         let path = Path::new("/dev/disk/by-partuuid/").join(&uuid_str);
 
         if !path.is_symlink() {
-            return Err(ApplicationError::PartitionNotFound().into());
+            return Err(ApplicationError::PartitionNotFound(part_uuid.clone()).into());
         }
 
         let metadata = stat(&path).await?;
