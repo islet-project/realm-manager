@@ -21,15 +21,15 @@ pub enum ApplicationDiskManagerError {
     RequestedEmptyPartition(),
     #[error("Requested too big partition: {0}")]
     RequestedTooBigPartition(String),
-    #[error("Can't create disk image: {0}")]
+    #[error("Can't create disk: {0}")]
     DiskCreation(String),
-    #[error("Can't delete disk image: {0}")]
+    #[error("Can't delete disk: {0}")]
     DiskDeletion(String),
     #[error("Failed to write MBA: {0}")]
     PartitionMetadataWrite(String),
     #[error("Failed to configure GPT: {0}")]
     GPTConfiguration(String),
-    #[error("Failed to configure GPT: {0}")]
+    #[error("Failed to update GPT: {0}")]
     GPTUpdate(String),
     #[error("Failed to create partition: {0}")]
     PartitionCreation(String),
@@ -42,7 +42,7 @@ pub enum ApplicationDiskManagerError {
     #[error("Missing Data partition.")]
     DataPartitionNotFound(),
     #[error("Missing Image partition.")]
-    ImagePartitionNotFounds(),
+    ImagePartitionNotFound(),
     #[error("Data partition size is incorrect.")]
     DataPartitionSizeIncorrect(),
     #[error("Image partition size is incorrect.")]
@@ -58,34 +58,21 @@ pub struct ApplicationDiskManager {
 #[async_trait]
 impl ApplicationDisk for ApplicationDiskManager {
     async fn create_disk_with_partitions(&self) -> Result<(), ApplicationError> {
-        self.create_application_disk()
-            .await
-            .map_err(|err| ApplicationError::DiskOpertaion(err.to_string()))?;
-        self.ensure_partitions_correctness()
-            .await
-            .map_err(|err| ApplicationError::DiskOpertaion(err.to_string()))
+        if self.ensure_partitions_correctness().await.is_err() {
+            self.create_application_disk()
+                .await
+                .map_err(|err| ApplicationError::DiskOpertaion(err.to_string()))?
+        }
+        Ok(())
     }
     async fn update_disk_with_partitions(
         &mut self,
         new_data_part_size_mb: u32,
         new_image_part_size_mb: u32,
     ) -> Result<(), ApplicationError> {
-        self.ensure_partitions_correctness()
+        self.update_partitions_if_sizes_differ(new_data_part_size_mb, new_image_part_size_mb)
             .await
-            .map_err(|err| ApplicationError::DiskOpertaion(err.to_string()))?;
-        let new_image_part_bytes_size = Self::validate_and_convert_to_bytes(new_image_part_size_mb)
-            .map_err(|err| ApplicationError::DiskOpertaion(err.to_string()))?;
-        let new_data_part_bytes_size =
-            Self::validate_and_convert_to_bytes(new_data_part_size_mb)
-                .map_err(|err| ApplicationError::DiskOpertaion(err.to_string()))?;
-        if new_image_part_bytes_size != self.image_part_bytes_size
-            || new_data_part_bytes_size != self.data_part_bytes_size
-        {
-            self.image_part_bytes_size = new_image_part_bytes_size;
-            self.data_part_bytes_size = new_data_part_bytes_size;
-            self.create_disk_with_partitions().await?;
-        }
-        Ok(())
+            .map_err(|err| ApplicationError::DiskOpertaion(err.to_string()))
     }
     async fn get_data_partition_uuid(&self) -> Result<Uuid, ApplicationError> {
         let partitions = self
@@ -136,15 +123,37 @@ impl ApplicationDiskManager {
         if image_partition
             .bytes_len(Self::LBA_SIZE)
             .map_err(|err| ApplicationDiskManagerError::GetPartitionSize(err.to_string()))?
-            != self.image_part_bytes_size || data_partition
+            != self.image_part_bytes_size
+        {
+            Err(ApplicationDiskManagerError::ImagePartitionSizeIncorrect())
+        } else if data_partition
             .bytes_len(Self::LBA_SIZE)
             .map_err(|err| ApplicationDiskManagerError::GetPartitionSize(err.to_string()))?
             != self.data_part_bytes_size
         {
-            Err(ApplicationDiskManagerError::ImagePartitionSizeIncorrect())
+            Err(ApplicationDiskManagerError::DataPartitionSizeIncorrect())
         } else {
             Ok(())
         }
+    }
+
+    async fn update_partitions_if_sizes_differ(
+        &mut self,
+        new_data_part_size_mb: u32,
+        new_image_part_size_mb: u32,
+    ) -> Result<(), ApplicationDiskManagerError> {
+        self.ensure_partitions_correctness().await?;
+        let new_image_part_bytes_size =
+            Self::validate_and_convert_to_bytes(new_image_part_size_mb)?;
+        let new_data_part_bytes_size = Self::validate_and_convert_to_bytes(new_data_part_size_mb)?;
+        if new_image_part_bytes_size != self.image_part_bytes_size
+            || new_data_part_bytes_size != self.data_part_bytes_size
+        {
+            self.image_part_bytes_size = new_image_part_bytes_size;
+            self.data_part_bytes_size = new_data_part_bytes_size;
+            self.create_application_disk().await?;
+        }
+        Ok(())
     }
 
     async fn create_application_disk(&self) -> Result<(), ApplicationDiskManagerError> {
@@ -154,7 +163,7 @@ impl ApplicationDiskManager {
             .map_err(|err| ApplicationDiskManagerError::DiskCreation(err.to_string()))?;
         self.create_gpt_and_partitions(&file)?;
         Self::sync_file(file).await?;
-        Ok(())
+        self.ensure_partitions_correctness().await
     }
 
     fn validate_and_convert_to_bytes(
@@ -181,7 +190,7 @@ impl ApplicationDiskManager {
     ) -> Result<Partition, ApplicationDiskManagerError> {
         Ok(partitions
             .get(Self::IMAGE_PARTITION)
-            .ok_or(ApplicationDiskManagerError::ImagePartitionNotFounds())?
+            .ok_or(ApplicationDiskManagerError::ImagePartitionNotFound())?
             .clone())
     }
 
