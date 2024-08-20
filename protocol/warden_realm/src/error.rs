@@ -9,6 +9,6 @@ pub enum ProtocolError {
     ApplicationLaunchFailed(String),
     ApplicationStopFailed(String),
     ApplicationKillFailed(String),
-    ApplicationWaitFailed(String),
+    ApplicationCheckStatusFailed(String),
     SystemPowerActionFailed(String)
 }

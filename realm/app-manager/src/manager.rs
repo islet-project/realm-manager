@@ -227,7 +227,7 @@ impl Manager {
                     Err(LauncherError::HandlerError(
                         ApplicationHandlerError::AppNotRunning()
                     )) => Ok(Response::ApplicationNotStarted()),
-                    Err(e) => Err(ProtocolError::ApplicationWaitFailed(format!("{:?}", e))),
+                    Err(e) => Err(ProtocolError::ApplicationCheckStatusFailed(format!("{:?}", e))),
                 }
             }
 
