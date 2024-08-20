@@ -4,7 +4,7 @@ use log::{debug, error, info, warn};
 use thiserror::Error;
 use tokio::task::{JoinError, JoinSet};
 use tokio_vsock::{VsockAddr, VsockStream, VMADDR_CID_HOST};
-use utils::serde::{JsonFramed, JsonFramedError};
+use utils::serde::json_framed::{JsonFramed, JsonFramedError};
 use uuid::Uuid;
 use warden_realm::{ApplicationInfo, ProtocolError, Request, Response};
 
