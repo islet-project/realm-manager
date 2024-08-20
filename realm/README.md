@@ -2,7 +2,7 @@
 
 ## Installing build dependencies
 
-    sudo apt-get install autoconf autopoint libtool libsqlite3-dev python3-tomli python3-sphinx ninja-build libglib2.0-dev texinfo
+    sudo apt-get install autoconf autopoint libtool libsqlite3-dev python3-tomli python3-sphinx ninja-build libglib2.0-dev texinfo libclang-dev libdevmapper-dev
 
 ## Building
 
