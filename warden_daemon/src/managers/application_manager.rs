@@ -92,6 +92,7 @@ mod test {
     use tokio::sync::Mutex;
     use uuid::Uuid;
 
+    use crate::utils::repository::RepositoryError;
     use crate::utils::test_utilities::{
         MockApplicationDisk, MockApplicationRepository, MockRealmClient,
     };
@@ -104,6 +105,43 @@ mod test {
     };
 
     use super::ApplicationManager;
+
+    #[tokio::test]
+    async fn new() {
+        let config = MockApplicationRepository::new();
+        let mut disk = MockApplicationDisk::new();
+        disk.expect_create_disk_with_partitions()
+            .returning(|| Ok(()));
+        let realm_client = MockRealmClient::new();
+        let application_manager = ApplicationManager::new(
+            Uuid::new_v4(),
+            Box::new(config),
+            Box::new(disk),
+            Arc::new(tokio::sync::Mutex::new(Box::new(realm_client))),
+        )
+        .await;
+        assert!(application_manager.is_ok());
+    }
+
+    #[tokio::test]
+    async fn new_disk_error() {
+        let config = MockApplicationRepository::new();
+        let mut disk = MockApplicationDisk::new();
+        disk.expect_create_disk_with_partitions()
+            .returning(|| Err(ApplicationError::DiskOpertaion(String::new())));
+        let realm_client = MockRealmClient::new();
+        let application_manager = ApplicationManager::new(
+            Uuid::new_v4(),
+            Box::new(config),
+            Box::new(disk),
+            Arc::new(tokio::sync::Mutex::new(Box::new(realm_client))),
+        )
+        .await;
+        assert!(matches!(
+            application_manager,
+            Err(ApplicationError::DiskOpertaion(_))
+        ));
+    }
 
     #[tokio::test]
     async fn stop() {
@@ -151,7 +189,6 @@ mod test {
 
     #[tokio::test]
     async fn update() {
-        const APP_NEW_NAME: &str = "NEW_NAME";
         let mut repository = MockApplicationRepository::new();
         repository
             .expect_get_mut()
@@ -159,12 +196,81 @@ mod test {
         repository.expect_save().returning(|| Ok(()));
         let mut application_manager =
             create_application_manager(None, Some(repository), None).await;
-        let mut app_config = create_example_app_config();
-        app_config.name = APP_NEW_NAME.to_string();
         assert!(application_manager
-            .update_config(app_config.clone())
+            .update_config(create_example_app_config())
             .await
             .is_ok());
+    }
+
+    #[tokio::test]
+    async fn update_fail() {
+        let mut repository = MockApplicationRepository::new();
+        repository
+            .expect_get_mut()
+            .return_var(create_example_app_config());
+        repository
+            .expect_save()
+            .returning(|| Err(RepositoryError::SaveFail(String::new())));
+        let mut application_manager =
+            create_application_manager(None, Some(repository), None).await;
+        assert!(matches!(
+            application_manager
+                .update_config(create_example_app_config())
+                .await,
+            Err(ApplicationError::ConfigUpdate(_))
+        ));
+    }
+
+    #[tokio::test]
+    async fn get_data() {
+        let application_manager = create_application_manager(None, None, None).await;
+        assert!(application_manager.get_data().await.is_ok());
+    }
+
+    #[tokio::test]
+    async fn prepare_for_next_run() {
+        let mut application_manager = create_application_manager(None, None, None).await;
+        assert!(application_manager.prepare_for_next_run().await.is_ok());
+    }
+
+    #[tokio::test]
+    async fn prepare_for_next_run_error() {
+        let mut disk = MockApplicationDisk::new();
+        disk.expect_update_disk_with_partitions()
+            .returning(|_, _| Err(ApplicationError::DiskOpertaion(String::new())));
+        let mut application_manager = create_application_manager(None, None, Some(disk)).await;
+        assert!(matches!(
+            application_manager.prepare_for_next_run().await,
+            Err(ApplicationError::DiskOpertaion(_))
+        ));
+    }
+
+    #[tokio::test]
+    async fn get_data_image_partition_missing() {
+        let mut disk = MockApplicationDisk::new();
+        disk.expect_get_data_partition_uuid()
+            .returning(|| Ok(Uuid::new_v4()));
+        disk.expect_get_image_partition_uuid()
+            .returning(|| Err(ApplicationError::DiskOpertaion(String::new())));
+        let application_manager = create_application_manager(None, None, Some(disk)).await;
+        assert!(matches!(
+            application_manager.get_data().await,
+            Err(ApplicationError::DiskOpertaion(_))
+        ));
+    }
+
+    #[tokio::test]
+    async fn get_data_partition_missing() {
+        let mut disk = MockApplicationDisk::new();
+        disk.expect_get_image_partition_uuid()
+            .returning(|| Ok(Uuid::new_v4()));
+        disk.expect_get_data_partition_uuid()
+            .returning(|| Err(ApplicationError::DiskOpertaion(String::new())));
+        let application_manager = create_application_manager(None, None, Some(disk)).await;
+        assert!(matches!(
+            application_manager.get_data().await,
+            Err(ApplicationError::DiskOpertaion(_))
+        ));
     }
 
     async fn create_application_manager(
@@ -182,6 +288,7 @@ mod test {
         });
         let repository_mock = repository.unwrap_or({
             let mut mock = MockApplicationRepository::new();
+            mock.expect_get().return_const(create_example_app_config());
             mock.expect_get_mut()
                 .return_var(create_example_app_config());
             mock.expect_save().returning(|| Ok(()));
@@ -199,13 +306,11 @@ mod test {
                 .returning(|_, _| Ok(()));
             mock
         });
-        ApplicationManager::new(
-            Uuid::new_v4(),
-            Box::new(repository_mock),
-            Box::new(application_disk),
-            Arc::new(Mutex::new(Box::new(realm_client))),
-        )
-        .await
-        .unwrap()
+        ApplicationManager {
+            uuid: Uuid::new_v4(),
+            config: Box::new(repository_mock),
+            application_disk: Box::new(application_disk),
+            realm_client_handler: Arc::new(Mutex::new(Box::new(realm_client))),
+        }
     }
 }
