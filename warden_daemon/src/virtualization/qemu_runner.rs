@@ -78,8 +78,7 @@ impl QemuRunner {
     }
     fn setup_disk(&mut self, application_uuids: &[&Uuid]) {
         for app_uuid in application_uuids {
-            let mut app_disk_path = self.realm_workdir.clone();
-            app_disk_path.push(app_uuid.to_string());
+            let mut app_disk_path = self.realm_workdir.join(app_uuid.to_string());
             app_disk_path.push(ApplicationDiskManager::DISK_NAME);
             self.command
                 .arg("-drive")

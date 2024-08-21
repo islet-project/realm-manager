@@ -159,11 +159,11 @@ impl ApplicationDiskManager {
     }
 
     async fn create_application_disk(&self) -> Result<(), ApplicationDiskManagerError> {
-        let file = self
+        let mut file = self
             .create_disk_device()
             .await
             .map_err(|err| ApplicationDiskManagerError::DiskCreation(err.to_string()))?;
-        self.create_gpt_and_partitions(&file)?;
+        self.create_gpt_and_partitions(&mut file)?;
         Self::sync_file(file).await?;
         self.ensure_partitions_correctness().await
     }
@@ -246,17 +246,18 @@ impl ApplicationDiskManager {
     }
 
     fn calculate_total_size(&self) -> u64 {
+        const PRIMARY_GPT_LBA_SECTORS: u64 = 34;
+        const BACKUP_GPT_LBA_SECTORS: u64 = 34;
         self.data_part_bytes_size
             + self.image_part_bytes_size
-            + (34 * 2 * u64::from(Self::LBA_SIZE))
-        // 68 LBA sectors for GPT
+            + ((PRIMARY_GPT_LBA_SECTORS + BACKUP_GPT_LBA_SECTORS) * u64::from(Self::LBA_SIZE))
     }
 
-    fn write_mbr(&self, mut file: impl DiskDevice) -> Result<(), ApplicationDiskManagerError> {
+    fn write_mbr(&self, file:&mut Box<&mut dyn DiskDevice>) -> Result<(), ApplicationDiskManagerError> {
         let mbr = ProtectiveMBR::with_lb_size(
             (self.calculate_total_size() / u64::from(Self::LBA_SIZE) - 1) as u32,
         );
-        mbr.overwrite_lba0(&mut file)
+        mbr.overwrite_lba0(file)
             .map_err(|err| ApplicationDiskManagerError::PartitionMetadataWrite(err.to_string()))?;
         Ok(())
     }
@@ -279,15 +280,16 @@ impl ApplicationDiskManager {
 
     fn create_gpt_and_partitions(
         &self,
-        mut file: impl DiskDevice,
+        file: &mut impl DiskDevice
     ) -> Result<(), ApplicationDiskManagerError> {
+        let mut file: Box<&mut dyn DiskDevice> = Box::new(file);
         self.write_mbr(&mut file)?;
 
         let mut gpt = GptConfig::default()
             .initialized(false)
             .writable(true)
             .logical_block_size(Self::LBA_SIZE)
-            .create_from_device(Box::new(&mut file), None)
+            .create_from_device(file, None)
             .map_err(|err| ApplicationDiskManagerError::GPTConfiguration(err.to_string()))?;
         gpt.update_partitions(BTreeMap::new())
             .map_err(|err| ApplicationDiskManagerError::GPTUpdate(err.to_string()))?;
