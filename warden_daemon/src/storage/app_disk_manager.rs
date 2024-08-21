@@ -37,6 +37,8 @@ pub enum ApplicationDiskManagerError {
     GPTRead(String),
     #[error("Failed to write GPT configuration: {0}")]
     GPTSave(String),
+    #[error("Failed to save file: {0}")]
+    FileShutdown(String),
     #[error("Failed to read partition size: {0}")]
     GetPartitionSize(String),
     #[error("Missing Data partition.")]
@@ -180,7 +182,7 @@ impl ApplicationDiskManager {
         } else if partition_size_mb == 0 {
             Err(ApplicationDiskManagerError::RequestedEmptyPartition())
         } else {
-            Ok((partition_size_mb * 1024 * 1024).into())
+            Ok(partition_size_mb as u64 * 1024 * 1024)
         }
     }
 
@@ -219,10 +221,13 @@ impl ApplicationDiskManager {
     }
 
     async fn sync_file(file: std::fs::File) -> Result<(), ApplicationDiskManagerError> {
-        let file = File::from_std(file);
+        let mut file = File::from_std(file);
         file.sync_all()
             .await
-            .map_err(|err| ApplicationDiskManagerError::PartitionCreation(err.to_string()))
+            .map_err(|err| ApplicationDiskManagerError::PartitionCreation(err.to_string()))?;
+        file.shutdown()
+            .await
+            .map_err(|err| ApplicationDiskManagerError::FileShutdown(err.to_string()))
     }
 
     async fn create_disk_device(&self) -> Result<std::fs::File, io::Error> {
