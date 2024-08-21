@@ -6,14 +6,14 @@ use crate::managers::{
     application::{Application, ApplicationConfig, ApplicationError},
     realm::{ApplicationCreator, Realm, RealmData, RealmDescription, RealmError, State},
     realm_client::{RealmClient, RealmClientError, RealmProvisioningConfig},
-    realm_configuration::{CpuConfig, KernelConfig, MemoryConfig, NetworkConfig, RealmConfig},
+    realm_configuration::RealmConfig,
     warden::{RealmCreator, Warden, WardenError},
 };
 use async_trait::async_trait;
 use mockall::mock;
 use std::process::ExitStatus;
 use std::time::Duration;
-use std::{path::PathBuf, str::FromStr, sync::Arc};
+use std::{str::FromStr, sync::Arc};
 use tokio::sync::oneshot::Receiver;
 use uuid::Uuid;
 use warden_realm::{Request, Response};
@@ -36,41 +36,26 @@ pub fn create_example_uuid() -> Uuid {
     Uuid::from_str("a46289a4-5902-4586-81a3-908bdd62e7a1").unwrap()
 }
 
-pub fn create_example_realm_config() -> RealmConfig {
-    RealmConfig {
-        machine: String::new(),
-        cpu: CpuConfig {
-            cpu: String::new(),
-            cores_number: 0,
-        },
-        memory: MemoryConfig { ram_size: 0 },
-        network: NetworkConfig {
-            vsock_cid: 0,
-            tap_device: String::new(),
-            mac_address: String::new(),
-            hardware_device: None,
-            remote_terminal_uri: None,
-        },
-        kernel: KernelConfig {
-            kernel_path: PathBuf::new(),
-        },
+pub fn create_example_client_app_config() -> warden_client::application::ApplicationConfig {
+    warden_client::application::ApplicationConfig {
+        name: Default::default(),
+        version: Default::default(),
+        image_registry: Default::default(),
+        image_storage_size_mb: Default::default(),
+        data_storage_size_mb: Default::default(),
     }
+}
+
+pub fn create_example_realm_config() -> RealmConfig {
+    Default::default()
 }
 
 pub fn create_example_app_config() -> ApplicationConfig {
-    ApplicationConfig {
-        name: String::new(),
-        version: String::new(),
-        image_registry: String::new(),
-        image_storage_size_mb: 0,
-        data_storage_size_mb: 0,
-    }
+    Default::default()
 }
 
-pub fn create_realm_provisioning_config() -> RealmProvisioningConfig {
-    RealmProvisioningConfig {
-        applications_data: vec![],
-    }
+pub fn create_example_realm_provisioning_config() -> RealmProvisioningConfig {
+    Default::default()
 }
 
 mock! {

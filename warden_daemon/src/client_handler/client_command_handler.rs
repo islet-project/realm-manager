@@ -302,14 +302,17 @@ impl Client for ClientHandler {
 
 #[cfg(test)]
 mod test {
-    use crate::managers::{
-        application::Application,
-        realm::{Realm, RealmData, RealmError, State},
-        warden::WardenError,
-    };
     use crate::utils::test_utilities::{
         create_example_realm_description, create_example_uuid, MockApplication, MockRealm,
         MockWardenDaemon,
+    };
+    use crate::{
+        managers::{
+            application::Application,
+            realm::{Realm, RealmData, RealmError, State},
+            warden::WardenError,
+        },
+        utils::test_utilities::create_example_client_app_config,
     };
     use parameterized::parameterized;
     use std::{path::PathBuf, sync::Arc};
@@ -318,7 +321,6 @@ mod test {
     use utils::serde::json_framed::JsonFramed;
     use uuid::Uuid;
     use warden_client::{
-        application::ApplicationConfig,
         realm::{CpuConfig, KernelConfig, MemoryConfig, NetworkConfig, RealmConfig},
         warden::{WardenCommand, WardenResponse},
     };
@@ -534,16 +536,6 @@ mod test {
             kernel: KernelConfig {
                 kernel_path: PathBuf::new(),
             },
-        }
-    }
-
-    fn create_example_client_app_config() -> ApplicationConfig {
-        ApplicationConfig {
-            name: String::new(),
-            version: String::new(),
-            image_registry: String::new(),
-            image_storage_size_mb: 0,
-            data_storage_size_mb: 0,
         }
     }
 }

@@ -24,7 +24,7 @@ pub trait Application {
     fn get_data(&self) -> ApplicationData;
 }
 
-#[derive(Debug, Serialize, Deserialize, Clone, PartialEq, PartialOrd)]
+#[derive(Debug, Serialize, Deserialize, Clone, PartialEq, PartialOrd, Default)]
 pub struct ApplicationConfig {
     pub name: String,
     pub version: String,
@@ -33,7 +33,7 @@ pub struct ApplicationConfig {
     pub data_storage_size_mb: usize,
 }
 
-#[derive(Debug, Serialize, Deserialize, Clone, PartialEq, PartialOrd)]
+#[derive(Debug, Serialize, Deserialize, Clone, PartialEq, PartialOrd, Default)]
 pub struct ApplicationData {
     pub id: Uuid,
     pub name: String,

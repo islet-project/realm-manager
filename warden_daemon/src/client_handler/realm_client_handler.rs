@@ -179,7 +179,7 @@ mod test {
 
     use super::{RealmClient, RealmClientError, RealmClientHandler, RealmSender, RealmSenderError};
     use crate::utils::test_utilities::{
-        create_realm_provisioning_config, MockRealmConnector, MockRealmSender,
+        create_example_realm_provisioning_config, MockRealmConnector, MockRealmSender,
     };
 
     #[tokio::test]
@@ -465,7 +465,7 @@ mod test {
         realm_client_handler.sender = Some(Box::new(sender_mock));
         let cid = 0;
         assert!(realm_client_handler
-            .reboot_realm(create_realm_provisioning_config(), cid)
+            .reboot_realm(create_example_realm_provisioning_config(), cid)
             .await
             .is_ok());
     }
@@ -476,7 +476,7 @@ mod test {
         let cid = 0;
         assert!(realm_client_handler.sender.is_none());
         assert!(realm_client_handler
-            .provision_applications(create_realm_provisioning_config(), cid)
+            .provision_applications(create_example_realm_provisioning_config(), cid)
             .await
             .is_ok());
         assert!(realm_client_handler.sender.is_some());
@@ -496,7 +496,7 @@ mod test {
         let mut realm_client_handler = create_realm_client_handler(Some(realm_connector), None);
         let cid = 0;
         assert!(realm_client_handler
-            .provision_applications(create_realm_provisioning_config(), cid)
+            .provision_applications(create_example_realm_provisioning_config(), cid)
             .await
             .is_err());
         assert!(realm_client_handler.sender.is_none());

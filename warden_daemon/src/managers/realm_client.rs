@@ -19,7 +19,7 @@ pub enum RealmClientError {
     RealmDisconnection(),
 }
 
-#[derive(Debug, Serialize, Deserialize)]
+#[derive(Debug, Serialize, Deserialize, Default)]
 pub struct RealmProvisioningConfig {
     pub applications_data: Vec<ApplicationData>,
 }

@@ -563,6 +563,6 @@ mod test {
     }
 
     fn create_example_client_app_config() -> ApplicationConfig {
-        ApplicationConfig { name: String::new(), version: String::new(), image_registry: String::new(), image_storage_size_mb: 0, data_storage_size_mb: 0 }
+        ApplicationConfig { name: Default::default(), version: Default::default(), image_registry: Default::default(), image_storage_size_mb: Default::default(), data_storage_size_mb: Default::default() }
     }
 }
