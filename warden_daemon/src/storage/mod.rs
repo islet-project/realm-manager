@@ -1,4 +1,5 @@
 use std::{
+    io,
     path::{Path, PathBuf},
     str::FromStr,
 };
@@ -12,7 +13,7 @@ use crate::utils::repository::{Repository, RepositoryError};
 
 pub mod app_disk_manager;
 
-pub async fn read_subfolders_uuids(root_folder: &Path) -> Result<Vec<Uuid>, std::io::Error> {
+pub async fn read_subfolders_uuids(root_folder: &Path) -> Result<Vec<Uuid>, io::Error> {
     let mut uuids: Vec<Uuid> = Vec::new();
     let mut read_dir = tokio::fs::read_dir(root_folder).await?;
     while let Ok(Some(entry)) = read_dir.next_entry().await {
@@ -20,7 +21,7 @@ pub async fn read_subfolders_uuids(root_folder: &Path) -> Result<Vec<Uuid>, std:
             if file_type.is_dir() {
                 uuids.push(
                     Uuid::from_str(entry.file_name().to_string_lossy().as_ref())
-                        .map_err(|err| std::io::Error::other(err.to_string()))?,
+                        .map_err(|err| io::Error::other(err.to_string()))?,
                 );
             }
         }

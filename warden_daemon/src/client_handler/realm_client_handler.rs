@@ -47,7 +47,7 @@ impl RealmClientHandler {
         realm_connector: Arc<Mutex<dyn RealmConnector + Send + Sync>>,
         realm_connection_wait_time: Duration,
     ) -> Self {
-        const RESPONSE_TIMEOUT: Duration = Duration::from_secs(10);
+        const RESPONSE_TIMEOUT: Duration = Duration::from_secs(10); // TODO! Read from config.
         Self {
             connector: realm_connector,
             connection_wait_time: realm_connection_wait_time,
