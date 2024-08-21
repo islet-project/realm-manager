@@ -76,11 +76,11 @@ impl QemuRunner {
         self.command.stdout(Stdio::piped());
         self.command.stderr(Stdio::piped());
     }
-    fn setup_disk(&mut self, application_uuids: &[&Uuid]) {
+    fn setup_disk(&self, command:&mut Command, application_uuids: &[&Uuid]) {
         for app_uuid in application_uuids {
             let mut app_disk_path = self.realm_workdir.join(app_uuid.to_string());
             app_disk_path.push(ApplicationDiskManager::DISK_NAME);
-            self.command
+            command
                 .arg("-drive")
                 .arg(format!("file={}", app_disk_path.to_string_lossy()));
         }
@@ -89,9 +89,11 @@ impl QemuRunner {
 
 impl VmManager for QemuRunner {
     fn launch_vm(&mut self, application_uuids: &[&Uuid]) -> Result<(), VmManagerError> {
-        self.setup_disk(application_uuids);
-        trace!("Spawning realm with command: {:?}", self.command);
-        self.command
+        let mut command = Command::new(self.command.get_program());
+        command.args(self.command.get_args());
+        self.setup_disk(&mut command, application_uuids);
+        trace!("Spawning realm with command: {:?}", command);
+        command
             .spawn()
             .map(|child| {
                 self.vm = Some(child);

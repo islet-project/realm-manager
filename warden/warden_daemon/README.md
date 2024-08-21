@@ -29,6 +29,10 @@ Warden daemon that runs and manages realms and applications that are inside them
 
     cargo test
 
+### Running Integration Tests
+
+    REALM_QEMU_PATH=... REALM_KERNEL_PATH=... cargo test  -- --ignored
+
 ### E2E Tests
 
     Use warden command-line client: ../cmd_client
