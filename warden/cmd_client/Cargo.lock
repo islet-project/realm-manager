@@ -161,6 +161,34 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "4b82cf0babdbd58558212896d1a4272303a57bdb245c2bf1147185fb45640e70"
 
 [[package]]
+name = "client_lib"
+version = "0.1.0"
+dependencies = [
+ "serde",
+ "serde_json",
+ "thiserror",
+ "tokio",
+ "utils",
+ "uuid",
+ "warden_client",
+]
+
+[[package]]
+name = "cmd_client"
+version = "0.1.0"
+dependencies = [
+ "anyhow",
+ "clap",
+ "client_lib",
+ "env_logger",
+ "log",
+ "shlex",
+ "tokio",
+ "uuid",
+ "warden_client",
+]
+
+[[package]]
 name = "colorchoice"
 version = "1.0.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -739,34 +767,6 @@ dependencies = [
  "serde",
  "thiserror",
  "uuid",
-]
-
-[[package]]
-name = "warden_client_lib"
-version = "0.1.0"
-dependencies = [
- "serde",
- "serde_json",
- "thiserror",
- "tokio",
- "utils",
- "uuid",
- "warden_client",
-]
-
-[[package]]
-name = "warden_cmd_client"
-version = "0.1.0"
-dependencies = [
- "anyhow",
- "clap",
- "env_logger",
- "log",
- "shlex",
- "tokio",
- "uuid",
- "warden_client",
- "warden_client_lib",
 ]
 
 [[package]]

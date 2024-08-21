@@ -8,7 +8,7 @@
 
 ### Command-line formula
 
-    sudo RUST_LOG=debug target/debug/warden_cmd_client -u "/tmp/usocket1"
+    sudo RUST_LOG=debug target/debug/cmd_client -u "/tmp/usocket1"
 
 ### Example commands:
 |Command| Usage |

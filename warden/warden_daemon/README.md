@@ -31,4 +31,4 @@ Warden daemon that runs and manages realms and applications that are inside them
 
 ### E2E Tests
 
-    Use warden command-line client: ../warden_cmd_client
+    Use warden command-line client: ../cmd_client
