@@ -1,10 +1,10 @@
-use std::path::Path;
+use std::path::{Path, PathBuf};
 
 use serde::{de::DeserializeOwned, Serialize};
 use thiserror::Error;
 use tokio::{
     fs::File,
-    io::{AsyncReadExt, AsyncSeekExt, AsyncWriteExt},
+    io::{AsyncReadExt, AsyncWriteExt},
 };
 
 #[derive(Debug, Error)]
@@ -19,15 +19,12 @@ pub enum FileRepositoryError {
 
 pub struct FileRepository<Struct: Serialize + DeserializeOwned> {
     data: Struct,
-    file: File,
+    path: PathBuf,
 }
 
 impl<Struct: Serialize + DeserializeOwned> FileRepository<Struct> {
     pub async fn new(data: Struct, path: &Path) -> Result<Self, FileRepositoryError> {
-        let file = File::create(path)
-            .await
-            .map_err(FileRepositoryError::CreationFail)?;
-        let mut repository = Self { data, file };
+        let mut repository = Self { data, path: path.to_path_buf() };
         repository.save().await?;
         Ok(repository)
     }
@@ -35,20 +32,20 @@ impl<Struct: Serialize + DeserializeOwned> FileRepository<Struct> {
     pub async fn from_file_path(path: &Path) -> Result<Self, FileRepositoryError> {
         FileRepository::<Struct>::try_read_file(path)
             .await
-            .map(|(file, data)| Self { data, file })
+            .map(|(_, data)| Self { data, path: path.to_path_buf() })
     }
 
     pub async fn save(&mut self) -> Result<(), FileRepositoryError> {
         let yaml_data = serde_yaml::to_string(&self.data)
             .map_err(|err| FileRepositoryError::SaveFail(err.to_string()))?;
-        self.file
-            .seek(std::io::SeekFrom::Start(0))
-            .await
-            .map_err(|err| FileRepositoryError::SaveFail(err.to_string()))?;
-        self.file
+        let mut file = File::create(&self.path)
+        .await
+        .map_err(FileRepositoryError::CreationFail)?;
+        file
             .write_all(yaml_data.as_bytes())
             .await
             .map_err(|err| FileRepositoryError::SaveFail(err.to_string()))?;
+        file.flush().await.map_err(|err| FileRepositoryError::SaveFail(err.to_string()))?;
         Ok(())
     }
 

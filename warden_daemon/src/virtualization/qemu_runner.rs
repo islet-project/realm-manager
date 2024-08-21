@@ -3,7 +3,9 @@ use std::process::{Child, Command, ExitStatus, Stdio};
 
 use log::trace;
 
-use crate::managers::realm_configuration::{CpuConfig, KernelConfig, MemoryConfig, NetworkConfig};
+use crate::managers::realm_configuration::{
+    CpuConfig, KernelConfig, MemoryConfig, NetworkConfig, RealmConfig,
+};
 use crate::managers::realm_manager::{VmManager, VmManagerError};
 
 pub struct QemuRunner {
@@ -12,15 +14,20 @@ pub struct QemuRunner {
 }
 
 impl QemuRunner {
-    pub fn new(path_to_qemu: PathBuf) -> Self {
-        QemuRunner {
+    pub fn new(path_to_qemu: PathBuf, config: &RealmConfig) -> Self {
+        let mut runner = QemuRunner {
             command: Command::new(path_to_qemu),
             vm: None,
-        }
+        };
+        runner.setup_cpu(&config.cpu);
+        runner.setup_kernel(&config.kernel);
+        runner.setup_memory(&config.memory);
+        runner.setup_machine(&config.machine);
+        runner.setup_network(&config.network);
+        runner.control_output();
+        runner
     }
-}
 
-impl VmManager for QemuRunner {
     fn setup_network(&mut self, config: &NetworkConfig) {
         self.command.arg("-netdev").arg(format!(
             "tap,id=mynet0,ifname={},script=no,downscript=no",
@@ -58,14 +65,23 @@ impl VmManager for QemuRunner {
     fn setup_machine(&mut self, name: &str) {
         self.command.arg("-machine").arg(name);
     }
+    fn control_output(&mut self) {
+        self.command.arg("-nographic");
+        self.command.arg("-append").arg("console=ttyAMA0");
+
+        self.command.stdin(Stdio::null());
+        self.command.stdout(Stdio::piped());
+        self.command.stderr(Stdio::piped());
+    }
+}
+
+impl VmManager for QemuRunner {
     fn launch_vm(&mut self) -> Result<(), VmManagerError> {
-        self.control_output();
         trace!("Spawning realm with command: {:?}", self.command);
         self.command
             .spawn()
             .map(|child| {
                 self.vm = Some(child);
-                self.command = Command::new(self.command.get_program());
             })
             .map_err(VmManagerError::LaunchFail)
     }
@@ -86,16 +102,5 @@ impl VmManager for QemuRunner {
             return vm.try_wait().ok()?;
         }
         None
-    }
-}
-
-impl QemuRunner {
-    fn control_output(&mut self) {
-        self.command.arg("-nographic");
-        self.command.arg("-append").arg("console=ttyAMA0");
-
-        self.command.stdin(Stdio::null());
-        self.command.stdout(Stdio::piped());
-        self.command.stderr(Stdio::piped());
     }
 }

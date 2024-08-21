@@ -71,6 +71,9 @@ impl<Config: Serialize + DeserializeOwned + Send + Sync> Repository
     fn get(&self) -> &Self::Data {
         self.config.get()
     }
+    fn get_mut(&mut self) -> &mut Self::Data {
+        self.config.get_mut()
+    }
     async fn save(&mut self) -> Result<(), RepositoryError> {
         self.config
             .save()

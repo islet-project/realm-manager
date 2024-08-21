@@ -82,6 +82,26 @@ pub enum Command {
         /// Realm Id in which application will be created
         #[clap(short, long)]
         realm_id: String,
+
+        /// Application name
+        #[clap(short, long)]
+        name: String,
+        
+        /// Application version
+        #[clap(short, long)]
+        version: String,
+        
+        /// Application image registry
+        #[clap(short, long)]
+        image_registry: String,
+
+        /// Application image storage size
+        #[clap(short = 'o', long)]
+        image_storage_size_mb: usize,
+
+        /// Application data storage size
+        #[clap(short, long)]
+        data_storage_size_mb: usize,
     },
 
     StartApplication {
@@ -112,5 +132,25 @@ pub enum Command {
         /// Realm Id
         #[clap(short, long)]
         realm_id: String,
+
+        /// Application name
+        #[clap(short, long)]
+        name: String,
+        
+        /// Application version
+        #[clap(short, long)]
+        version: String,
+        
+        /// Application image registry
+        #[clap(short, long)]
+        image_registry: String,
+
+        /// Application image storage size
+        #[clap(short = 'o', long)]
+        image_storage_size_mb: usize,
+
+        /// Application data storage size
+        #[clap(short, long)]
+        data_storage_size_mb: usize,
     },
 }

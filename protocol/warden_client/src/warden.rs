@@ -3,7 +3,7 @@ use thiserror::Error;
 use uuid::Uuid;
 
 use crate::realm::RealmDescription;
-use crate::{applciation::ApplicationConfig, realm::RealmConfig};
+use crate::{application::ApplicationConfig, realm::RealmConfig};
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, PartialOrd)]
 pub enum WardenCommand {

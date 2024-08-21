@@ -15,5 +15,6 @@ pub trait Repository {
     type Data;
 
     fn get(&self) -> &Self::Data;
+    fn get_mut(&mut self) -> &mut Self::Data;
     async fn save(&mut self) -> Result<(), RepositoryError>;
 }

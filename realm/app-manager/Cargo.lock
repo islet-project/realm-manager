@@ -1211,6 +1211,7 @@ dependencies = [
  "futures-util",
  "serde",
  "serde_json",
+ "serde_yaml",
  "thiserror",
  "tokio",
  "tokio-serde",

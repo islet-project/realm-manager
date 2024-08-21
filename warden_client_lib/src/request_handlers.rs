@@ -4,7 +4,7 @@ use tokio::net::UnixStream;
 use utils::serde::json_framed::JsonFramed;
 use uuid::Uuid;
 use warden_client::{
-    applciation::ApplicationConfig,
+    application::ApplicationConfig,
     realm::{RealmConfig, RealmDescription},
     warden::{WardenCommand, WardenResponse},
 };
@@ -203,7 +203,7 @@ mod test {
     use utils::serde::json_framed::JsonFramed;
     use uuid::Uuid;
     use warden_client::{
-        applciation::ApplicationConfig,
+        application::ApplicationConfig,
         realm::{
             CpuConfig, KernelConfig, MemoryConfig, NetworkConfig, RealmConfig, RealmDescription,
             State,
@@ -288,7 +288,7 @@ mod test {
         let command = WardenCommand::UpdateApplication {
             realm_uuid,
             application_uuid,
-            config: ApplicationConfig {},
+            config: create_example_client_app_config(),
         };
         const RESPONSE: WardenResponse = WardenResponse::Ok;
         let (mut communicator, respondent) = create_communicators();
@@ -299,7 +299,7 @@ mod test {
             &mut communicator,
             realm_uuid,
             application_uuid,
-            ApplicationConfig {}
+            create_example_client_app_config()
         )
         .await
         .is_ok());
@@ -312,7 +312,7 @@ mod test {
         let application_uuid = Uuid::new_v4();
         let command = WardenCommand::CreateApplication {
             realm_uuid,
-            config: ApplicationConfig {},
+            config: create_example_client_app_config(),
         };
         let response = WardenResponse::CreatedApplication {
             uuid: application_uuid,
@@ -322,7 +322,7 @@ mod test {
         let result = receive_message_and_send_response(response, respondent).await;
 
         assert!(
-            super::create_application(&mut communicator, realm_uuid, ApplicationConfig {})
+            super::create_application(&mut communicator, realm_uuid, create_example_client_app_config())
                 .await
                 .is_ok()
         );
@@ -560,5 +560,9 @@ mod test {
                 kernel_path: PathBuf::new(),
             },
         }
+    }
+
+    fn create_example_client_app_config() -> ApplicationConfig {
+        ApplicationConfig { name: Default::default(), version: Default::default(), image_registry: Default::default(), image_storage_size_mb: Default::default(), data_storage_size_mb: Default::default() }
     }
 }

@@ -19,11 +19,6 @@ pub trait VmManager {
     fn delete_vm(&mut self) -> Result<(), VmManagerError>;
     fn get_exit_status(&mut self) -> Option<ExitStatus>;
     fn launch_vm(&mut self) -> Result<(), VmManagerError>;
-    fn setup_cpu(&mut self, config: &CpuConfig);
-    fn setup_kernel(&mut self, config: &KernelConfig);
-    fn setup_machine(&mut self, name: &str);
-    fn setup_memory(&mut self, config: &MemoryConfig);
-    fn setup_network(&mut self, config: &NetworkConfig);
     fn stop_vm(&mut self) -> Result<(), VmManagerError>;
 }
 
@@ -68,20 +63,12 @@ impl RealmManager {
         }
     }
 
-    fn create_provisioning_config(&self) -> RealmProvisioningConfig {
-        RealmProvisioningConfig {}
-    }
-
-    fn setup_vm(&mut self) -> Result<(), RealmError> {
-        let config = self.config.get();
-        self.vm_manager.setup_cpu(&config.cpu);
-        self.vm_manager.setup_kernel(&config.kernel);
-        self.vm_manager.setup_memory(&config.memory);
-        self.vm_manager.setup_machine(&config.machine);
-        self.vm_manager.setup_network(&config.network);
-        self.vm_manager
-            .launch_vm()
-            .map_err(|err| RealmError::RealmLaunchFail(err.to_string()))
+    async fn create_provisioning_config(&self) -> RealmProvisioningConfig {
+        let mut applications_data = vec![];
+        for app in self.applications.values() {
+            applications_data.push(app.lock().await.get_data());
+        }
+        RealmProvisioningConfig { applications_data }
     }
 }
 
@@ -106,7 +93,9 @@ impl Realm for RealmManager {
             )));
         }
 
-        self.setup_vm()?;
+        self.vm_manager
+            .launch_vm()
+            .map_err(|err| RealmError::RealmLaunchFail(err.to_string()))?;
 
         self.state = State::Provisioning;
 
@@ -114,8 +103,8 @@ impl Realm for RealmManager {
             .realm_client_handler
             .lock()
             .await
-            .send_realm_provisioning_config(
-                self.create_provisioning_config(),
+            .provision_applications(
+                self.create_provisioning_config().await,
                 self.config.get().network.vsock_cid,
             )
             .await
@@ -135,13 +124,20 @@ impl Realm for RealmManager {
         }
     }
 
-    fn stop(&mut self) -> Result<(), RealmError> {
+    async fn stop(&mut self) -> Result<(), RealmError> {
         if self.state != State::NeedReboot && self.state != State::Running {
             return Err(RealmError::UnsupportedAction(format!(
                 "Can't stop realm that is in {:#?} state.",
                 self.state
             )));
         }
+
+        self.realm_client_handler
+            .lock()
+            .await
+            .shutdown_realm()
+            .await
+            .map_err(|err| RealmError::RealmStopFail(err.to_string()))?;
         self.vm_manager
             .stop_vm()
             .map_err(|err| RealmError::VmStopFail(err.to_string()))?;
@@ -151,8 +147,23 @@ impl Realm for RealmManager {
     }
 
     async fn reboot(&mut self) -> Result<(), RealmError> {
-        self.stop()?;
-        self.start().await
+        if self.state != State::NeedReboot && self.state != State::Running {
+            return Err(RealmError::UnsupportedAction(format!(
+                "Can't stop realm that is in {:#?} state.",
+                self.state
+            )));
+        }
+        self.realm_client_handler
+            .lock()
+            .await
+            .reboot_realm(
+                self.create_provisioning_config().await,
+                self.config.get().network.vsock_cid,
+            )
+            .await
+            .map_err(|err| RealmError::RealmStopFail(err.to_string()))?;
+        self.state = State::Running;
+        Ok(())
     }
 
     async fn create_application(&mut self, config: ApplicationConfig) -> Result<Uuid, RealmError> {
@@ -185,7 +196,12 @@ impl Realm for RealmManager {
         }
         match self.applications.get(uuid) {
             Some(app_manager) => {
-                app_manager.lock().await.update(new_config);
+                app_manager
+                    .lock()
+                    .await
+                    .update(new_config)
+                    .await
+                    .map_err(|err| RealmError::ApplicationUpdateFail(err.to_string()))?;
                 if self.state == State::Running {
                     self.state = State::NeedReboot;
                 }
@@ -213,7 +229,7 @@ impl Realm for RealmManager {
     fn get_realm_data(&self) -> RealmData {
         RealmData {
             state: self.state.clone(),
-            applications: self.applications.keys().into_iter().copied().collect(),
+            applications: self.applications.keys().copied().collect(),
         }
     }
 }
@@ -262,11 +278,6 @@ mod test {
     #[tokio::test]
     async fn realm_start_launching_vm_error() {
         let mut vm_manager_mock = MockVmManager::new();
-        vm_manager_mock.expect_setup_cpu().returning(|_| ());
-        vm_manager_mock.expect_setup_kernel().returning(|_| ());
-        vm_manager_mock.expect_setup_machine().returning(|_| ());
-        vm_manager_mock.expect_setup_memory().returning(|_| ());
-        vm_manager_mock.expect_setup_network().returning(|_| ());
         vm_manager_mock
             .expect_launch_vm()
             .returning(|| Err(VmManagerError::LaunchFail(Error::other(""))));
@@ -284,7 +295,7 @@ mod test {
     async fn realm_start_launching_acknowledgment_error() {
         let mut client_mock = MockRealmClient::new();
         client_mock
-            .expect_send_realm_provisioning_config()
+            .expect_provision_applications()
             .return_once(|_, _| Err(RealmClientError::RealmConnectionFail(String::new())));
         let mut realm_manager = create_realm_manager(None, Some(client_mock));
         assert_eq!(
@@ -301,7 +312,7 @@ mod test {
     async fn stop_realm(state: State) {
         let mut realm_manager = create_realm_manager(None, None);
         realm_manager.state = state;
-        assert_eq!(realm_manager.stop(), Ok(()));
+        assert_eq!(realm_manager.stop().await, Ok(()));
         assert_eq!(realm_manager.state, State::Halted);
     }
 
@@ -311,7 +322,7 @@ mod test {
         let mut realm_manager = create_realm_manager(None, None);
         realm_manager.state = state.clone();
         assert_eq!(
-            realm_manager.stop(),
+            realm_manager.stop().await,
             Err(RealmError::UnsupportedAction(format!(
                 "Can't stop realm that is in {:#?} state.",
                 &state
@@ -330,7 +341,7 @@ mod test {
         let mut realm_manager = create_realm_manager(Some(vm_manager), None);
         realm_manager.state = state.clone();
         assert_eq!(
-            realm_manager.stop(),
+            realm_manager.stop().await,
             Err(RealmError::VmStopFail(VmManagerError::StopFail.to_string()))
         );
         assert_eq!(realm_manager.state, state);
@@ -462,17 +473,12 @@ mod test {
         realm_client_handler: Option<MockRealmClient>,
     ) -> RealmManager {
         let mut vm_manager = vm_manager.unwrap_or_default();
-        vm_manager.expect_setup_cpu().returning(|_| ());
-        vm_manager.expect_setup_kernel().returning(|_| ());
-        vm_manager.expect_setup_machine().returning(|_| ());
-        vm_manager.expect_setup_memory().returning(|_| ());
-        vm_manager.expect_setup_network().returning(|_| ());
         vm_manager.expect_launch_vm().returning(|| Ok(()));
         vm_manager.expect_stop_vm().returning(|| Ok(()));
         vm_manager.expect_delete_vm().returning(|| Ok(()));
         let mut realm_client_handler = realm_client_handler.unwrap_or_default();
         realm_client_handler
-            .expect_send_realm_provisioning_config()
+            .expect_provision_applications()
             .returning(|_, _| Ok(()));
         realm_client_handler
             .expect_start_application()
@@ -480,10 +486,19 @@ mod test {
         realm_client_handler
             .expect_stop_application()
             .returning(|_| Ok(()));
+        realm_client_handler
+            .expect_shutdown_realm()
+            .returning(|| Ok(()));
+        realm_client_handler
+            .expect_reboot_realm()
+            .returning(|_, _| Ok(()));
+        realm_client_handler
+            .expect_kill_application()
+            .returning(|_| Ok(()));
         vm_manager.expect_get_exit_status().returning(|| None);
 
         let mut app_mock = MockApplication::new();
-        app_mock.expect_update().returning(|_| ());
+        app_mock.expect_update().returning(|_| Ok(()));
 
         let mut creator_mock = MockApplicationFabric::new();
         creator_mock

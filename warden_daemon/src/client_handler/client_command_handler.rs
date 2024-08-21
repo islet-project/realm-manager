@@ -127,6 +127,7 @@ impl ClientHandler {
                     .lock()
                     .await
                     .stop()
+                    .await
                     .map_err(ClientError::RealmManagerError)?;
                 info!("Realm: {uuid} stopped.");
                 Ok(WardenResponse::Ok)
@@ -231,7 +232,7 @@ impl ClientHandler {
                 application_uuid,
                 config,
             } => {
-                info!("Starting application: {application_uuid} in realm: {realm_uuid}.");
+                info!("Updating application: {application_uuid} in realm: {realm_uuid}.");
                 self.get_realm(&realm_uuid)
                     .await?
                     .lock()
@@ -239,7 +240,7 @@ impl ClientHandler {
                     .update_application(&application_uuid, config.into())
                     .await
                     .map_err(ClientError::RealmManagerError)?;
-                info!("Started application: {application_uuid} in realm: {realm_uuid}.");
+                info!("Updated application: {application_uuid} in realm: {realm_uuid}.");
                 Ok(WardenResponse::Ok)
             }
         }
@@ -301,14 +302,17 @@ impl Client for ClientHandler {
 
 #[cfg(test)]
 mod test {
-    use crate::managers::{
-        application::Application,
-        realm::{Realm, RealmData, RealmError, State},
-        warden::WardenError,
-    };
     use crate::utils::test_utilities::{
         create_example_realm_description, create_example_uuid, MockApplication, MockRealm,
         MockWardenDaemon,
+    };
+    use crate::{
+        managers::{
+            application::Application,
+            realm::{Realm, RealmData, RealmError, State},
+            warden::WardenError,
+        },
+        utils::test_utilities::create_example_client_app_config,
     };
     use parameterized::parameterized;
     use std::{path::PathBuf, sync::Arc};
@@ -317,7 +321,6 @@ mod test {
     use utils::serde::json_framed::JsonFramed;
     use uuid::Uuid;
     use warden_client::{
-        applciation::ApplicationConfig,
         realm::{CpuConfig, KernelConfig, MemoryConfig, NetworkConfig, RealmConfig},
         warden::{WardenCommand, WardenResponse},
     };
@@ -457,7 +460,7 @@ mod test {
                 let mut realm_manager = MockApplication::new();
                 realm_manager.expect_start().returning(|| Ok(()));
                 realm_manager.expect_stop().returning(|| Ok(()));
-                realm_manager.expect_update().returning(|_| ());
+                realm_manager.expect_update().returning(|_| Ok(()));
                 realm_manager
             })));
 
@@ -534,9 +537,5 @@ mod test {
                 kernel_path: PathBuf::new(),
             },
         }
-    }
-
-    fn create_example_client_app_config() -> ApplicationConfig {
-        ApplicationConfig {}
     }
 }

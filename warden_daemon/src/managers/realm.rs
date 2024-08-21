@@ -15,6 +15,8 @@ pub enum RealmError {
     ApplicationMissing(Uuid),
     #[error("Error occured while starting realm: {0}")]
     RealmStartFail(String),
+    #[error("Error occured while starting realm: {0}")]
+    RealmStopFail(String),
     #[error("Unsupported action: {0}")]
     UnsupportedAction(String),
     #[error("Can't launch the Realm: {0}")]
@@ -25,6 +27,8 @@ pub enum RealmError {
     VmDestroyFail(String),
     #[error("Can't create application: {0}")]
     ApplicationCreationFail(String),
+    #[error("Can't update application: {0}")]
+    ApplicationUpdateFail(String),
 }
 
 #[async_trait]
@@ -37,7 +41,7 @@ pub trait Realm {
     fn get_realm_data(&self) -> RealmData;
     async fn reboot(&mut self) -> Result<(), RealmError>;
     async fn start(&mut self) -> Result<(), RealmError>;
-    fn stop(&mut self) -> Result<(), RealmError>;
+    async fn stop(&mut self) -> Result<(), RealmError>;
     async fn update_application(
         &mut self,
         uuid: &Uuid,

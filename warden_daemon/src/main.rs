@@ -10,6 +10,7 @@ use socket::unix_socket_server::{UnixSocketServer, UnixSocketServerError};
 use socket::vsocket_server::{VSockServer, VSockServerConfig, VSockServerError};
 use std::path::PathBuf;
 use std::sync::Arc;
+use std::time::Duration;
 use tokio::select;
 use tokio::signal::unix::{signal, SignalKind};
 use tokio::sync::Mutex;
@@ -38,6 +39,8 @@ struct Cli {
     unix_sock_path: PathBuf,
     #[arg(short, long)]
     warden_workdir_path: PathBuf,
+    #[arg(short = 't', long, default_value_t = 30)]
+    realm_connection_wait_time_secs: u64,
 }
 
 #[tokio::main]
@@ -56,6 +59,7 @@ async fn main() -> anyhow::Result<(), Error> {
         cli.qemu_path,
         vsock_server.clone(),
         cli.warden_workdir_path.clone(),
+        Duration::from_secs(cli.realm_connection_wait_time_secs),
     ));
     let warden_fabric = WardenFabric::new(cli.warden_workdir_path).await?;
     let warden = warden_fabric.create_warden(realm_fabric).await?;

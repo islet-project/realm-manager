@@ -1,6 +1,9 @@
+use warden_realm::ApplicationInfo;
+
 use crate::managers::{
-    application::ApplicationConfig,
+    application::{ApplicationConfig, ApplicationData},
     realm::{RealmDescription, State},
+    realm_client::RealmProvisioningConfig,
     realm_configuration::{CpuConfig, KernelConfig, MemoryConfig, NetworkConfig, RealmConfig},
 };
 
@@ -65,9 +68,15 @@ impl From<warden_client::realm::KernelConfig> for KernelConfig {
     }
 }
 
-impl From<warden_client::applciation::ApplicationConfig> for ApplicationConfig {
-    fn from(_value: warden_client::applciation::ApplicationConfig) -> Self {
-        Self {}
+impl From<warden_client::application::ApplicationConfig> for ApplicationConfig {
+    fn from(value: warden_client::application::ApplicationConfig) -> Self {
+        Self {
+            name: value.name,
+            version: value.version,
+            image_registry: value.image_registry,
+            image_storage_size_mb: value.image_storage_size_mb,
+            data_storage_size_mb: value.data_storage_size_mb,
+        }
     }
 }
 
@@ -91,5 +100,27 @@ impl From<RealmDescription> for warden_client::realm::RealmDescription {
             state: val.realm_data.state.into(),
             applications: val.realm_data.applications,
         }
+    }
+}
+
+impl From<ApplicationData> for ApplicationInfo {
+    fn from(value: ApplicationData) -> Self {
+        ApplicationInfo {
+            id: value.id,
+            name: value.name,
+            version: value.version,
+            image_registry: value.image_registry,
+            image_part_uuid: value.image_part_uuid,
+            data_part_uuid: value.data_part_uuid,
+        }
+    }
+}
+
+impl From<RealmProvisioningConfig> for Vec<ApplicationInfo> {
+    fn from(val: RealmProvisioningConfig) -> Self {
+        val.applications_data
+            .into_iter()
+            .map(|data| data.into())
+            .collect()
     }
 }
