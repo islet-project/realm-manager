@@ -69,7 +69,7 @@ impl Application for ApplicationManager {
         })
     }
 
-    async fn prepare_for_next_run(&mut self) -> Result<(), ApplicationError> {
+    async fn configure_disk(&mut self) -> Result<(), ApplicationError> {
         let config = self.config.get();
         self.application_disk
             .update_disk_with_partitions(config.data_storage_size_mb, config.image_storage_size_mb)
@@ -230,7 +230,7 @@ mod test {
     #[tokio::test]
     async fn prepare_for_next_run() {
         let mut application_manager = create_application_manager(None, None, None).await;
-        assert!(application_manager.prepare_for_next_run().await.is_ok());
+        assert!(application_manager.configure_disk().await.is_ok());
     }
 
     #[tokio::test]
@@ -240,7 +240,7 @@ mod test {
             .returning(|_, _| Err(ApplicationError::DiskOpertaion(String::new())));
         let mut application_manager = create_application_manager(None, None, Some(disk)).await;
         assert!(matches!(
-            application_manager.prepare_for_next_run().await,
+            application_manager.configure_disk().await,
             Err(ApplicationError::DiskOpertaion(_))
         ));
     }

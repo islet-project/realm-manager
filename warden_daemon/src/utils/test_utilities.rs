@@ -58,6 +58,10 @@ pub fn create_example_realm_provisioning_config() -> RealmProvisioningConfig {
     Default::default()
 }
 
+pub fn create_example_application_data() -> ApplicationData {
+    Default::default()
+}
+
 mock! {
     pub WardenDaemon {}
 
@@ -95,7 +99,7 @@ mock! {
         async fn stop(&mut self) -> Result<(), ApplicationError>;
         async fn start(&mut self) -> Result<(), ApplicationError>;
         async fn update_config(&mut self, config: ApplicationConfig) -> Result<(), ApplicationError>;
-        async fn prepare_for_next_run(&mut self) -> Result<(), ApplicationError>;
+        async fn configure_disk(&mut self) -> Result<(), ApplicationError>;
         async fn get_data(&self) -> Result<ApplicationData, ApplicationError>;
     }
 }
