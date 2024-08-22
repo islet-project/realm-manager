@@ -110,6 +110,10 @@ class MockedWarden():
         o = {"Reboot": []}
         self.transaction(o, read_resp=False)
 
+    def getifaddrs(self):
+        o = {"GetIfAddrs": []}
+        return self.transaction(o)
+
     def invalid_json(self):
         o = {"jfdewhfdiwuehgfui": "dwehudwqiuydfg23quy"}
         return self.transaction(o)
@@ -158,6 +162,7 @@ def main():
     _ = subparsers.add_parser("reboot")
     _ = subparsers.add_parser("shutdown")
     _ = subparsers.add_parser("launch", help="Launch QEMU after issued shutdown")
+    _ = subparsers.add_parser("getifaddrs", help="Read ip addresses of network interfaces")
     _ = subparsers.add_parser("invalid_json")
     _ = subparsers.add_parser("exit")
 
@@ -167,6 +172,9 @@ def main():
 
     if args.test:
         assert r == {'Success': []}
+
+        r = host.getifaddrs()
+        print(f"Ip address of realm interfaces: {r['IfAddrs']}")
 
         r = host.stop_app()
         assert r == {'Success': []}
@@ -238,6 +246,8 @@ def main():
                     r = host.invalid_json()
                 elif cmd == "exit":
                     sys.exit()
+                elif cmd == "getifaddrs":
+                    r = host.getifaddrs()
 
                 print(f"Command returned: {r}")
 

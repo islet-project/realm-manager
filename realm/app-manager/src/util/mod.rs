@@ -3,6 +3,7 @@ use std::{
     path::Path,
 };
 
+use net::NetError;
 use thiserror::Error;
 
 use disk::DiskError;
@@ -10,6 +11,7 @@ use os::OsError;
 
 pub mod disk;
 pub mod fs;
+pub mod net;
 pub mod os;
 pub mod serde;
 
@@ -32,6 +34,9 @@ pub enum UtilsError {
 
     #[error("OS error")]
     Os(#[from] OsError),
+
+    #[error("Network util error")]
+    NetError(#[from] NetError),
 }
 
 pub type Result<T> = std::result::Result<T, UtilsError>;

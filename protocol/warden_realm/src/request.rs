@@ -14,6 +14,7 @@ pub struct ApplicationInfo {
 #[derive(Debug, Serialize, Deserialize)]
 pub enum Request {
     ProvisionInfo(Vec<ApplicationInfo>),
+    GetIfAddrs(),
     CheckStatus(Uuid),
     StartApp(Uuid),
     StopApp(Uuid),

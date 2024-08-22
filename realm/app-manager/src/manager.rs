@@ -1,12 +1,13 @@
+use std::net::IpAddr;
 use std::{collections::HashMap, os::unix::process::ExitStatusExt};
 
 use log::{debug, error, info, warn};
 use thiserror::Error;
-use tokio::task::{JoinError, JoinSet};
+use tokio::task::{block_in_place, JoinError, JoinSet};
 use tokio_vsock::{VsockAddr, VsockStream, VMADDR_CID_HOST};
 use utils::serde::json_framed::{JsonFramed, JsonFramedError};
 use uuid::Uuid;
-use warden_realm::{ApplicationInfo, ProtocolError, Request, Response};
+use warden_realm::{ApplicationInfo, NetAddr, ProtocolError, Request, Response};
 
 use crate::app::Application;
 use crate::config::{Config, KeySealingType, LauncherType};
@@ -14,6 +15,7 @@ use crate::key::{dummy::DummyKeySealing, KeySealing};
 use crate::launcher::handler::ApplicationHandlerError;
 use crate::launcher::{dummy::DummyLauncher, Launcher};
 use crate::launcher::{ApplicationHandler, LauncherError};
+use crate::util::net::read_if_addrs;
 use crate::util::os::{reboot, SystemPowerAction};
 
 use super::Result;
@@ -187,6 +189,15 @@ impl Manager {
                 Ok(Response::Error(
                     ProtocolError::ApplicationsAlreadyProvisioned(),
                 ))
+            }
+
+            Request::GetIfAddrs() => {
+                info!("Reading ip addresses of network interfaces");
+
+                match read_if_addrs() {
+                    Ok(net_addrs) => Ok(Response::IfAddrs(net_addrs)),
+                    Err(e) => Err(ProtocolError::GetIfAddrsError(format!("{:?}", e))),
+                }
             }
 
             Request::StartApp(id) => {

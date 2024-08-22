@@ -10,5 +10,6 @@ pub enum ProtocolError {
     ApplicationStopFailed(String),
     ApplicationKillFailed(String),
     ApplicationCheckStatusFailed(String),
-    SystemPowerActionFailed(String)
+    SystemPowerActionFailed(String),
+    GetIfAddrsError(String),
 }
