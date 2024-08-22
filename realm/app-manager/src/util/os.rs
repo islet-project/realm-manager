@@ -2,6 +2,7 @@ use log::error;
 use nix::errno::Errno;
 use nix::libc::{LINUX_REBOOT_CMD_POWER_OFF, LINUX_REBOOT_CMD_RESTART};
 use thiserror::Error;
+use tokio::task::block_in_place;
 
 #[derive(Debug, Error)]
 pub enum OsError {
@@ -20,10 +21,10 @@ pub fn reboot(action: SystemPowerAction) -> OsError {
         SystemPowerAction::Shutdown => LINUX_REBOOT_CMD_POWER_OFF,
     };
 
-    unsafe {
+    block_in_place(|| unsafe {
         nix::libc::sync();
         nix::libc::reboot(op);
-    };
+    });
 
     error!("Reboot has failed");
 

@@ -1,6 +1,7 @@
 use devicemapper::{DevId, DeviceInfo, DmError, DmFlags, DmOptions, DM};
 use std::sync::Arc;
 use thiserror::Error;
+use tokio::task::block_in_place;
 
 use super::Result;
 
@@ -45,9 +46,11 @@ impl DeviceHandle {
     ) -> Result<()> {
         let id = self.dev_id()?;
 
-        self.dm
-            .table_load(&id, targets, options.unwrap_or_default())
-            .map_err(DeviceHandleError::TableLoad)?;
+        block_in_place(|| {
+            self.dm
+                .table_load(&id, targets, options.unwrap_or_default())
+                .map_err(DeviceHandleError::TableLoad)
+        })?;
 
         Ok(())
     }
@@ -62,10 +65,12 @@ pub trait DeviceHandleWrapperExt: DeviceHandleWrapper {
         let handle = self.handle();
         let id = handle.dev_id()?;
 
-        handle
-            .dm
-            .device_suspend(&id, DmOptions::default())
-            .map_err(DeviceHandleError::ResumeError)?;
+        block_in_place(|| {
+            handle
+                .dm
+                .device_suspend(&id, DmOptions::default())
+                .map_err(DeviceHandleError::ResumeError)
+        })?;
 
         Ok(())
     }
@@ -74,10 +79,12 @@ pub trait DeviceHandleWrapperExt: DeviceHandleWrapper {
         let handle = self.handle();
         let id = handle.dev_id()?;
 
-        handle
-            .dm
-            .device_suspend(&id, DmOptions::default().set_flags(DmFlags::DM_SUSPEND))
-            .map_err(DeviceHandleError::SuspendError)?;
+        block_in_place(|| {
+            handle
+                .dm
+                .device_suspend(&id, DmOptions::default().set_flags(DmFlags::DM_SUSPEND))
+                .map_err(DeviceHandleError::SuspendError)
+        })?;
 
         Ok(())
     }
