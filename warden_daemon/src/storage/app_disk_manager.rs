@@ -10,7 +10,7 @@ use serde::{Deserialize, Serialize};
 use thiserror::Error;
 use tokio::{
     fs::File,
-    io::{AsyncSeekExt, AsyncWriteExt},
+    io::{AsyncSeekExt, AsyncWriteExt}, task::block_in_place,
 };
 use uuid::Uuid;
 
@@ -163,7 +163,8 @@ impl ApplicationDiskManager {
             .create_disk_device()
             .await
             .map_err(|err| ApplicationDiskManagerError::DiskCreation(err.to_string()))?;
-        self.create_gpt_and_partitions(&mut file)?;
+        block_in_place(|| self.create_gpt_and_partitions(&mut file))?;
+
         Self::sync_file(file).await?;
         self.ensure_partitions_correctness().await
     }
@@ -207,10 +208,10 @@ impl ApplicationDiskManager {
     }
 
     fn read_partitions(&self) -> Result<HashMap<String, Partition>, ApplicationDiskManagerError> {
-        let gpt = GptConfig::default()
+        let gpt = block_in_place(|| GptConfig::default()
             .writable(false)
             .initialized(true)
-            .open(&self.file_path)
+            .open(&self.file_path))
             .map_err(|err| ApplicationDiskManagerError::GPTRead(err.to_string()))?;
 
         Ok(gpt
@@ -340,7 +341,7 @@ mod test {
         }
     }
 
-    #[tokio::test]
+    #[tokio::test(flavor="multi_thread")]
     #[ignore]
     async fn create_disk_and_partition() {
         let path_holder = FilePathHolder::new();

@@ -43,7 +43,7 @@ struct Cli {
     realm_connection_wait_time_secs: u64,
 }
 
-#[tokio::main]
+#[tokio::main(flavor = "multi_thread")]
 async fn main() -> anyhow::Result<(), Error> {
     env_logger::init();
     let cli = Cli::parse();
