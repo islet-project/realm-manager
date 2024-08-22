@@ -4,35 +4,15 @@ use super::application::{Application, ApplicationConfig};
 use super::realm::{ApplicationCreator, Realm, RealmData, RealmError, State};
 use super::realm_client::{RealmClient, RealmProvisioningConfig};
 use super::realm_configuration::*;
+use super::vm_manager::VmManager;
 
 use async_trait::async_trait;
 use log::{debug, error};
 use std::collections::HashMap;
-use std::io;
-use std::process::ExitStatus;
 use std::sync::Arc;
-use thiserror::Error;
 use tokio::sync::Mutex;
+use tokio::task::JoinSet;
 use uuid::Uuid;
-
-pub trait VmManager {
-    fn delete_vm(&mut self) -> Result<(), VmManagerError>;
-    fn get_exit_status(&mut self) -> Option<ExitStatus>;
-    fn launch_vm(&mut self) -> Result<(), VmManagerError>;
-    fn stop_vm(&mut self) -> Result<(), VmManagerError>;
-}
-
-#[derive(Debug, Error)]
-pub enum VmManagerError {
-    #[error("Unable to launch Vm: {0}")]
-    LaunchFail(#[from] io::Error),
-    #[error("To stop realm's vm you need to launch it first.")]
-    VmNotLaunched,
-    #[error("Unable to stop realm's vm.")]
-    StopFail,
-    #[error("Unable to destroy realm's vm: {0}")]
-    DestroyFail(String),
-}
 
 type AppsMap = HashMap<Uuid, Arc<Mutex<Box<dyn Application + Send + Sync>>>>;
 
@@ -63,12 +43,36 @@ impl RealmManager {
         }
     }
 
-    async fn create_provisioning_config(&self) -> RealmProvisioningConfig {
+    async fn create_provisioning_config(&self) -> Result<RealmProvisioningConfig, RealmError> {
         let mut applications_data = vec![];
         for app in self.applications.values() {
-            applications_data.push(app.lock().await.get_data());
+            applications_data.push(
+                app.lock()
+                    .await
+                    .get_data()
+                    .await
+                    .map_err(|err| RealmError::ApplicationOperation(err.to_string()))?,
+            );
         }
-        RealmProvisioningConfig { applications_data }
+        Ok(RealmProvisioningConfig { applications_data })
+    }
+
+    async fn prepare_applications(&mut self) -> Result<(), RealmError> {
+        let mut set = JoinSet::new();
+        for application in self.applications.values() {
+            let app = application.clone();
+            set.spawn(async move {
+                app.lock()
+                    .await
+                    .configure_disk()
+                    .await
+                    .map_err(|err| RealmError::ApplicationOperation(err.to_string()))
+            });
+        }
+        while let Some(res) = set.join_next().await {
+            res.map_err(|err| RealmError::PrepareApplications(err.to_string()))??;
+        }
+        Ok(())
     }
 }
 
@@ -93,8 +97,11 @@ impl Realm for RealmManager {
             )));
         }
 
+        self.prepare_applications().await?;
+
+        let apps_uuids: Vec<&Uuid> = self.applications.keys().collect();
         self.vm_manager
-            .launch_vm()
+            .launch_vm(&apps_uuids)
             .map_err(|err| RealmError::RealmLaunchFail(err.to_string()))?;
 
         self.state = State::Provisioning;
@@ -104,7 +111,7 @@ impl Realm for RealmManager {
             .lock()
             .await
             .provision_applications(
-                self.create_provisioning_config().await,
+                self.create_provisioning_config().await?,
                 self.config.get().network.vsock_cid,
             )
             .await
@@ -157,7 +164,7 @@ impl Realm for RealmManager {
             .lock()
             .await
             .reboot_realm(
-                self.create_provisioning_config().await,
+                self.create_provisioning_config().await?,
                 self.config.get().network.vsock_cid,
             )
             .await
@@ -199,9 +206,9 @@ impl Realm for RealmManager {
                 app_manager
                     .lock()
                     .await
-                    .update(new_config)
+                    .update_config(new_config)
                     .await
-                    .map_err(|err| RealmError::ApplicationUpdateFail(err.to_string()))?;
+                    .map_err(|err| RealmError::ApplicationOperation(err.to_string()))?;
                 if self.state == State::Running {
                     self.state = State::NeedReboot;
                 }
@@ -236,11 +243,14 @@ impl Realm for RealmManager {
 
 #[cfg(test)]
 mod test {
-    use super::{RealmError, RealmManager, VmManagerError};
+    use super::{RealmError, RealmManager};
+    use crate::managers::application::ApplicationError;
+    use crate::managers::vm_manager::VmManagerError;
     use crate::managers::{realm::Realm, realm_client::RealmClientError, realm_manager::State};
     use crate::utils::test_utilities::{
-        create_example_app_config, create_example_realm_config, MockApplication,
-        MockApplicationFabric, MockRealmClient, MockRealmRepository, MockVmManager,
+        create_example_app_config, create_example_application_data, create_example_realm_config,
+        MockApplication, MockApplicationFabric, MockRealmClient, MockRealmRepository,
+        MockVmManager,
     };
     use parameterized::parameterized;
     use std::collections::HashMap;
@@ -280,7 +290,7 @@ mod test {
         let mut vm_manager_mock = MockVmManager::new();
         vm_manager_mock
             .expect_launch_vm()
-            .returning(|| Err(VmManagerError::LaunchFail(Error::other(""))));
+            .returning(|_| Err(VmManagerError::LaunchFail(Error::other(""))));
         let mut realm_manager = create_realm_manager(Some(vm_manager_mock), None);
         assert_eq!(
             realm_manager.start().await,
@@ -305,6 +315,132 @@ mod test {
             ))
         );
         assert_eq!(realm_manager.state, State::Halted);
+    }
+
+    #[tokio::test]
+    async fn create_provisioning_config_no_apps() {
+        let realm_manager = create_realm_manager(None, None);
+        assert_eq!(
+            realm_manager
+                .create_provisioning_config()
+                .await
+                .unwrap()
+                .applications_data
+                .len(),
+            0
+        );
+    }
+
+    #[tokio::test]
+    async fn prepare_applications_no_apps() {
+        let mut realm_manager = create_realm_manager(None, None);
+        assert!(realm_manager.prepare_applications().await.is_ok());
+    }
+
+    #[tokio::test]
+    async fn prepare_applications() {
+        let mut realm_manager = create_realm_manager(None, None);
+        let uuid = realm_manager
+            .create_application(create_example_app_config())
+            .await
+            .unwrap();
+        realm_manager.state = State::Running;
+        unsafe {
+            let mock = std::ptr::addr_of_mut!(*realm_manager
+                .get_application(&uuid)
+                .unwrap()
+                .lock()
+                .await
+                .as_mut()) as *mut MockApplication;
+            mock.as_mut()
+                .unwrap()
+                .expect_configure_disk()
+                .returning(|| Ok(()));
+        };
+        assert!(matches!(realm_manager.prepare_applications().await, Ok(())));
+    }
+
+    #[tokio::test]
+    async fn prepare_applications_error() {
+        let mut realm_manager = create_realm_manager(None, None);
+        let uuid = realm_manager
+            .create_application(create_example_app_config())
+            .await
+            .unwrap();
+        realm_manager.state = State::Running;
+        unsafe {
+            let mock = std::ptr::addr_of_mut!(*realm_manager
+                .get_application(&uuid)
+                .unwrap()
+                .lock()
+                .await
+                .as_mut()) as *mut MockApplication;
+            mock.as_mut()
+                .unwrap()
+                .expect_configure_disk()
+                .returning(|| Err(ApplicationError::DiskOpertaion(String::new())));
+        };
+        assert!(matches!(
+            realm_manager.prepare_applications().await,
+            Err(RealmError::ApplicationOperation(_))
+        ));
+    }
+
+    #[tokio::test]
+    async fn create_provisioning_config_app_error() {
+        let mut realm_manager = create_realm_manager(None, None);
+        let uuid = realm_manager
+            .create_application(create_example_app_config())
+            .await
+            .unwrap();
+        realm_manager.state = State::Running;
+        unsafe {
+            let mock = std::ptr::addr_of_mut!(*realm_manager
+                .get_application(&uuid)
+                .unwrap()
+                .lock()
+                .await
+                .as_mut()) as *mut MockApplication;
+            mock.as_mut()
+                .unwrap()
+                .expect_get_data()
+                .returning(|| Err(ApplicationError::DiskOpertaion(String::new())));
+        };
+
+        assert!(matches!(
+            realm_manager.create_provisioning_config().await,
+            Err(RealmError::ApplicationOperation(_))
+        ));
+    }
+
+    #[tokio::test]
+    async fn create_provisioning_config() {
+        let mut realm_manager = create_realm_manager(None, None);
+        let uuid = realm_manager
+            .create_application(create_example_app_config())
+            .await
+            .unwrap();
+        realm_manager.state = State::Running;
+        unsafe {
+            let mock = std::ptr::addr_of_mut!(*realm_manager
+                .get_application(&uuid)
+                .unwrap()
+                .lock()
+                .await
+                .as_mut()) as *mut MockApplication;
+            mock.as_mut()
+                .unwrap()
+                .expect_get_data()
+                .returning(|| Ok(create_example_application_data()));
+        };
+
+        assert!(realm_manager
+            .create_provisioning_config()
+            .await
+            .unwrap()
+            .applications_data
+            .get(0)
+            .is_some());
     }
 
     #[tokio::test]
@@ -473,7 +609,7 @@ mod test {
         realm_client_handler: Option<MockRealmClient>,
     ) -> RealmManager {
         let mut vm_manager = vm_manager.unwrap_or_default();
-        vm_manager.expect_launch_vm().returning(|| Ok(()));
+        vm_manager.expect_launch_vm().returning(|_| Ok(()));
         vm_manager.expect_stop_vm().returning(|| Ok(()));
         vm_manager.expect_delete_vm().returning(|| Ok(()));
         let mut realm_client_handler = realm_client_handler.unwrap_or_default();
@@ -498,7 +634,7 @@ mod test {
         vm_manager.expect_get_exit_status().returning(|| None);
 
         let mut app_mock = MockApplication::new();
-        app_mock.expect_update().returning(|_| Ok(()));
+        app_mock.expect_update_config().returning(|_| Ok(()));
 
         let mut creator_mock = MockApplicationFabric::new();
         creator_mock

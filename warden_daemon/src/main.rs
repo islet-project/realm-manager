@@ -39,11 +39,11 @@ struct Cli {
     unix_sock_path: PathBuf,
     #[arg(short, long)]
     warden_workdir_path: PathBuf,
-    #[arg(short = 't', long, default_value_t = 30)]
+    #[arg(short = 't', long, default_value_t = 60)]
     realm_connection_wait_time_secs: u64,
 }
 
-#[tokio::main]
+#[tokio::main(flavor = "multi_thread")]
 async fn main() -> anyhow::Result<(), Error> {
     env_logger::init();
     let cli = Cli::parse();

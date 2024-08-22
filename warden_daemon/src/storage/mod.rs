@@ -11,6 +11,8 @@ use uuid::Uuid;
 
 use crate::utils::repository::{Repository, RepositoryError};
 
+pub mod app_disk_manager;
+
 pub async fn read_subfolders_uuids(root_folder: &Path) -> Result<Vec<Uuid>, io::Error> {
     let mut uuids: Vec<Uuid> = Vec::new();
     let mut read_dir = tokio::fs::read_dir(root_folder).await?;

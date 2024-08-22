@@ -21,6 +21,7 @@ serde_json = { version = "1.0.114", features = ["alloc"] }
 mockall = "0.12.1"
 parameterized = "2.0.0"
 futures = "0.3"
+gpt = "3.1.0"
 warden_client = { path = "../protocol/warden_client"}
 warden_realm = { path = "../protocol/warden_realm"}
 utils = { path = "../utils"}

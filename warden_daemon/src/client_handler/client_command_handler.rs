@@ -460,7 +460,7 @@ mod test {
                 let mut realm_manager = MockApplication::new();
                 realm_manager.expect_start().returning(|| Ok(()));
                 realm_manager.expect_stop().returning(|| Ok(()));
-                realm_manager.expect_update().returning(|_| Ok(()));
+                realm_manager.expect_update_config().returning(|_| Ok(()));
                 realm_manager
             })));
 

@@ -81,7 +81,7 @@ impl RealmCreator for RealmManagerFabric {
         tokio::fs::create_dir(&realm_workdir)
             .await
             .map_err(|err| WardenError::RealmCreationFail(err.to_string()))?;
-        let runner = QemuRunner::new(self.qemu_path.clone(), &config);
+        let runner = QemuRunner::new(self.qemu_path.clone(), realm_workdir.clone(), &config);
         Ok(Box::new(RealmManager::new(
             Box::new(
                 YamlConfigRepository::<RealmConfig>::new(
@@ -120,11 +120,12 @@ impl RealmCreator for RealmManagerFabric {
                 realm_client_handler.clone(),
             )
             .await?;
-        let repository =
-            YamlConfigRepository::<RealmConfig>::from(&create_config_path(realm_workdir_path))
-                .await
-                .map_err(|err| WardenError::RealmCreationFail(err.to_string()))?;
-        let runner = QemuRunner::new(self.qemu_path.clone(), repository.get());
+        let repository = YamlConfigRepository::<RealmConfig>::from(&create_config_path(
+            realm_workdir_path.clone(),
+        ))
+        .await
+        .map_err(|err| WardenError::RealmCreationFail(err.to_string()))?;
+        let runner = QemuRunner::new(self.qemu_path.clone(), realm_workdir_path, repository.get());
         Ok(Box::new(RealmManager::new(
             Box::new(repository),
             loaded_applications,

@@ -1,7 +1,7 @@
 use super::repository::{Repository, RepositoryError};
 use crate::client_handler::realm_client_handler::{RealmConnector, RealmSender, RealmSenderError};
-use crate::managers::application::ApplicationData;
-use crate::managers::realm_manager::{VmManager, VmManagerError};
+use crate::managers::application::{ApplicationData, ApplicationDisk};
+use crate::managers::vm_manager::{VmManager, VmManagerError};
 use crate::managers::{
     application::{Application, ApplicationConfig, ApplicationError},
     realm::{ApplicationCreator, Realm, RealmData, RealmDescription, RealmError, State},
@@ -58,6 +58,10 @@ pub fn create_example_realm_provisioning_config() -> RealmProvisioningConfig {
     Default::default()
 }
 
+pub fn create_example_application_data() -> ApplicationData {
+    Default::default()
+}
+
 mock! {
     pub WardenDaemon {}
 
@@ -94,8 +98,20 @@ mock! {
     impl Application for Application {
         async fn stop(&mut self) -> Result<(), ApplicationError>;
         async fn start(&mut self) -> Result<(), ApplicationError>;
-        fn get_data(&self) -> ApplicationData;
-        async fn update(&mut self, config: ApplicationConfig) -> Result<(), ApplicationError>;
+        async fn update_config(&mut self, config: ApplicationConfig) -> Result<(), ApplicationError>;
+        async fn configure_disk(&mut self) -> Result<(), ApplicationError>;
+        async fn get_data(&self) -> Result<ApplicationData, ApplicationError>;
+    }
+}
+
+mock! {
+    pub ApplicationDisk {}
+    #[async_trait]
+    impl ApplicationDisk for ApplicationDisk {
+        async fn create_disk_with_partitions(&self) -> Result<(), ApplicationError>;
+        async fn update_disk_with_partitions(&mut self, new_data_part_size_mb: u32, new_image_part_size_mb: u32) -> Result<(), ApplicationError>;
+        async fn get_data_partition_uuid(&self) -> Result<Uuid, ApplicationError>;
+        async fn get_image_partition_uuid(&self) -> Result<Uuid, ApplicationError>;
     }
 }
 
@@ -145,10 +161,10 @@ mock! {
     pub VmManager {}
 
     impl VmManager for VmManager {
-        fn launch_vm(&mut self) -> Result<(), VmManagerError>;
-        fn stop_vm(&mut self) -> Result<(), VmManagerError>;
         fn delete_vm(&mut self) -> Result<(), VmManagerError>;
         fn get_exit_status(&mut self) -> Option<ExitStatus>;
+        fn launch_vm<'a>(& mut self, application_uuids:& [&'a Uuid]) -> Result<(), VmManagerError>;
+        fn stop_vm(&mut self) -> Result<(), VmManagerError>;
     }
 }
 
