@@ -15,7 +15,7 @@ use nix::{
     unistd::Pid,
 };
 use thiserror::Error;
-use tokio::io::AsyncBufReadExt;
+use tokio::{io::AsyncBufReadExt, task::block_in_place};
 use tokio::{
     io::{AsyncBufRead, BufReader},
     process::{Child, ChildStderr, ChildStdout, Command},
@@ -205,9 +205,9 @@ impl WardenThread {
             let pid = Pid::from_raw(pid as i32);
 
             match req {
-                Request::Stop => signal::kill(pid, Signal::SIGTERM)
+                Request::Stop => block_in_place(|| signal::kill(pid, Signal::SIGTERM))
                     .map_err(ApplicationHandlerError::FailedToSendSignal)?,
-                Request::Kill => signal::kill(pid, Signal::SIGKILL)
+                Request::Kill => block_in_place(|| signal::kill(pid, Signal::SIGKILL))
                     .map_err(ApplicationHandlerError::FailedToSendSignal)?,
                 _ => {}
             };

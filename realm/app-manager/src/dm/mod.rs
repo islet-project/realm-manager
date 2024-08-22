@@ -2,6 +2,7 @@ use std::sync::Arc;
 
 use devicemapper::{DmError, DmName, DmOptions, DmUuid, DM};
 use thiserror::Error;
+use tokio::task::block_in_place;
 use uuid::Uuid;
 
 use crypt::CryptError;
@@ -60,9 +61,9 @@ impl DeviceMapper {
             let dm_uuid =
                 DmUuid::new(&uuid_str).map_err(DeviceMapperError::DmUuidConversionError)?;
 
-            self.0.device_create(name, Some(dm_uuid), opt)
+            block_in_place(|| self.0.device_create(name, Some(dm_uuid), opt))
         } else {
-            self.0.device_create(name, None, opt)
+            block_in_place(|| self.0.device_create(name, None, opt))
         };
 
         let info = result.map_err(|e| DeviceMapperError::CreateError(name.to_string(), e))?;
@@ -84,9 +85,11 @@ impl DeviceMapper {
         device: impl DeviceHandleWrapper,
         opt: Option<DmOptions>,
     ) -> Result<()> {
-        self.0
-            .device_remove(&device.handle().dev_id()?, opt.unwrap_or_default())
-            .map_err(DeviceMapperError::RemoveDevice)?;
+        block_in_place(|| {
+            self.0
+                .device_remove(&device.handle().dev_id()?, opt.unwrap_or_default())
+                .map_err(DeviceMapperError::RemoveDevice)
+        })?;
 
         Ok(())
     }

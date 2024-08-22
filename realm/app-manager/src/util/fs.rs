@@ -7,6 +7,7 @@ use std::path::{Path, PathBuf};
 use nix::errno::Errno;
 use nix::libc::{c_char, dev_t, mode_t};
 use thiserror::Error;
+use tokio::task::block_in_place;
 use tokio::{fs, process::Command};
 
 use super::{cstring_from_path, cstring_from_str, cstring_from_vec, Result};
@@ -103,7 +104,7 @@ pub fn mount(
     let dst = cstring_from_path(dst)?;
     let opt = opt.map(|i| cstring_from_str(i)).transpose()?;
 
-    let result = unsafe {
+    let result = block_in_place(|| unsafe {
         nix::libc::mount(
             src.as_ptr() as *const c_char,
             dst.as_ptr() as *const c_char,
@@ -111,7 +112,7 @@ pub fn mount(
             0,
             opt.map_or(std::ptr::null(), |i| i.as_ptr() as *const c_void),
         )
-    };
+    });
 
     check_libc_error(result, FsError::MountError)
 }
@@ -119,7 +120,7 @@ pub fn mount(
 pub fn umount(path: impl AsRef<Path>) -> Result<()> {
     let path = cstring_from_path(path)?;
 
-    let result = unsafe { nix::libc::umount(path.as_ptr() as *const c_char) };
+    let result = block_in_place(|| unsafe { nix::libc::umount(path.as_ptr() as *const c_char) });
 
     check_libc_error(result, FsError::UmountError)
 }
@@ -147,7 +148,7 @@ pub fn mount_overlayfs(
     )?;
     let dst = cstring_from_path(dst)?;
 
-    let result = unsafe {
+    let result = block_in_place(|| unsafe {
         nix::libc::mount(
             fs.as_ptr() as *const c_char,
             dst.as_ptr() as *const c_char,
@@ -155,7 +156,7 @@ pub fn mount_overlayfs(
             0,
             opt.as_ptr() as *const c_void,
         )
-    };
+    });
 
     check_libc_error(result, FsError::MountError)
 }
@@ -163,7 +164,8 @@ pub fn mount_overlayfs(
 pub fn mknod(path: impl AsRef<Path>, mode: mode_t, dev: dev_t) -> Result<()> {
     let path = cstring_from_path(path)?;
 
-    let result = unsafe { nix::libc::mknod(path.as_ptr() as *const c_char, mode, dev) };
+    let result =
+        block_in_place(|| unsafe { nix::libc::mknod(path.as_ptr() as *const c_char, mode, dev) });
 
     check_libc_error(result, FsError::MknodError)
 }

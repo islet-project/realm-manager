@@ -1,5 +1,6 @@
 use keyutils::{keytypes::Logon, Keyring, SpecialKeyring};
 use thiserror::Error;
+use tokio::task::block_in_place;
 
 use super::Result;
 
@@ -35,10 +36,11 @@ impl KernelKeyring {
             description: std::borrow::Cow::Owned(description.as_ref().to_owned()),
         };
 
-        let _ = self
-            .ring
-            .add_key::<Logon, _, _>(key_desc, payload.as_ref())
-            .map_err(KeyRingError::FailedToSealKey)?;
+        let _ = block_in_place(|| {
+            self.ring
+                .add_key::<Logon, _, _>(key_desc, payload.as_ref())
+                .map_err(KeyRingError::FailedToSealKey)
+        })?;
 
         Ok(())
     }
