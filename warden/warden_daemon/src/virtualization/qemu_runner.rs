@@ -76,7 +76,7 @@ impl QemuRunner {
         self.command.stdout(Stdio::piped());
         self.command.stderr(Stdio::piped());
     }
-    fn setup_disk(&self, command:&mut Command, application_uuids: &[&Uuid]) {
+    fn setup_disk(&self, command: &mut Command, application_uuids: &[&Uuid]) {
         for app_uuid in application_uuids {
             let mut app_disk_path = self.realm_workdir.join(app_uuid.to_string());
             app_disk_path.push(ApplicationDiskManager::DISK_NAME);

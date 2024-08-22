@@ -1,5 +1,5 @@
 use client_lib::WardenConnection;
-use common::{request_shutdown, ResourceManager};
+use common::{get_kernel_path, request_shutdown, ResourceManager};
 use warden_client::{
     application::ApplicationConfig,
     realm::{CpuConfig, KernelConfig, MemoryConfig, NetworkConfig, RealmConfig, State},
@@ -40,7 +40,7 @@ async fn manage_realm_and_application() {
             remote_terminal_uri: None,
         },
         kernel: KernelConfig {
-            kernel_path: common::get_kernel_path(),
+            kernel_path: get_kernel_path(),
         },
     };
 
@@ -73,7 +73,7 @@ async fn manage_realm_and_application() {
         .update_application(uuid, app_uuid, application_config.clone())
         .await
         .is_ok());
-    
+
     assert!(matches!(
         connection.inspect_realm(uuid).await.unwrap().state,
         State::NeedReboot
@@ -87,7 +87,6 @@ async fn manage_realm_and_application() {
         .update_application(uuid, app_uuid, application_config)
         .await
         .is_ok());
-
 
     connection.start_realm(uuid).await.unwrap();
 

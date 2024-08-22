@@ -1,11 +1,10 @@
+mod common;
 use client_lib::WardenConnection;
-use common::{request_shutdown, ResourceManager};
+use common::{get_kernel_path, request_shutdown, ResourceManager};
 use warden_client::realm::{
     CpuConfig, KernelConfig, MemoryConfig, NetworkConfig, RealmConfig, State,
 };
 use warden_daemon::app::App;
-
-mod common;
 
 #[tokio::test]
 #[ignore]
@@ -39,7 +38,7 @@ async fn manage_realm() {
             remote_terminal_uri: None,
         },
         kernel: KernelConfig {
-            kernel_path: common::get_kernel_path(),
+            kernel_path: get_kernel_path(),
         },
     };
 

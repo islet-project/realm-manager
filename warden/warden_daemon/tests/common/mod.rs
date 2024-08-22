@@ -16,6 +16,7 @@ use warden_daemon::cli::Cli;
 pub struct ResourceManager {
     resource_path: PathBuf,
 }
+
 impl ResourceManager {
     pub fn new() -> Self {
         let uuid = Uuid::new_v4();
