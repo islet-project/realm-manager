@@ -85,6 +85,15 @@ impl QemuRunner {
                 .arg(format!("file={}", app_disk_path.to_string_lossy()));
         }
     }
+    fn kill_and_wait(child: &mut Child) -> Result<(), VmManagerError> {
+        child
+            .kill()
+            .map_err(|err| VmManagerError::DestroyFail(err.to_string()))?;
+        child
+            .wait()
+            .map(|_| ())
+            .map_err(|err| VmManagerError::DestroyFail(err.to_string()))
+    }
 }
 
 impl VmManager for QemuRunner {
@@ -107,10 +116,10 @@ impl VmManager for QemuRunner {
             .unwrap_or(Err(VmManagerError::VmNotLaunched))
     }
     fn delete_vm(&mut self) -> Result<(), VmManagerError> {
-        self.stop_vm()
-            .map_err(|err| VmManagerError::DestroyFail(err.to_string()))?;
-        self.get_exit_status();
-        Ok(())
+        self.vm
+            .as_mut()
+            .map(Self::kill_and_wait)
+            .unwrap_or(Err(VmManagerError::VmNotLaunched))
     }
     fn get_exit_status(&mut self) -> Option<ExitStatus> {
         if let Some(vm) = &mut self.vm {
