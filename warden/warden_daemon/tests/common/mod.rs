@@ -21,7 +21,6 @@ pub struct WorkdirManager {
 impl WorkdirManager {
     pub async fn new() -> Self {
         let temp_dir = tempdir().expect("Can't create temporary dir.");
-        tokio::fs::create_dir_all(temp_dir.path()).await.unwrap();
         Self { temp_dir }
     }
 
