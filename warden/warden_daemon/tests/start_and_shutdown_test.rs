@@ -1,4 +1,4 @@
-use common::ResourceManager;
+use common::PathResourceManager;
 use nix::{
     sys::signal::{
         self,
@@ -13,8 +13,8 @@ mod common;
 #[tokio::test]
 #[ignore]
 async fn sig_term_shutdown() {
-    let usock_path_manager = ResourceManager::new();
-    let workdir_path_manager = ResourceManager::new();
+    let usock_path_manager = PathResourceManager::new().await;
+    let workdir_path_manager = PathResourceManager::new().await;
     let cli = common::create_example_cli(
         usock_path_manager.get_path().to_path_buf(),
         workdir_path_manager.get_path().to_path_buf(),
@@ -28,8 +28,8 @@ async fn sig_term_shutdown() {
 #[tokio::test]
 #[ignore]
 async fn sig_int_shutdown() {
-    let usock_path_manager = ResourceManager::new();
-    let workdir_path_manager = ResourceManager::new();
+    let usock_path_manager = PathResourceManager::new().await;
+    let workdir_path_manager = PathResourceManager::new().await;
     let cli = common::create_example_cli(
         usock_path_manager.get_path().to_path_buf(),
         workdir_path_manager.get_path().to_path_buf(),

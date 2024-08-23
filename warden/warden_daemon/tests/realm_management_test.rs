@@ -1,6 +1,6 @@
 mod common;
 use client_lib::WardenConnection;
-use common::{get_kernel_path, request_shutdown, ResourceManager};
+use common::{get_kernel_path, request_shutdown, PathResourceManager};
 use warden_client::realm::{
     CpuConfig, KernelConfig, MemoryConfig, NetworkConfig, RealmConfig, State,
 };
@@ -10,8 +10,8 @@ use warden_daemon::app::App;
 #[ignore]
 async fn manage_realm() {
     env_logger::init();
-    let usock_path_manager = ResourceManager::new();
-    let workdir_path_manager = ResourceManager::new();
+    let usock_path_manager = PathResourceManager::new().await;
+    let workdir_path_manager = PathResourceManager::new().await;
     let cli = common::create_example_cli(
         usock_path_manager.get_path().to_path_buf(),
         workdir_path_manager.get_path().to_path_buf(),
