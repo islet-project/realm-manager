@@ -30,8 +30,10 @@ Warden daemon that runs and manages realms and applications that are inside them
     cargo test
 
 ### Running Integration Tests
+First you need to compile Realm's kernel and tools: `../../realm/README.md`.
+Then fill empty envs in the undermentioned command and run.
 
-    REALM_QEMU_PATH=... REALM_KERNEL_PATH=... cargo test  -- --ignored
+    RUST_TEST_TIME_INTEGRATION=240 RUST_LOG=trace REALM_QEMU_PATH=... REALM_KERNEL_PATH=... cargo test  -- --ignored --nocapture
 
 ### E2E Tests
 
