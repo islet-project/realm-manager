@@ -23,32 +23,51 @@ async fn manage_realm() {
 
     let realm_config = create_example_realm_config();
 
-    let uuid = connection.create_realm(realm_config).await.unwrap();
+    let uuid = connection
+        .create_realm(realm_config)
+        .await
+        .expect("Can't create realm.");
 
-    let realms = connection.list_realms().await.unwrap();
+    let realms = connection.list_realms().await.expect("Can't list realms.");
 
     assert_eq!(realms.len(), 1);
     assert_eq!(realms[0].uuid, uuid);
     assert!(matches!(
-        connection.inspect_realm(uuid).await.unwrap().state,
+        connection
+            .inspect_realm(uuid)
+            .await
+            .expect("Can't inspect realm.")
+            .state,
         State::Halted
     ));
 
     assert!(connection.start_realm(uuid).await.is_ok());
     assert!(matches!(
-        connection.inspect_realm(uuid).await.unwrap().state,
+        connection
+            .inspect_realm(uuid)
+            .await
+            .expect("Can't inspect realm.")
+            .state,
         State::Running
     ));
 
     assert!(connection.reboot_realm(uuid).await.is_ok());
     assert!(matches!(
-        connection.inspect_realm(uuid).await.unwrap().state,
+        connection
+            .inspect_realm(uuid)
+            .await
+            .expect("Can't inspect realm.")
+            .state,
         State::Running
     ));
 
     assert!(connection.stop_realm(uuid).await.is_ok());
     assert!(matches!(
-        connection.inspect_realm(uuid).await.unwrap().state,
+        connection
+            .inspect_realm(uuid)
+            .await
+            .expect("Can't inspect realm.")
+            .state,
         State::Halted
     ));
 

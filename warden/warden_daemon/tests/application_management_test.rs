@@ -20,13 +20,16 @@ async fn manage_realm_and_application() {
 
     let mut connection = WardenConnection::connect(usock_path_manager.get_path().to_path_buf())
         .await
-        .unwrap();
+        .expect("Can't connect to created Warden daemon.");
 
     let realm_config = create_example_realm_config();
 
-    let uuid = connection.create_realm(realm_config).await.unwrap();
+    let uuid = connection
+        .create_realm(realm_config)
+        .await
+        .expect("Can't create realm.");
 
-    let realms = connection.list_realms().await.unwrap();
+    let realms = connection.list_realms().await.expect("Can't list realms.");
 
     assert_eq!(realms.len(), 1);
     assert_eq!(realms[0].uuid, uuid);
@@ -43,9 +46,12 @@ async fn manage_realm_and_application() {
     let app_uuid = connection
         .create_application(uuid, application_config.clone())
         .await
-        .unwrap();
+        .expect("Can't create application.");
 
-    connection.start_realm(uuid).await.unwrap();
+    connection
+        .start_realm(uuid)
+        .await
+        .expect("Can't start realm.");
 
     assert!(connection.stop_application(uuid, app_uuid).await.is_ok());
     assert!(connection.start_application(uuid, app_uuid).await.is_ok());
@@ -55,11 +61,21 @@ async fn manage_realm_and_application() {
         .is_ok());
 
     assert!(matches!(
-        connection.inspect_realm(uuid).await.unwrap().state,
+        connection
+            .inspect_realm(uuid)
+            .await
+            .expect("Can't inspect realm.")
+            .state,
         State::NeedReboot
     ));
-    connection.reboot_realm(uuid).await.unwrap();
-    connection.stop_realm(uuid).await.unwrap();
+    connection
+        .reboot_realm(uuid)
+        .await
+        .expect("Can't reboot realm.");
+    connection
+        .stop_realm(uuid)
+        .await
+        .expect("Can't stop realm.");
 
     application_config.data_storage_size_mb = application_config.data_storage_size_mb / 4;
     application_config.image_storage_size_mb = application_config.image_storage_size_mb / 4;
@@ -68,7 +84,10 @@ async fn manage_realm_and_application() {
         .await
         .is_ok());
 
-    connection.start_realm(uuid).await.unwrap();
+    connection
+        .start_realm(uuid)
+        .await
+        .expect("Can't start realm.");
 
     request_shutdown();
     assert!(handle.await.unwrap().is_ok());
