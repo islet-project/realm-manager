@@ -1,6 +1,5 @@
 use std::{
     env,
-    fs::{remove_dir_all, remove_file},
     path::{Path, PathBuf},
     str::FromStr,
 };
@@ -9,36 +8,25 @@ use nix::{
     sys::signal::{self, Signal::SIGINT},
     unistd::Pid,
 };
+use tempfile::{tempdir, TempDir};
 use tokio_vsock::VMADDR_CID_HOST;
-use uuid::Uuid;
 use warden_client::realm::RealmConfig;
 use warden_client::realm::{CpuConfig, KernelConfig, MemoryConfig, NetworkConfig};
 use warden_daemon::cli::Cli;
 
-pub struct PathResourceManager {
-    resource_path: Box<dyn AsRef<Path>>,
+pub struct WorkdirManager {
+    temp_dir: TempDir,
 }
 
-impl PathResourceManager {
+impl WorkdirManager {
     pub async fn new() -> Self {
-        const TEST_FOLDER_PATH: &str = "/tmp/warden-daemon-integration-tests";
-        tokio::fs::create_dir_all(TEST_FOLDER_PATH).await.unwrap();
-        Self {
-            resource_path: Box::new(format!("{}/{}", TEST_FOLDER_PATH, Uuid::new_v4())),
-        }
+        let temp_dir = tempdir().expect("Can't create temporary dir.");
+        tokio::fs::create_dir_all(temp_dir.path()).await.unwrap();
+        Self { temp_dir }
     }
 
     pub fn get_path(&self) -> &Path {
-        (*self.resource_path).as_ref()
-    }
-}
-
-impl Drop for PathResourceManager {
-    fn drop(&mut self) {
-        let path = self.get_path();
-        if let Err(_) = remove_dir_all(path) {
-            let _ = remove_file(path);
-        }
+        self.temp_dir.path()
     }
 }
 

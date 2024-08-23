@@ -1,6 +1,7 @@
 mod common;
 use client_lib::WardenConnection;
-use common::{create_example_realm_config, request_shutdown, PathResourceManager};
+use common::{create_example_realm_config, request_shutdown, WorkdirManager};
+use uuid::Uuid;
 use warden_client::realm::State;
 use warden_daemon::daemon::Daemon;
 
@@ -8,16 +9,18 @@ use warden_daemon::daemon::Daemon;
 #[ignore]
 async fn manage_realm() {
     env_logger::init();
-    let usock_path_manager = PathResourceManager::new().await;
-    let workdir_path_manager = PathResourceManager::new().await;
+    let workdir_path_manager = WorkdirManager::new().await;
+    let usock_path = workdir_path_manager
+        .get_path()
+        .join(format!("usock-{}", Uuid::new_v4()));
     let cli = common::create_example_cli(
-        usock_path_manager.get_path().to_path_buf(),
+        usock_path.clone(),
         workdir_path_manager.get_path().to_path_buf(),
     );
     let app = Daemon::new(cli).await.unwrap();
     let handle = app.run().await.unwrap();
 
-    let mut connection = WardenConnection::connect(usock_path_manager.get_path().to_path_buf())
+    let mut connection = WardenConnection::connect(usock_path)
         .await
         .expect("Can't connect to created Warden daemon.");
 

@@ -26,6 +26,7 @@ utils = { path = "../../utils"}
 
 [dev-dependencies]
 mockall = "0.12.1"
+tempfile = "3.12.0"
 parameterized = "2.0.0"
 nix = { version = "*", features = ["process", "signal"] }
 client_lib = { path = "../client_lib"}
