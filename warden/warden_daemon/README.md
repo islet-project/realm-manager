@@ -35,6 +35,11 @@ Then fill empty envs in the undermentioned command and run.
 
     RUST_TEST_TIME_INTEGRATION=240 RUST_LOG=trace REALM_QEMU_PATH=... REALM_KERNEL_PATH=... cargo test  -- --ignored --nocapture
 
+Defaulted envs:
+
+- WARDEN_VSOCK_PORT=1337
+- TAP_DEVICE=tap100
+
 ### E2E Tests
 
     Use warden command-line client: ../cmd_client

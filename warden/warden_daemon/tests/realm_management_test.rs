@@ -1,9 +1,7 @@
 mod common;
 use client_lib::WardenConnection;
-use common::{get_kernel_path, request_shutdown, PathResourceManager};
-use warden_client::realm::{
-    CpuConfig, KernelConfig, MemoryConfig, NetworkConfig, RealmConfig, State,
-};
+use common::{create_example_realm_config, request_shutdown, PathResourceManager};
+use warden_client::realm::State;
 use warden_daemon::app::App;
 
 #[tokio::test]
@@ -21,26 +19,9 @@ async fn manage_realm() {
 
     let mut connection = WardenConnection::connect(usock_path_manager.get_path().to_path_buf())
         .await
-        .unwrap();
+        .expect("Can't connect to created Warden daemon.");
 
-    let realm_config = RealmConfig {
-        machine: "virt".to_string(),
-        cpu: CpuConfig {
-            cpu: "cortex-a57".to_string(),
-            cores_number: 2,
-        },
-        memory: MemoryConfig { ram_size: 2048 },
-        network: NetworkConfig {
-            vsock_cid: 12344,
-            tap_device: "tap200".to_string(),
-            mac_address: "52:55:00:d1:55:01".to_string(),
-            hardware_device: Some("e1000".to_string()),
-            remote_terminal_uri: None,
-        },
-        kernel: KernelConfig {
-            kernel_path: get_kernel_path(),
-        },
-    };
+    let realm_config = create_example_realm_config();
 
     let uuid = connection.create_realm(realm_config).await.unwrap();
 
