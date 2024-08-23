@@ -6,7 +6,7 @@ use nix::{
     },
     unistd::Pid,
 };
-use warden_daemon::app::App;
+use warden_daemon::daemon::Daemon;
 
 mod common;
 
@@ -19,7 +19,7 @@ async fn sig_term_shutdown() {
         usock_path_manager.get_path().to_path_buf(),
         workdir_path_manager.get_path().to_path_buf(),
     );
-    let app = App::new(cli).await.unwrap();
+    let app = Daemon::new(cli).await.unwrap();
     let handle = app.run().await.unwrap();
     signal::kill(Pid::this(), SIGTERM).unwrap();
     assert!(handle.await.unwrap().is_ok());
@@ -34,7 +34,7 @@ async fn sig_int_shutdown() {
         usock_path_manager.get_path().to_path_buf(),
         workdir_path_manager.get_path().to_path_buf(),
     );
-    let app = App::new(cli).await.unwrap();
+    let app = Daemon::new(cli).await.unwrap();
     let handle = app.run().await.unwrap();
     signal::kill(Pid::this(), SIGINT).unwrap();
     assert!(handle.await.unwrap().is_ok());

@@ -17,14 +17,14 @@ use tokio::sync::Mutex;
 use tokio::task::JoinHandle;
 use tokio_util::sync::CancellationToken;
 
-pub struct App {
+pub struct Daemon {
     vsock_server: Arc<Mutex<VSockServer>>,
     usock_server: UnixSocketServer,
     warden: Box<dyn Warden + Send + Sync>,
     cancellation_token: Arc<CancellationToken>,
 }
 
-impl App {
+impl Daemon {
     pub async fn new(cli: Cli) -> anyhow::Result<Self, Error> {
         let vsock_server = Arc::new(Mutex::new(VSockServer::new(VSockServerConfig {
             cid: cli.cid,

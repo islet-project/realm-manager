@@ -83,6 +83,7 @@ pub fn create_example_realm_config() -> RealmConfig {
 pub fn create_example_cli(unix_sock_path: PathBuf, warden_workdir_path: PathBuf) -> Cli {
     const REALM_QEMU_PATH_ENV: &str = "REALM_QEMU_PATH";
     const WARDEN_VSOCK_PORT_ENV: &str = "WARDEN_VSOCK_PORT";
+    const STARTUP_TIMEOUT_ENV: &str = "REALM_STARTUP_TIMEOUT";
     Cli {
         cid: VMADDR_CID_HOST,
         port: env::var(WARDEN_VSOCK_PORT_ENV)
@@ -95,6 +96,8 @@ pub fn create_example_cli(unix_sock_path: PathBuf, warden_workdir_path: PathBuf)
         .unwrap(),
         unix_sock_path,
         warden_workdir_path,
-        realm_connection_wait_time_secs: 60,
+        realm_connection_wait_time_secs: env::var(STARTUP_TIMEOUT_ENV)
+            .map(|timeout_sec| u64::from_str(&timeout_sec).unwrap())
+            .unwrap_or(60),
     }
 }

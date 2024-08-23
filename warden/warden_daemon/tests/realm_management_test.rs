@@ -2,7 +2,7 @@ mod common;
 use client_lib::WardenConnection;
 use common::{create_example_realm_config, request_shutdown, PathResourceManager};
 use warden_client::realm::State;
-use warden_daemon::app::App;
+use warden_daemon::daemon::Daemon;
 
 #[tokio::test]
 #[ignore]
@@ -14,7 +14,7 @@ async fn manage_realm() {
         usock_path_manager.get_path().to_path_buf(),
         workdir_path_manager.get_path().to_path_buf(),
     );
-    let app = App::new(cli).await.unwrap();
+    let app = Daemon::new(cli).await.unwrap();
     let handle = app.run().await.unwrap();
 
     let mut connection = WardenConnection::connect(usock_path_manager.get_path().to_path_buf())

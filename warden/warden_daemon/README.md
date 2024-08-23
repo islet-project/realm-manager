@@ -10,7 +10,7 @@ Warden daemon that runs and manages realms and applications that are inside them
 
 ### Command-line formula
 
-    sudo RUST_LOG=debug target/debug/warden_daemon -q "../realm/tools/qemu/build/qemu-system-aarch64" -u "/tmp/usocket1"
+    sudo RUST_LOG=debug target/debug/warden_daemon -q "../realm/tools/qemu/build/qemu-system-aarch64" -u "/tmp/usocket1" -w target/debug/warden_daemon_workdir -p 1337
 
 ### All possible cmd args
 
@@ -39,6 +39,7 @@ Defaulted envs:
 
 - WARDEN_VSOCK_PORT=1337
 - TAP_DEVICE=tap100
+- REALM_STARTUP_TIMEOUT=60
 
 ### E2E Tests
 
