@@ -10,7 +10,8 @@ use serde::{Deserialize, Serialize};
 use thiserror::Error;
 use tokio::{
     fs::File,
-    io::{AsyncSeekExt, AsyncWriteExt}, task::block_in_place,
+    io::{AsyncSeekExt, AsyncWriteExt},
+    task::block_in_place,
 };
 use uuid::Uuid;
 
@@ -208,11 +209,13 @@ impl ApplicationDiskManager {
     }
 
     fn read_partitions(&self) -> Result<HashMap<String, Partition>, ApplicationDiskManagerError> {
-        let gpt = block_in_place(|| GptConfig::default()
-            .writable(false)
-            .initialized(true)
-            .open(&self.file_path))
-            .map_err(|err| ApplicationDiskManagerError::GPTRead(err.to_string()))?;
+        let gpt = block_in_place(|| {
+            GptConfig::default()
+                .writable(false)
+                .initialized(true)
+                .open(&self.file_path)
+        })
+        .map_err(|err| ApplicationDiskManagerError::GPTRead(err.to_string()))?;
 
         Ok(gpt
             .partitions()
@@ -254,7 +257,10 @@ impl ApplicationDiskManager {
             + ((PRIMARY_GPT_LBA_SECTORS + BACKUP_GPT_LBA_SECTORS) * u64::from(Self::LBA_SIZE))
     }
 
-    fn write_mbr(&self, file:&mut Box<&mut dyn DiskDevice>) -> Result<(), ApplicationDiskManagerError> {
+    fn write_mbr(
+        &self,
+        file: &mut Box<&mut dyn DiskDevice>,
+    ) -> Result<(), ApplicationDiskManagerError> {
         let mbr = ProtectiveMBR::with_lb_size(
             (self.calculate_total_size() / u64::from(Self::LBA_SIZE) - 1) as u32,
         );
@@ -281,7 +287,7 @@ impl ApplicationDiskManager {
 
     fn create_gpt_and_partitions(
         &self,
-        file: &mut impl DiskDevice
+        file: &mut impl DiskDevice,
     ) -> Result<(), ApplicationDiskManagerError> {
         let mut file: Box<&mut dyn DiskDevice> = Box::new(file);
         self.write_mbr(&mut file)?;
@@ -341,7 +347,7 @@ mod test {
         }
     }
 
-    #[tokio::test(flavor="multi_thread")]
+    #[tokio::test(flavor = "multi_thread")]
     #[ignore]
     async fn create_disk_and_partition() {
         let path_holder = FilePathHolder::new();

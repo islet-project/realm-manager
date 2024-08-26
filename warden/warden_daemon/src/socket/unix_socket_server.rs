@@ -4,7 +4,8 @@ use crate::managers::warden::Warden;
 use log::{debug, error, info};
 use std::fs::remove_file;
 use std::io;
-use std::{path::PathBuf, sync::Arc};
+use std::path::Path;
+use std::sync::Arc;
 use thiserror::Error;
 use tokio::net::unix::SocketAddr;
 use tokio::net::{UnixListener, UnixStream};
@@ -19,21 +20,28 @@ pub enum UnixSocketServerError {
     SocketFail(#[from] io::Error),
 }
 
-pub struct UnixSocketServer;
+pub struct UnixSocketServer {
+    listener: UnixListener,
+}
 
 impl UnixSocketServer {
+    pub fn new(socket: &Path) -> Result<Self, UnixSocketServerError> {
+        Ok(Self {
+            listener: Self::create_listener(socket)?,
+        })
+    }
+
     pub async fn listen<T: Client>(
+        &self,
         warden: Box<dyn Warden + Send + Sync>,
         token: Arc<CancellationToken>,
-        socket: PathBuf,
     ) -> Result<(), UnixSocketServerError> {
         info!("Starting Unix Socket Server.");
         let mut clients_set = JoinSet::new();
-        let listener = UnixSocketServer::create_listener(socket)?;
         let warden = Arc::new(Mutex::new(warden));
         loop {
             select! {
-                accepted_connection = listener.accept() => {
+                accepted_connection = self.listener.accept() => {
                     info!("Client connected to the server.");
                     UnixSocketServer::handle_connection::<T>(
                         accepted_connection.map_err(UnixSocketServerError::SocketFail)?,
@@ -76,9 +84,9 @@ impl UnixSocketServer {
         })
     }
 
-    fn create_listener(socket: PathBuf) -> Result<UnixListener, UnixSocketServerError> {
+    fn create_listener(socket: &Path) -> Result<UnixListener, UnixSocketServerError> {
         if socket.exists() {
-            remove_file(&socket).map_err(UnixSocketServerError::SocketFail)?;
+            remove_file(socket).map_err(UnixSocketServerError::SocketFail)?;
         }
         UnixListener::bind(socket).map_err(UnixSocketServerError::SocketFail)
     }

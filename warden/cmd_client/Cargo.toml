@@ -1,5 +1,5 @@
 [package]
-name = "warden_cmd_client"
+name = "cmd_client"
 version = "0.1.0"
 edition = "2021"
 
@@ -11,5 +11,5 @@ shlex = "1.3.0"
 tokio = { version = "1.36.0" }
 clap = { version = "4.5.9", features = ["derive"] }
 uuid = { version = "1.10.0", features = ["v4"] }
-warden_client_lib = { path = "../warden_client_lib"}
-warden_client = { path = "../protocol/warden_client" }
+client_lib = { path = "../client_lib"}
+warden_client = { path = "../../protocol/warden_client" }

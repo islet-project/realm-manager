@@ -6,7 +6,7 @@ use warden_client::{
     application::ApplicationConfig,
     realm::{CpuConfig, KernelConfig, MemoryConfig, NetworkConfig, RealmConfig},
 };
-use warden_client_lib::WardenConnection;
+use client_lib::WardenConnection;
 
 use crate::commands::Command;
 

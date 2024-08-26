@@ -4,7 +4,7 @@ use cmd_parser::CmdParser;
 use log::{error, info};
 use std::path::PathBuf;
 use utils::parse_users_input;
-use warden_client_lib::WardenConnection;
+use client_lib::WardenConnection;
 
 mod cmd_handler;
 mod cmd_parser;

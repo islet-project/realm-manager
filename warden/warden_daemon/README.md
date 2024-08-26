@@ -10,7 +10,7 @@ Warden daemon that runs and manages realms and applications that are inside them
 
 ### Command-line formula
 
-    sudo RUST_LOG=debug target/debug/warden_daemon -q "../realm/tools/qemu/build/qemu-system-aarch64" -u "/tmp/usocket1"
+    sudo RUST_LOG=debug target/debug/warden_daemon -q "../realm/tools/qemu/build/qemu-system-aarch64" -u "/tmp/usocket1" -w target/debug/warden_daemon_workdir -p 1337
 
 ### All possible cmd args
 
@@ -29,6 +29,18 @@ Warden daemon that runs and manages realms and applications that are inside them
 
     cargo test
 
+### Running Integration Tests
+First you need to compile Realm's kernel and tools: `../../realm/README.md`.
+Then fill empty envs in the undermentioned command and run.
+
+    RUST_TEST_TIME_INTEGRATION=240 RUST_LOG=trace REALM_QEMU_PATH=... REALM_KERNEL_PATH=... cargo test  -- --ignored --nocapture
+
+Defaulted envs:
+
+- WARDEN_VSOCK_PORT=1337
+- TAP_DEVICE=tap100
+- REALM_STARTUP_TIMEOUT=60
+
 ### E2E Tests
 
-    Use warden command-line client: ../warden_cmd_client
+    Use warden command-line client: ../cmd_client

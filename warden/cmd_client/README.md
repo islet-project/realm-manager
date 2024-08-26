@@ -8,7 +8,7 @@
 
 ### Command-line formula
 
-    sudo RUST_LOG=debug target/debug/warden_cmd_client -u "/tmp/usocket1"
+    RUST_LOG=trace cargo run -- -u "/tmp/usocket123"
 
 ### Example commands:
 |Command| Usage |
