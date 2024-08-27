@@ -6,6 +6,7 @@ use crate::{
         warden_manager::WardenDaemon,
     },
     storage::read_subfolders_uuids,
+    virtualization::network_manager::NetworkManager,
 };
 use tokio::sync::Mutex;
 pub struct WardenFabric {
@@ -13,8 +14,12 @@ pub struct WardenFabric {
 }
 
 impl WardenFabric {
-    pub async fn new(warden_workdir_path: PathBuf) -> Result<Self, anyhow::Error> {
+    pub async fn new(
+        warden_workdir_path: PathBuf,
+        network_manager: &impl NetworkManager,
+    ) -> Result<Self, anyhow::Error> {
         tokio::fs::create_dir_all(&warden_workdir_path).await?;
+        network_manager.prepare_network().await?;
         Ok(Self {
             warden_workdir_path,
         })

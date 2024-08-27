@@ -23,6 +23,7 @@ gpt = "3.1.0"
 warden_client = { path = "../../protocol/warden_client"}
 warden_realm = { path = "../../protocol/warden_realm"}
 utils = { path = "../../utils"}
+tokio-tun = "0.11.5"
 
 [dev-dependencies]
 mockall = "0.12.1"

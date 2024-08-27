@@ -1,3 +1,5 @@
+use crate::virtualization::nat_manager::NatManager;
+
 use super::cli::Cli;
 use super::client_handler::client_command_handler::ClientHandler;
 use super::fabric::realm_fabric::RealmManagerFabric;
@@ -30,13 +32,16 @@ impl Daemon {
             cid: cli.cid,
             port: cli.port,
         })));
+        let network_manager = Arc::new(NatManager::new());
         let realm_fabric: Box<dyn RealmCreator + Send + Sync> = Box::new(RealmManagerFabric::new(
             cli.qemu_path,
             vsock_server.clone(),
             cli.warden_workdir_path.clone(),
+            network_manager.clone(),
             Duration::from_secs(cli.realm_connection_wait_time_secs),
         ));
-        let warden_fabric = WardenFabric::new(cli.warden_workdir_path).await?;
+        let warden_fabric =
+            WardenFabric::new(cli.warden_workdir_path, network_manager.as_ref()).await?;
         let warden = warden_fabric.create_warden(realm_fabric).await?;
         let usock_server = UnixSocketServer::new(&cli.unix_sock_path)?;
         Ok(Self {
