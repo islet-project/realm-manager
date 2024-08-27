@@ -13,8 +13,6 @@ pub enum VmManagerError {
     StopFail,
     #[error("Unable to destroy realm's vm: {0}")]
     DestroyFail(String),
-    #[error("Unable to setup realm's vm networking: {0}")]
-    NetworkSetup(String),
 }
 
 pub trait VmManager {
