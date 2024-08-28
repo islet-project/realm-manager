@@ -1,6 +1,3 @@
-use crate::virtualization::nat_manager::NatManager;
-use crate::virtualization::network_manager::NetworkManager;
-
 use super::cli::Cli;
 use super::client_handler::client_command_handler::ClientHandler;
 use super::fabric::realm_fabric::RealmManagerFabric;
@@ -9,6 +6,8 @@ use super::managers::warden::RealmCreator;
 use super::managers::warden::Warden;
 use super::socket::unix_socket_server::{UnixSocketServer, UnixSocketServerError};
 use super::socket::vsocket_server::{VSockServer, VSockServerConfig, VSockServerError};
+use crate::virtualization::nat_manager::NatManager;
+use crate::virtualization::nat_manager::NatManagerConfig;
 use anyhow::Error;
 use log::{debug, error, info};
 use std::sync::Arc;
@@ -24,6 +23,7 @@ pub struct Daemon {
     vsock_server: Arc<Mutex<VSockServer>>,
     usock_server: UnixSocketServer,
     warden: Box<dyn Warden + Send + Sync>,
+    network_manager: Arc<Mutex<NatManager>>,
     cancellation_token: Arc<CancellationToken>,
 }
 
@@ -33,8 +33,14 @@ impl Daemon {
             cid: cli.cid,
             port: cli.port,
         })));
-        let network_manager = Arc::new(Mutex::new(NatManager::new()));
-        network_manager.lock().await.prepare_network().await?;
+        let network_manager = Arc::new(Mutex::new(
+            NatManager::new(NatManagerConfig {
+                bridge_name: cli.bridge_name,
+                bridge_ip: cli.bridge_ip,
+                bridge_mask: cli.bridge_mask,
+            })
+            .await?,
+        ));
         let realm_fabric: Box<dyn RealmCreator + Send + Sync> = Box::new(RealmManagerFabric::new(
             cli.qemu_path,
             vsock_server.clone(),
@@ -49,6 +55,7 @@ impl Daemon {
             vsock_server,
             warden,
             usock_server,
+            network_manager,
             cancellation_token: Arc::new(CancellationToken::new()),
         })
     }
@@ -87,6 +94,10 @@ impl Daemon {
             }
             info!("Shutting down application.");
             self.cancellation_token.cancel();
+
+            if let Err(err) = self.network_manager.lock().await.shutdown().await {
+                error!("Failed to shutdown network manager: {err}");
+            }
 
             if !vsock_thread.is_finished() {
                 debug!("VSockServer result: {:#?}", vsock_thread.await);

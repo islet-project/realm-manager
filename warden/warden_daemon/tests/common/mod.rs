@@ -1,5 +1,6 @@
 use std::{
     env,
+    net::{IpAddr, Ipv4Addr},
     path::{Path, PathBuf},
     str::FromStr,
 };
@@ -86,5 +87,8 @@ pub fn create_example_cli(unix_sock_path: PathBuf, warden_workdir_path: PathBuf)
         realm_connection_wait_time_secs: env::var(STARTUP_TIMEOUT_ENV)
             .map(|timeout_sec| u64::from_str(&timeout_sec).unwrap())
             .unwrap_or(60),
+        bridge_name: String::from("virtbDaemonTest"),
+        bridge_ip: IpAddr::V4(Ipv4Addr::new(192, 168, 100, 1)),
+        bridge_mask: 24,
     }
 }

@@ -149,6 +149,12 @@ impl<N: NetworkManager + Send + Sync + 'static> RealmCreator for RealmManagerFab
         ))
         .await
         .map_err(|err| WardenError::RealmCreationFail(err.to_string()))?;
+        self.network_manager
+            .lock()
+            .await
+            .create_tap_device_for_realm(repository.get().network.tap_device.clone(), *realm_id)
+            .await
+            .map_err(|err| WardenError::RealmCreationFail(err.to_string()))?;
         let runner = self
             .create_vm_runner(realm_workdir_path, repository.get())
             .await?;
