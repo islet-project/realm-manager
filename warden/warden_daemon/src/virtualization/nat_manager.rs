@@ -1,12 +1,23 @@
 use std::{collections::HashMap, net::IpAddr};
 
 use async_trait::async_trait;
+use fileter_table_handler::FilterIpTableManager;
 use futures::TryStreamExt;
+use ip_table_handler::{IpTableHandler, IpTableHandlerError};
+use mangle_table_handler::MangleTableManager;
+use nat_table_handler::NatIpTableManager;
 use rtnetlink::{new_connection, Handle};
+use tokio::task::block_in_place;
 use tokio_tun::TunBuilder;
 use uuid::Uuid;
 
 use super::network_manager::{NetworkManager, NetworkManagerError};
+
+mod fileter_table_handler;
+mod ip_table_handler;
+mod mangle_table_handler;
+mod nat_table_handler;
+mod utils;
 
 pub struct NatManagerConfig {
     pub bridge_name: String,
@@ -21,13 +32,6 @@ pub struct NatManager {
 }
 
 impl NatManager {
-    const NAT_CHAIN_NAME: &'static str = "DAEMONVIRT_PRT";
-    const FILTER_FWI_CHAIN_NAME: &'static str = "DAEMONVIRT_FWI";
-    const FILTER_FWO_CHAIN_NAME: &'static str = "DAEMONVIRT_FWO";
-    const FILTER_FWX_CHAIN_NAME: &'static str = "DAEMONVIRT_FWX";
-    const FILTER_INP_CHAIN_NAME: &'static str = "DAEMONVIRT_INP";
-    const FILTER_OUT_CHAIN_NAME: &'static str = "DAEMONVIRT_OUT";
-
     pub async fn new(config: NatManagerConfig) -> Result<Self, NetworkManagerError> {
         let (connection, handle, _) = new_connection().unwrap();
         tokio::spawn(connection);
@@ -123,401 +127,44 @@ impl NatManager {
             .map(|link| link.header.index)
     }
 
-    fn create_network_string(&self) -> String {
-        let network_ip = match self.config.bridge_ip {
-            IpAddr::V4(v4) => {
-                let octets = v4.octets();
-                format!("{}.{}.{}.0", octets[0], octets[1], octets[2])
-            }
-            IpAddr::V6(v6) => String::new(),
-        };
-        format!("{}/{}", network_ip, self.config.bridge_mask)
+    async fn cleanup_routing(&self) -> Result<(), NetworkManagerError> {
+        block_in_place(|| {
+            self.cleanup_routing_sync()
+                .map_err(|err| NetworkManagerError::IpTablesOperation(err.to_string()))
+        })
     }
 
-    async fn cleanup_routing(&self) -> Result<(), NetworkManagerError> {
-        let ip_tables_handle = iptables::new(false)
-            .map_err(|err| NetworkManagerError::IpTablesOperation(err.to_string()))?;
-        let network_string = self.create_network_string();
-
-        let _ = ip_tables_handle.delete_all("mangle", Self::NAT_CHAIN_NAME, &format!("-o {} -p udp -m udp --dport 68 -j CHECKSUM --checksum-fill", &self.config.bridge_name));
-        let _ = ip_tables_handle.delete_all("mangle", "POSTROUTING", &format!("-j {}", Self::NAT_CHAIN_NAME));
-        let _ = ip_tables_handle.delete_chain("mangle", Self::NAT_CHAIN_NAME);
-
-        let _ = ip_tables_handle.delete_all(
-            "nat",
-            "POSTROUTING",
-            &format!("-j {}", Self::NAT_CHAIN_NAME),
-        );
-        let _ = ip_tables_handle.delete_all(
-            "nat",
-            "POSTROUTING",
-            &format!("-o eno1 -j {}", Self::NAT_CHAIN_NAME),
-        ); // DELETE
-        let _ = ip_tables_handle.delete_all(
-            "nat",
-            Self::NAT_CHAIN_NAME,
-            &format!("-s {} -d 224.0.0.0/24 -j RETURN", &network_string),
-        ); // DELETE
-        let _ = ip_tables_handle.delete_all(
-            "nat",
-            Self::NAT_CHAIN_NAME,
-            &format!("-s {} -d 225.255.255.255 -j RETURN", &network_string),
-        ); // DELETE
-        let _ = ip_tables_handle.delete_all(
-            "nat",
-            Self::NAT_CHAIN_NAME,
-            &format!(
-                "-s {} ! -d {} -p tcp -j MASQUERADE --to-ports 1024-65535",
-                &network_string, &network_string
-            ),
-        );
-        let _ = ip_tables_handle.delete_all(
-            "nat",
-            Self::NAT_CHAIN_NAME,
-            &format!(
-                "-s {} ! -d {} -p udp -j MASQUERADE --to-ports 1024-65535",
-                &network_string, &network_string
-            ),
-        );
-        let _ = ip_tables_handle.delete_all(
-            "nat",
-            Self::NAT_CHAIN_NAME,
-            &format!(
-                "-s {} ! -d {} -j MASQUERADE",
-                &network_string, &network_string
-            ),
-        );
-        let _ = ip_tables_handle.delete_chain("nat", Self::NAT_CHAIN_NAME);
-
-        let _ = ip_tables_handle.delete(
-            "filter",
-            "INPUT",
-            &format!("-j {}", Self::FILTER_INP_CHAIN_NAME),
-        );
-        let _ = ip_tables_handle.delete(
-            "filter",
-            "FORWARD",
-            &format!("-j {}", Self::FILTER_FWX_CHAIN_NAME),
-        );
-        let _ = ip_tables_handle.delete(
-            "filter",
-            "FORWARD",
-            &format!("-j {}", Self::FILTER_FWI_CHAIN_NAME),
-        );
-        let _ = ip_tables_handle.delete(
-            "filter",
-            "FORWARD",
-            &format!("-j {}", Self::FILTER_FWO_CHAIN_NAME),
-        );
-        let _ = ip_tables_handle.delete(
-            "filter",
-            "OUTPUT",
-            &format!("-j {}", Self::FILTER_OUT_CHAIN_NAME),
-        );
-        let _ = ip_tables_handle.delete(
-            "filter",
-            Self::FILTER_FWI_CHAIN_NAME,
-            &format!(
-                "-d {} -o {} -m conntrack --ctstate RELATED,ESTABLISHED -j ACCEPT",
-                &network_string, &self.config.bridge_name
-            ),
-        );
-        let _ = ip_tables_handle.delete(
-            "filter",
-            Self::FILTER_FWI_CHAIN_NAME,
-            &format!(
-                "-o {} -j REJECT --reject-with icmp-port-unreachable",
-                &self.config.bridge_name
-            ),
-        );
-        let _ = ip_tables_handle.delete(
-            "filter",
-            Self::FILTER_FWO_CHAIN_NAME,
-            &format!(
-                "-s {} -i {} -j ACCEPT",
-                &network_string, &self.config.bridge_name
-            ),
-        );
-        let _ = ip_tables_handle.delete(
-            "filter",
-            Self::FILTER_FWO_CHAIN_NAME,
-            &format!(
-                "-i {} -j REJECT --reject-with icmp-port-unreachable",
-                &self.config.bridge_name
-            ),
-        );
-        let _ = ip_tables_handle.delete(
-            "filter",
-            Self::FILTER_FWX_CHAIN_NAME,
-            &format!(
-                "-i {} -o {} -j ACCEPT",
-                &self.config.bridge_name, &self.config.bridge_name
-            ),
-        );
-        let _ = ip_tables_handle.delete(
-            "filter",
-            Self::FILTER_INP_CHAIN_NAME,
-            &format!(
-                "-i {} -p udp -m udp --dport 53 -j ACCEPT",
-                &self.config.bridge_name
-            ),
-        );
-        let _ = ip_tables_handle.delete(
-            "filter",
-            Self::FILTER_INP_CHAIN_NAME,
-            &format!(
-                "-i {} -p tcp -m tcp --dport 53 -j ACCEPT",
-                &self.config.bridge_name
-            ),
-        );
-        let _ = ip_tables_handle.delete(
-            "filter",
-            Self::FILTER_INP_CHAIN_NAME,
-            &format!(
-                "-i {} -p udp -m udp --dport 67 -j ACCEPT",
-                &self.config.bridge_name
-            ),
-        );
-        let _ = ip_tables_handle.delete(
-            "filter",
-            Self::FILTER_INP_CHAIN_NAME,
-            &format!(
-                "-i {} -p tcp -m tcp --dport 67 -j ACCEPT",
-                &self.config.bridge_name
-            ),
-        );
-        let _ = ip_tables_handle.delete(
-            "filter",
-            Self::FILTER_OUT_CHAIN_NAME,
-            &format!(
-                "-o {} -p udp -m udp --dport 53 -j ACCEPT",
-                &self.config.bridge_name
-            ),
-        );
-        let _ = ip_tables_handle.delete(
-            "filter",
-            Self::FILTER_OUT_CHAIN_NAME,
-            &format!(
-                "-o {} -p tcp -m tcp --dport 53 -j ACCEPT",
-                &self.config.bridge_name
-            ),
-        );
-        let _ = ip_tables_handle.delete(
-            "filter",
-            Self::FILTER_OUT_CHAIN_NAME,
-            &format!(
-                "-o {} -p udp -m udp --dport 68 -j ACCEPT",
-                &self.config.bridge_name
-            ),
-        );
-        let _ = ip_tables_handle.delete(
-            "filter",
-            Self::FILTER_OUT_CHAIN_NAME,
-            &format!(
-                "-o {} -p tcp -m tcp --dport 68 -j ACCEPT",
-                &self.config.bridge_name
-            ),
-        );
-        let _ = ip_tables_handle.delete_chain("filter", Self::FILTER_FWI_CHAIN_NAME);
-        let _ = ip_tables_handle.delete_chain("filter", Self::FILTER_FWO_CHAIN_NAME);
-        let _ = ip_tables_handle.delete_chain("filter", Self::FILTER_FWX_CHAIN_NAME);
-        let _ = ip_tables_handle.delete_chain("filter", Self::FILTER_INP_CHAIN_NAME);
-        let _ = ip_tables_handle.delete_chain("filter", Self::FILTER_OUT_CHAIN_NAME);
-        Ok(())
+    fn cleanup_routing_sync(&self) -> Result<(), IpTableHandlerError> {
+        NatIpTableManager::new(self.config.bridge_ip, self.config.bridge_mask)?
+            .remove_ip_table_rules()?;
+        FilterIpTableManager::new(
+            self.config.bridge_name.clone(),
+            self.config.bridge_ip,
+            self.config.bridge_mask,
+        )?
+        .remove_ip_table_rules()?;
+        MangleTableManager::new(self.config.bridge_name.clone(), self.config.bridge_ip)?
+            .remove_ip_table_rules()
     }
 
     async fn prepare_routing(&self) -> Result<(), NetworkManagerError> {
-        let network_string = self.create_network_string();
-        let ip_tables_handle = iptables::new(false)
-            .map_err(|err| NetworkManagerError::IpTablesOperation(err.to_string()))?;
-        
-        let _ = ip_tables_handle.new_chain("mangle", Self::NAT_CHAIN_NAME);
-        let _ = ip_tables_handle.append(
-            "mangle",
-            "POSTROUTING",
-            &format!("-j {}", Self::NAT_CHAIN_NAME),
-        );
-        let _ = ip_tables_handle.append("mangle", Self::NAT_CHAIN_NAME, &format!("-o {} -p udp -m udp --dport 68 -j CHECKSUM --checksum-fill", &self.config.bridge_name));
-        
-        let _ = ip_tables_handle.new_chain("nat", Self::NAT_CHAIN_NAME);
-        let _ = ip_tables_handle.append(
-            "nat",
-            "POSTROUTING",
-            &format!("-j {}", Self::NAT_CHAIN_NAME),
-        );
-        let _ = ip_tables_handle.append(
-            "nat",
-            Self::NAT_CHAIN_NAME,
-            &format!("-s {} -d 224.0.0.0/24 -j RETURN", &network_string),
-        ); // DELETE
-        let _ = ip_tables_handle.append(
-            "nat",
-            Self::NAT_CHAIN_NAME,
-            &format!("-s {} -d 225.255.255.255 -j RETURN", &network_string),
-        ); // DELETE
-        let _ = ip_tables_handle.append(
-            "nat",
-            Self::NAT_CHAIN_NAME,
-            &format!(
-                "-s {} ! -d {} -p tcp -j MASQUERADE --to-ports 1024-65535",
-                &network_string, &network_string
-            ),
-        );
-        let _ = ip_tables_handle.append(
-            "nat",
-            Self::NAT_CHAIN_NAME,
-            &format!(
-                "-s {} ! -d {} -p udp -j MASQUERADE --to-ports 1024-65535",
-                &network_string, &network_string
-            ),
-        );
-        let _ = ip_tables_handle.append(
-            "nat",
-            Self::NAT_CHAIN_NAME,
-            &format!(
-                "-s {} ! -d {} -j MASQUERADE",
-                &network_string, &network_string
-            ),
-        );
+        block_in_place(|| {
+            self.prepare_routing_sync()
+                .map_err(|err| NetworkManagerError::IpTablesOperation(err.to_string()))
+        })
+    }
 
-        let _ = ip_tables_handle.new_chain("filter", Self::FILTER_FWI_CHAIN_NAME);
-        let _ = ip_tables_handle.new_chain("filter", Self::FILTER_FWO_CHAIN_NAME);
-        let _ = ip_tables_handle.new_chain("filter", Self::FILTER_FWX_CHAIN_NAME);
-        let _ = ip_tables_handle.new_chain("filter", Self::FILTER_INP_CHAIN_NAME);
-        let _ = ip_tables_handle.new_chain("filter", Self::FILTER_OUT_CHAIN_NAME);
-
-        let _ = ip_tables_handle.append(
-            "filter",
-            "INPUT",
-            &format!("-j {}", Self::FILTER_INP_CHAIN_NAME),
-        );
-        let _ = ip_tables_handle.append(
-            "filter",
-            "FORWARD",
-            &format!("-j {}", Self::FILTER_FWX_CHAIN_NAME),
-        );
-        let _ = ip_tables_handle.append(
-            "filter",
-            "FORWARD",
-            &format!("-j {}", Self::FILTER_FWI_CHAIN_NAME),
-        );
-        let _ = ip_tables_handle.append(
-            "filter",
-            "FORWARD",
-            &format!("-j {}", Self::FILTER_FWO_CHAIN_NAME),
-        );
-        let _ = ip_tables_handle.append(
-            "filter",
-            "OUTPUT",
-            &format!("-j {}", Self::FILTER_OUT_CHAIN_NAME),
-        );
-
-        let _ = ip_tables_handle.append(
-            "filter",
-            Self::FILTER_FWI_CHAIN_NAME,
-            &format!(
-                "-d {} -o {} -m conntrack --ctstate RELATED,ESTABLISHED -j ACCEPT",
-                &network_string, &self.config.bridge_name
-            ),
-        );
-        let _ = ip_tables_handle.append(
-            "filter",
-            Self::FILTER_FWI_CHAIN_NAME,
-            &format!(
-                "-o {} -j REJECT --reject-with icmp-port-unreachable",
-                &self.config.bridge_name
-            ),
-        );
-        let _ = ip_tables_handle.append(
-            "filter",
-            Self::FILTER_FWO_CHAIN_NAME,
-            &format!(
-                "-s {} -i {} -j ACCEPT",
-                &network_string, &self.config.bridge_name
-            ),
-        );
-        let _ = ip_tables_handle.append(
-            "filter",
-            Self::FILTER_FWO_CHAIN_NAME,
-            &format!(
-                "-i {} -j REJECT --reject-with icmp-port-unreachable",
-                &self.config.bridge_name
-            ),
-        );
-        let _ = ip_tables_handle.append(
-            "filter",
-            Self::FILTER_FWX_CHAIN_NAME,
-            &format!(
-                "-i {} -o {} -j ACCEPT",
-                &self.config.bridge_name, &self.config.bridge_name
-            ),
-        );
-        let _ = ip_tables_handle.append(
-            "filter",
-            Self::FILTER_INP_CHAIN_NAME,
-            &format!(
-                "-i {} -p udp -m udp --dport 53 -j ACCEPT",
-                &self.config.bridge_name
-            ),
-        );
-        let _ = ip_tables_handle.append(
-            "filter",
-            Self::FILTER_INP_CHAIN_NAME,
-            &format!(
-                "-i {} -p tcp -m tcp --dport 53 -j ACCEPT",
-                &self.config.bridge_name
-            ),
-        );
-        let _ = ip_tables_handle.append(
-            "filter",
-            Self::FILTER_INP_CHAIN_NAME,
-            &format!(
-                "-i {} -p udp -m udp --dport 67 -j ACCEPT",
-                &self.config.bridge_name
-            ),
-        );
-        let _ = ip_tables_handle.append(
-            "filter",
-            Self::FILTER_INP_CHAIN_NAME,
-            &format!(
-                "-i {} -p tcp -m tcp --dport 67 -j ACCEPT",
-                &self.config.bridge_name
-            ),
-        );
-
-        let _ = ip_tables_handle.append(
-            "filter",
-            Self::FILTER_OUT_CHAIN_NAME,
-            &format!(
-                "-o {} -p udp -m udp --dport 53 -j ACCEPT",
-                &self.config.bridge_name
-            ),
-        );
-        let _ = ip_tables_handle.append(
-            "filter",
-            Self::FILTER_OUT_CHAIN_NAME,
-            &format!(
-                "-o {} -p tcp -m tcp --dport 53 -j ACCEPT",
-                &self.config.bridge_name
-            ),
-        );
-        let _ = ip_tables_handle.append(
-            "filter",
-            Self::FILTER_OUT_CHAIN_NAME,
-            &format!(
-                "-o {} -p udp -m udp --dport 68 -j ACCEPT",
-                &self.config.bridge_name
-            ),
-        );
-        let _ = ip_tables_handle.append(
-            "filter",
-            Self::FILTER_OUT_CHAIN_NAME,
-            &format!(
-                "-o {} -p tcp -m tcp --dport 68 -j ACCEPT",
-                &self.config.bridge_name
-            ),
-        );
-        Ok(())
+    fn prepare_routing_sync(&self) -> Result<(), IpTableHandlerError> {
+        NatIpTableManager::new(self.config.bridge_ip, self.config.bridge_mask)?
+            .insert_ip_table_rules()?;
+        FilterIpTableManager::new(
+            self.config.bridge_name.clone(),
+            self.config.bridge_ip,
+            self.config.bridge_mask,
+        )?
+        .insert_ip_table_rules()?;
+        MangleTableManager::new(self.config.bridge_name.clone(), self.config.bridge_ip)?
+            .insert_ip_table_rules()
     }
 }
 
