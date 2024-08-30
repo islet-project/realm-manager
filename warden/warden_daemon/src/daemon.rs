@@ -6,7 +6,6 @@ use super::cli::Cli;
 use super::client_handler::client_command_handler::ClientHandler;
 use super::fabric::realm_fabric::RealmManagerFabric;
 use super::fabric::warden_fabric::WardenFabric;
-use super::managers::warden::RealmCreator;
 use super::managers::warden::Warden;
 use super::socket::unix_socket_server::{UnixSocketServer, UnixSocketServerError};
 use super::socket::vsocket_server::{VSockServer, VSockServerConfig, VSockServerError};
@@ -35,22 +34,25 @@ impl Daemon {
             cid: cli.cid,
             port: cli.port,
         })));
-        let net_config = NatConfig {
-            net_if_name: cli.bridge_name,
-            net_if_ip: cli.bridge_ip,
-            net_if_mask: cli.bridge_mask,
-        };
-        let network_manager = NetworkManagerHandler::create_nat(net_config).await?;
-        let network_manager = Arc::new(Mutex::new(network_manager));
-        let realm_fabric: Box<dyn RealmCreator + Send + Sync> = Box::new(RealmManagerFabric::new(
+        let network_manager = Arc::new(Mutex::new(
+            NetworkManagerHandler::create_nat(NatConfig {
+                net_if_name: cli.bridge_name,
+                net_if_ip: cli.bridge_ip,
+                net_if_mask: cli.bridge_mask,
+            })
+            .await?,
+        ));
+        let realm_fabric = Box::new(RealmManagerFabric::new(
             cli.qemu_path,
             vsock_server.clone(),
             cli.warden_workdir_path.clone(),
             network_manager.clone(),
             Duration::from_secs(cli.realm_connection_wait_time_secs),
         ));
-        let warden_fabric = WardenFabric::new(cli.warden_workdir_path).await?;
-        let warden = warden_fabric.create_warden(realm_fabric).await?;
+        let warden = WardenFabric::new(cli.warden_workdir_path)
+            .await?
+            .create_warden(realm_fabric)
+            .await?;
         let usock_server = UnixSocketServer::new(&cli.unix_sock_path)?;
         Ok(Self {
             vsock_server,
