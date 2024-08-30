@@ -42,7 +42,12 @@ impl Warden for WardenDaemon {
             .realms_managers
             .get(realm_uuid)
             .ok_or(WardenError::NoSuchRealm(*realm_uuid))?;
-        let realm_state = realm.lock().await.get_realm_data();
+        let realm_state = realm
+            .lock()
+            .await
+            .get_realm_data()
+            .await
+            .map_err(|err| WardenError::RealmInspect(err.to_string()))?;
         if realm_state.state != State::Halted {
             return Err(WardenError::DestroyFail(String::from(
                 "Can't destroy realm that isn't stopped.",
@@ -55,22 +60,32 @@ impl Warden for WardenDaemon {
         self.realm_fabric.clean_up_realm(realm_uuid).await
     }
 
-    async fn list_realms(&self) -> Vec<RealmDescription> {
+    async fn list_realms(&self) -> Result<Vec<RealmDescription>, WardenError> {
         let mut vec = vec![];
         for (uuid, realm_manager) in &self.realms_managers {
             vec.push(RealmDescription {
                 uuid: *uuid,
-                realm_data: realm_manager.lock().await.get_realm_data(),
+                realm_data: realm_manager
+                    .lock()
+                    .await
+                    .get_realm_data()
+                    .await
+                    .map_err(|err| WardenError::RealmInspect(err.to_string()))?,
             });
         }
-        vec
+        Ok(vec)
     }
 
     async fn inspect_realm(&self, realm_uuid: &Uuid) -> Result<RealmDescription, WardenError> {
         match self.realms_managers.get(realm_uuid) {
             Some(realm_manager) => Ok(RealmDescription {
                 uuid: *realm_uuid,
-                realm_data: realm_manager.lock().await.get_realm_data(),
+                realm_data: realm_manager
+                    .lock()
+                    .await
+                    .get_realm_data()
+                    .await
+                    .map_err(|err| WardenError::RealmInspect(err.to_string()))?,
             }),
             None => Err(WardenError::NoSuchRealm(*realm_uuid)),
         }
@@ -155,9 +170,12 @@ mod test {
     #[tokio::test]
     async fn destroy_not_halted_realm() {
         let mut mock_realm = MockRealm::new();
-        mock_realm.expect_get_realm_data().returning(|| RealmData {
-            state: State::Running,
-            applications: vec![],
+        mock_realm.expect_get_realm_data().returning(|| {
+            Ok(RealmData {
+                state: State::Running,
+                applications: vec![],
+                ips: vec![],
+            })
         });
         let mut daemon = create_host_daemon(Some(mock_realm));
         let uuid = daemon
@@ -177,7 +195,7 @@ mod test {
         let mut realm = MockRealm::new();
         realm
             .expect_get_realm_data()
-            .returning(create_example_realm_data);
+            .returning(|| Ok(create_example_realm_data()));
         let mut daemon = create_host_daemon(Some(realm));
         let uuid = daemon
             .create_realm(create_example_realm_config())
@@ -205,7 +223,7 @@ mod test {
     #[tokio::test]
     async fn list_newly_created_warden() {
         let daemon = create_host_daemon(None);
-        let listed_realms = daemon.list_realms().await;
+        let listed_realms = daemon.list_realms().await.unwrap();
         assert!(listed_realms.is_empty());
     }
 
@@ -214,7 +232,7 @@ mod test {
         let mut realm = MockRealm::new();
         realm
             .expect_get_realm_data()
-            .returning(create_example_realm_data);
+            .returning(|| Ok(create_example_realm_data()));
         let mut daemon = create_host_daemon(Some(realm));
         let uuid = daemon
             .create_realm(create_example_realm_config())
@@ -223,6 +241,7 @@ mod test {
         let listed_realm = daemon
             .list_realms()
             .await
+            .unwrap()
             .into_iter()
             .find(|descriptor| descriptor.uuid == uuid)
             .take()
@@ -233,10 +252,9 @@ mod test {
     fn create_host_daemon(realm_mock: Option<MockRealm>) -> WardenDaemon {
         let realm_mock = Box::new(realm_mock.unwrap_or({
             let mut realm_mock = MockRealm::new();
-            realm_mock.expect_get_realm_data().returning(|| RealmData {
-                state: State::Halted,
-                applications: vec![],
-            });
+            realm_mock
+                .expect_get_realm_data()
+                .returning(|| Ok(create_example_realm_data()));
             realm_mock
         }));
         let mut creator_mock = MockRealmManagerCreator::new();

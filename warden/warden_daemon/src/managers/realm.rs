@@ -4,7 +4,7 @@ use super::{
 };
 use async_trait::async_trait;
 use serde::{Deserialize, Serialize};
-use std::sync::Arc;
+use std::{net::IpAddr, sync::Arc};
 use thiserror::Error;
 use tokio::sync::Mutex;
 use uuid::Uuid;
@@ -17,6 +17,8 @@ pub enum RealmError {
     RealmStartFail(String),
     #[error("Error occured while starting realm: {0}")]
     RealmStopFail(String),
+    #[error("Error occured while acquiring realm's ips: {0}")]
+    RealmAcuireIpsFail(String),
     #[error("Unsupported action: {0}")]
     UnsupportedAction(String),
     #[error("Can't launch the Realm: {0}")]
@@ -40,7 +42,7 @@ pub trait Realm {
         &self,
         uuid: &Uuid,
     ) -> Result<Arc<Mutex<Box<dyn Application + Send + Sync>>>, RealmError>;
-    fn get_realm_data(&self) -> RealmData;
+    async fn get_realm_data(&self) -> Result<RealmData, RealmError>;
     async fn reboot(&mut self) -> Result<(), RealmError>;
     async fn start(&mut self) -> Result<(), RealmError>;
     async fn stop(&mut self) -> Result<(), RealmError>;
@@ -78,6 +80,7 @@ pub enum State {
 pub struct RealmData {
     pub state: State,
     pub applications: Vec<Uuid>,
+    pub ips: Vec<IpAddr>,
 }
 
 #[derive(Debug, Serialize, Deserialize, PartialEq, PartialOrd)]

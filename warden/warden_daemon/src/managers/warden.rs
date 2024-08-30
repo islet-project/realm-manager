@@ -11,6 +11,8 @@ use uuid::Uuid;
 pub enum WardenError {
     #[error("Realm with uuid: '{0}' doesn't exist.")]
     NoSuchRealm(Uuid),
+    #[error("Failed to inspect realm: {0}")]
+    RealmInspect(String),
     #[error("Can't destroy the realm: {0}")]
     DestroyFail(String),
     #[error("Failed to create realm: {0}")]
@@ -26,7 +28,7 @@ pub trait Warden {
         realm_uuid: &Uuid,
     ) -> Result<Arc<Mutex<Box<dyn Realm + Send + Sync>>>, WardenError>;
     async fn inspect_realm(&self, realm_uuid: &Uuid) -> Result<RealmDescription, WardenError>;
-    async fn list_realms(&self) -> Vec<RealmDescription>;
+    async fn list_realms(&self) -> Result<Vec<RealmDescription>, WardenError>;
 }
 
 #[async_trait]

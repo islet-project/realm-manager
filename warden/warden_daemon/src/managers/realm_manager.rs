@@ -233,11 +233,18 @@ impl Realm for RealmManager {
         }
     }
 
-    fn get_realm_data(&self) -> RealmData {
-        RealmData {
+    async fn get_realm_data(&self) -> Result<RealmData, RealmError> {
+        Ok(RealmData {
             state: self.state.clone(),
             applications: self.applications.keys().copied().collect(),
-        }
+            ips: self
+                .realm_client_handler
+                .lock()
+                .await
+                .read_realm_ifs()
+                .await
+                .map_err(|err| RealmError::RealmAcuireIpsFail(err.to_string()))?,
+        })
     }
 }
 
@@ -329,6 +336,30 @@ mod test {
                 .len(),
             0
         );
+    }
+
+    #[tokio::test]
+    async fn get_realm_data() {
+        const STATE: State = State::Provisioning;
+        let mut realm_manager = create_realm_manager(None, None);
+        realm_manager.state = STATE;
+        let realm_data = realm_manager.get_realm_data().await.unwrap();
+        assert_eq!(realm_data.applications.len(), 0);
+        assert_eq!(realm_data.ips.len(), 0);
+        assert_eq!(realm_data.state, STATE);
+    }
+
+    #[tokio::test]
+    async fn get_realm_data_error() {
+        let mut client_mock = MockRealmClient::new();
+        client_mock
+            .expect_read_realm_ifs()
+            .return_once(|| Err(RealmClientError::RealmConnectionFail(String::new())));
+        let realm_manager = create_realm_manager(None, Some(client_mock));
+        assert!(matches!(
+            realm_manager.get_realm_data().await,
+            Err(RealmError::RealmAcuireIpsFail(_))
+        ));
     }
 
     #[tokio::test]
@@ -631,6 +662,9 @@ mod test {
         realm_client_handler
             .expect_kill_application()
             .returning(|_| Ok(()));
+        realm_client_handler
+            .expect_read_realm_ifs()
+            .returning(|| Ok(vec![]));
         vm_manager.expect_get_exit_status().returning(|| None);
 
         let mut app_mock = MockApplication::new();

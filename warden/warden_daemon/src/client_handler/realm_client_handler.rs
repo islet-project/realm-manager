@@ -102,7 +102,7 @@ impl RealmClientHandler {
     async fn handle_ip_response(&mut self) -> Result<HashMap<String, NetAddr>, RealmClientError> {
         match self.read_response().await? {
             Response::IfAddrs(addrs) => Ok(addrs),
-            resp => Err(Self::handle_invalid_response(resp))
+            resp => Err(Self::handle_invalid_response(resp)),
         }
     }
 
@@ -173,9 +173,14 @@ impl RealmClient for RealmClientHandler {
         self.provision_applications(realm_provisioning_config, cid)
             .await
     }
-    async fn read_realm_ifs(&mut self) -> Result<HashMap<String, IpAddr>, RealmClientError> {
+    async fn read_realm_ifs(&mut self) -> Result<Vec<IpAddr>, RealmClientError> {
         self.send_command(Request::GetIfAddrs()).await?;
-        Ok(self.handle_ip_response().await?.into_iter().map(|(if_name, if_data)| (if_name, if_data.address)).collect())
+        Ok(self
+            .handle_ip_response()
+            .await?
+            .into_values()
+            .map(|if_data| if_data.address)
+            .collect())
     }
 }
 
@@ -519,20 +524,26 @@ mod test {
         let sender_mock = {
             let mut mock = MockRealmSender::new();
             mock.expect_send().returning(|_| Ok(()));
-            mock.expect_receive_response().returning(|_| Ok(Response::IfAddrs(
-                {
-                    let map = HashMap::from([(String::from(KEY), NetAddr{
-                        address: std::net::IpAddr::V4(Ipv4Addr::LOCALHOST),
-                        netmask: None, destination: None
-                    })]);
+            mock.expect_receive_response().returning(|_| {
+                Ok(Response::IfAddrs({
+                    let map = HashMap::from([(
+                        String::from(KEY),
+                        NetAddr {
+                            address: std::net::IpAddr::V4(Ipv4Addr::LOCALHOST),
+                            netmask: None,
+                            destination: None,
+                        },
+                    )]);
                     map
-                }
-            )));
+                }))
+            });
             mock
         };
         let mut realm_client_handler = create_realm_client_handler(None, None);
         realm_client_handler.sender = Some(Box::new(sender_mock));
-        assert!(matches!(realm_client_handler.read_realm_ifs().await, Ok(hash_map) if hash_map.get(KEY).unwrap().is_loopback()));
+        assert!(
+            matches!(realm_client_handler.read_realm_ifs().await, Ok(hash_map) if hash_map[0].is_loopback())
+        );
     }
 
     #[tokio::test]
