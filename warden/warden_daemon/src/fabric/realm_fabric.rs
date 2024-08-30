@@ -11,7 +11,7 @@ use crate::storage::{
     create_config_path, create_workdir_path_with_uuid, read_subfolders_uuids, YamlConfigRepository,
 };
 use crate::utils::repository::Repository;
-use crate::virtualization::network_manager::NetworkManager;
+use crate::virtualization::network::NetworkManager;
 use crate::virtualization::qemu_runner::QemuRunner;
 
 use async_trait::async_trait;

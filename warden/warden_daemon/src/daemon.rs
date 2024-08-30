@@ -1,3 +1,7 @@
+use crate::virtualization::nat_manager::NetworkManagerHandler;
+use crate::virtualization::network::NatConfig;
+use crate::virtualization::network::NetworkManager;
+
 use super::cli::Cli;
 use super::client_handler::client_command_handler::ClientHandler;
 use super::fabric::realm_fabric::RealmManagerFabric;
@@ -6,8 +10,6 @@ use super::managers::warden::RealmCreator;
 use super::managers::warden::Warden;
 use super::socket::unix_socket_server::{UnixSocketServer, UnixSocketServerError};
 use super::socket::vsocket_server::{VSockServer, VSockServerConfig, VSockServerError};
-use crate::virtualization::nat_manager::NatManager;
-use crate::virtualization::nat_manager::NatManagerConfig;
 use anyhow::Error;
 use log::{debug, error, info};
 use std::sync::Arc;
@@ -23,7 +25,7 @@ pub struct Daemon {
     vsock_server: Arc<Mutex<VSockServer>>,
     usock_server: UnixSocketServer,
     warden: Box<dyn Warden + Send + Sync>,
-    network_manager: Arc<Mutex<NatManager>>,
+    network_manager: Arc<Mutex<NetworkManagerHandler>>,
     cancellation_token: Arc<CancellationToken>,
 }
 
@@ -33,14 +35,13 @@ impl Daemon {
             cid: cli.cid,
             port: cli.port,
         })));
-        let network_manager = Arc::new(Mutex::new(
-            NatManager::new(NatManagerConfig {
-                bridge_name: cli.bridge_name,
-                bridge_ip: cli.bridge_ip,
-                bridge_mask: cli.bridge_mask,
-            })
-            .await?,
-        ));
+        let net_config = NatConfig {
+            net_if_name: cli.bridge_name,
+            net_if_ip: cli.bridge_ip,
+            net_if_mask: cli.bridge_mask,
+        };
+        let network_manager = NetworkManagerHandler::create_nat(net_config).await?;
+        let network_manager = Arc::new(Mutex::new(network_manager));
         let realm_fabric: Box<dyn RealmCreator + Send + Sync> = Box::new(RealmManagerFabric::new(
             cli.qemu_path,
             vsock_server.clone(),
@@ -95,7 +96,7 @@ impl Daemon {
             info!("Shutting down application.");
             self.cancellation_token.cancel();
 
-            if let Err(err) = self.network_manager.lock().await.shutdown().await {
+            if let Err(err) = self.network_manager.lock().await.shutdown_nat().await {
                 error!("Failed to shutdown network manager: {err}");
             }
 
