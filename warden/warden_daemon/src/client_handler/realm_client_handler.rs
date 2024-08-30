@@ -1,5 +1,7 @@
 use crate::managers::realm_client::{RealmClient, RealmClientError, RealmProvisioningConfig};
 use async_trait::async_trait;
+use std::collections::HashMap;
+use std::net::IpAddr;
 use std::sync::Arc;
 use thiserror::Error;
 use tokio::sync::Mutex;
@@ -7,7 +9,7 @@ use tokio::time::{sleep, Duration};
 use tokio::{select, sync::oneshot::Receiver};
 use utils::serde::json_framed::JsonFramedError;
 use uuid::Uuid;
-use warden_realm::{Request, Response};
+use warden_realm::{NetAddr, Request, Response};
 
 #[derive(Debug, Error)]
 pub enum RealmSenderError {
@@ -97,6 +99,13 @@ impl RealmClientHandler {
         }
     }
 
+    async fn handle_ip_response(&mut self) -> Result<HashMap<String, NetAddr>, RealmClientError> {
+        match self.read_response().await? {
+            Response::IfAddrs(addrs) => Ok(addrs),
+            resp => Err(Self::handle_invalid_response(resp))
+        }
+    }
+
     fn handle_invalid_response(response: Response) -> RealmClientError {
         match response {
             Response::Error(protocol_error) => {
@@ -164,18 +173,22 @@ impl RealmClient for RealmClientHandler {
         self.provision_applications(realm_provisioning_config, cid)
             .await
     }
+    async fn read_realm_ifs(&mut self) -> Result<HashMap<String, IpAddr>, RealmClientError> {
+        self.send_command(Request::GetIfAddrs()).await?;
+        Ok(self.handle_ip_response().await?.into_iter().map(|(if_name, if_data)| (if_name, if_data.address)).collect())
+    }
 }
 
 #[cfg(test)]
 mod test {
-    use std::{sync::Arc, time::Duration};
+    use std::{collections::HashMap, net::Ipv4Addr, sync::Arc, time::Duration};
     use tokio::sync::{
         oneshot::{Receiver, Sender},
         Mutex,
     };
     use utils::serde::json_framed::JsonFramedError;
     use uuid::Uuid;
-    use warden_realm::{ProtocolError, Request, Response};
+    use warden_realm::{NetAddr, ProtocolError, Request, Response};
 
     use super::{RealmClient, RealmClientError, RealmClientHandler, RealmSender, RealmSenderError};
     use crate::utils::test_utilities::{
@@ -274,6 +287,36 @@ mod test {
         assert!(matches!(
             realm_client_handler.handle_shutdown_response().await,
             Ok(())
+        ));
+    }
+
+    #[tokio::test]
+    async fn handle_ip_response() {
+        let mut realm_sender_mock = MockRealmSender::new();
+        realm_sender_mock
+            .expect_receive_response()
+            .returning(|_| Ok(Response::IfAddrs(HashMap::new())));
+
+        let mut realm_client_handler = create_realm_client_handler(None, None);
+        realm_client_handler.sender = Some(Box::new(realm_sender_mock));
+        assert!(matches!(
+            realm_client_handler.handle_ip_response().await,
+            Ok(hash_map) if hash_map.len() == 0
+        ));
+    }
+
+    #[tokio::test]
+    async fn handle_ip_invalid_response() {
+        let mut realm_sender_mock = MockRealmSender::new();
+        realm_sender_mock
+            .expect_receive_response()
+            .returning(|_| Ok(Response::Success()));
+
+        let mut realm_client_handler = create_realm_client_handler(None, None);
+        realm_client_handler.sender = Some(Box::new(realm_sender_mock));
+        assert!(matches!(
+            realm_client_handler.handle_ip_response().await,
+            Err(RealmClientError::InvalidResponse(_))
         ));
     }
 
@@ -468,6 +511,28 @@ mod test {
             .reboot_realm(create_example_realm_provisioning_config(), cid)
             .await
             .is_ok());
+    }
+
+    #[tokio::test]
+    async fn get_realms_interfaces() {
+        const KEY: &str = "KEY";
+        let sender_mock = {
+            let mut mock = MockRealmSender::new();
+            mock.expect_send().returning(|_| Ok(()));
+            mock.expect_receive_response().returning(|_| Ok(Response::IfAddrs(
+                {
+                    let map = HashMap::from([(String::from(KEY), NetAddr{
+                        address: std::net::IpAddr::V4(Ipv4Addr::LOCALHOST),
+                        netmask: None, destination: None
+                    })]);
+                    map
+                }
+            )));
+            mock
+        };
+        let mut realm_client_handler = create_realm_client_handler(None, None);
+        realm_client_handler.sender = Some(Box::new(sender_mock));
+        assert!(matches!(realm_client_handler.read_realm_ifs().await, Ok(hash_map) if hash_map.get(KEY).unwrap().is_loopback()));
     }
 
     #[tokio::test]

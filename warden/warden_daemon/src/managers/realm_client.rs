@@ -1,3 +1,5 @@
+use std::{collections::HashMap, net::IpAddr};
+
 use async_trait::async_trait;
 use serde::{Deserialize, Serialize};
 use thiserror::Error;
@@ -33,6 +35,7 @@ pub trait RealmClient {
     ) -> Result<(), RealmClientError>;
     async fn start_application(&mut self, application_uuid: &Uuid) -> Result<(), RealmClientError>;
     async fn stop_application(&mut self, application_uuid: &Uuid) -> Result<(), RealmClientError>;
+    async fn read_realm_ifs(&mut self) -> Result<HashMap<String, IpAddr>, RealmClientError>;
     async fn kill_application(&mut self, application_uuid: &Uuid) -> Result<(), RealmClientError>;
     async fn shutdown_realm(&mut self) -> Result<(), RealmClientError>;
     async fn reboot_realm(
