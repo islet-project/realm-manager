@@ -1,5 +1,5 @@
 use crate::virtualization::nat_manager::NetworkManagerHandler;
-use crate::virtualization::network::NatConfig;
+use crate::virtualization::network::NetworkConfig;
 use crate::virtualization::network::NetworkManager;
 
 use super::cli::Cli;
@@ -35,10 +35,9 @@ impl Daemon {
             port: cli.port,
         })));
         let network_manager = Arc::new(Mutex::new(
-            NetworkManagerHandler::create_nat(NatConfig {
+            NetworkManagerHandler::create_nat(NetworkConfig {
                 net_if_name: cli.bridge_name,
                 net_if_ip: cli.bridge_ip,
-                net_if_mask: cli.bridge_mask,
             })
             .await?,
         ));

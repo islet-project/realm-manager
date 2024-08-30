@@ -3,13 +3,13 @@ use super::devices::Tap;
 pub struct TapDeviceFabric;
 
 impl TapDeviceFabric {
-    pub async fn create_tap(name: String) -> Result<Box<dyn Tap + Send + Sync>, String> {
-        Ok(tokio_tun_wrapper::create_tap(name).map_err(|err| err.to_string())?)
+    pub async fn create_tap(name: String) -> Result<Box<dyn Tap + Send + Sync>, impl ToString> {
+        tokio_tun_wrapper::create_tap(name)
     }
-    pub async fn delete_tap(tap: Box<dyn Tap + Send + Sync>) -> Result<(), String> {
-        Ok(rtnetlink_wrapper::delete_tap(tap.get_name().to_string())
+    pub async fn delete_tap(tap: Box<dyn Tap + Send + Sync>) -> Result<(), impl ToString> {
+        rtnetlink_wrapper::delete_tap(tap.get_name().to_string())
             .await
-            .map_err(|err| err.to_string())?)
+            .map_err(|err| err.to_string())
     }
 }
 

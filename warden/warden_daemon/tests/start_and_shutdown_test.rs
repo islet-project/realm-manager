@@ -1,6 +1,7 @@
-use std::net::{IpAddr, Ipv4Addr};
+use std::net::Ipv4Addr;
 
 use common::WorkdirManager;
+use ipnet::{IpNet, Ipv4Net};
 use nix::{
     sys::signal::{
         self,
@@ -36,7 +37,7 @@ async fn sig_int_shutdown() {
         .join(format!("usock-{}", Uuid::new_v4()));
     let mut cli =
         common::create_example_cli(usock_path, workdir_path_manager.get_path().to_path_buf());
-    cli.bridge_ip = IpAddr::V4(Ipv4Addr::new(192, 168, 101, 1));
+    cli.bridge_ip = IpNet::V4(Ipv4Net::new(Ipv4Addr::new(192, 168, 100, 0), 24).unwrap());
     cli.bridge_name = String::from("BrigeTest2");
     let app = Daemon::new(cli).await.unwrap();
     let handle = app.run().await.unwrap();

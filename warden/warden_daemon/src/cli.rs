@@ -1,9 +1,7 @@
-use std::{
-    net::{IpAddr, Ipv4Addr},
-    path::PathBuf,
-};
+use std::{net::Ipv4Addr, path::PathBuf};
 
 use clap::Parser;
+use ipnet::{IpNet, Ipv4Net};
 use tokio_vsock::VMADDR_CID_HOST;
 
 #[derive(Parser)]
@@ -23,8 +21,6 @@ pub struct Cli {
     pub realm_connection_wait_time_secs: u64,
     #[arg(short, long, default_value_t = String::from("virtbWarden"))]
     pub bridge_name: String,
-    #[arg(short='i', long, default_value_t=IpAddr::V4(Ipv4Addr::new(192, 168, 100, 1)))]
-    pub bridge_ip: IpAddr,
-    #[arg(short = 'm', long, default_value_t = 24)]
-    pub bridge_mask: u8,
+    #[arg(short='i', long, default_value_t=IpNet::V4(Ipv4Net::new(Ipv4Addr::new(192, 168, 100, 0), 24).unwrap()))]
+    pub bridge_ip: IpNet,
 }

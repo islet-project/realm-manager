@@ -1,16 +1,16 @@
-use std::net::IpAddr;
+use ipnet::IpNet;
 
 use super::ip_table_handler::{IpTableHandler, IpTableHandlerError};
 
-const TABLE_NAME: &'static str = "mangle";
-const CHAIN_NAME: &'static str = "DAEMONVIRT_PRT";
+const TABLE_NAME: &str = "mangle";
+const CHAIN_NAME: &str = "DAEMONVIRT_PRT";
 
 pub struct MangleTableManager {
     handler: iptables_wrapper::MangleIptablesTableManager,
 }
 
 impl MangleTableManager {
-    pub fn new(if_name: String, if_ip: IpAddr) -> Result<impl IpTableHandler, IpTableHandlerError> {
+    pub fn new(if_name: String, if_ip: IpNet) -> Result<MangleTableManager, IpTableHandlerError> {
         Ok(Self {
             handler: iptables_wrapper::MangleIptablesTableManager::new(if_name, if_ip)
                 .map_err(|err| IpTableHandlerError::HandlerError(err.to_string()))?,
@@ -47,7 +47,8 @@ impl IpTableHandler for MangleTableManager {
 }
 
 mod iptables_wrapper {
-    use super::{IpAddr, CHAIN_NAME, TABLE_NAME};
+    use super::{CHAIN_NAME, TABLE_NAME};
+    use ipnet::IpNet;
     use iptables::IPTables;
 
     pub struct MangleIptablesTableManager {
@@ -56,10 +57,10 @@ mod iptables_wrapper {
     }
 
     impl MangleIptablesTableManager {
-        pub fn new(if_name: String, if_ip: IpAddr) -> Result<Self, Box<dyn std::error::Error>> {
+        pub fn new(if_name: String, if_ip: IpNet) -> Result<Self, Box<dyn std::error::Error>> {
             Ok(Self {
                 if_name,
-                handler: iptables::new(if_ip.is_ipv6())?,
+                handler: iptables::new(if_ip.addr().is_ipv6())?,
             })
         }
 

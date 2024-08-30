@@ -1,4 +1,4 @@
-use std::net::IpAddr;
+use ipnet::IpNet;
 
 use super::devices::Bridge;
 
@@ -7,30 +7,24 @@ pub struct VirtualBridgeHandler;
 impl VirtualBridgeHandler {
     pub async fn create_bridge(
         name: String,
-        ip: IpAddr,
-        mask: u8,
-    ) -> Result<Box<dyn Bridge + Send + Sync>, String> {
-        Ok(Box::new(
-            rtnetlink_wrapper::RtNetLinkBridge::new(name, ip, mask)
-                .await
-                .map_err(|err| err.to_string())?,
-        ))
+        ip: IpNet,
+    ) -> Result<Box<dyn Bridge + Send + Sync>, impl ToString> {
+        rtnetlink_wrapper::RtNetLinkBridge::new(name, ip)
+            .await
+            .map(|bridge| {
+                let bridge: Box<dyn Bridge + Send + Sync> = Box::new(bridge);
+                bridge
+            })
     }
-    pub async fn remove_ip_table_rules(
-        bridge: &Box<dyn Bridge + Send + Sync>,
-    ) -> Result<(), String> {
-        Ok(
-            rtnetlink_wrapper::RtNetLinkBridge::delete_bridge(bridge.get_name().to_string())
-                .await
-                .map_err(|err| err.to_string())?,
-        )
+    pub async fn delete_bridge(bridge: &(dyn Bridge + Send + Sync)) -> Result<(), impl ToString> {
+        rtnetlink_wrapper::RtNetLinkBridge::delete_bridge(bridge.get_name().to_string()).await
     }
 }
 
 mod rtnetlink_wrapper {
-    use std::net::IpAddr;
 
     use async_trait::async_trait;
+    use ipnet::IpNet;
     use rtnetlink::Handle;
     use thiserror::Error;
 
@@ -92,7 +86,7 @@ mod rtnetlink_wrapper {
     }
 
     impl RtNetLinkBridge {
-        pub async fn new(name: String, ip: IpAddr, mask: u8) -> Result<Self, RtNetLinkBridgeError> {
+        pub async fn new(name: String, ip: IpNet) -> Result<Self, RtNetLinkBridgeError> {
             let bridge = Self { name };
             let (handle, connection) = get_handler_and_connection().map_err(|err| {
                 RtNetLinkBridgeError::RtNetLink(CommonRtNetLinkErrors::ConnectionCreation(err))
@@ -112,7 +106,7 @@ mod rtnetlink_wrapper {
 
             handle
                 .address()
-                .add(bridge_id, ip, mask)
+                .add(bridge_id, ip.addr(), ip.prefix_len())
                 .execute()
                 .await
                 .map_err(|err| RtNetLinkBridgeError::BridgeIpAssign {
@@ -222,10 +216,7 @@ mod rtnetlink_wrapper {
                 .nocontroller()
                 .execute()
                 .await
-                .map_err(|err| RtNetLinkBridgeError::BridgeDelIf {
-                    tap_name: tap_name,
-                    err,
-                })?;
+                .map_err(|err| RtNetLinkBridgeError::BridgeDelIf { tap_name, err })?;
 
             connection.abort();
             Ok(())
@@ -236,7 +227,7 @@ mod rtnetlink_wrapper {
     impl Bridge for RtNetLinkBridge {
         async fn add_tap_device_to_bridge(
             &mut self,
-            tap: &Box<dyn Tap + Send + Sync>,
+            tap: &(dyn Tap + Send + Sync),
         ) -> Result<(), BridgeError> {
             Ok(self
                 .add_tap_device_to_bridge(tap.get_name().to_string())
@@ -245,7 +236,7 @@ mod rtnetlink_wrapper {
         }
         async fn remove_tap_device_from_bridge(
             &mut self,
-            tap: &Box<dyn Tap + Send + Sync>,
+            tap: &(dyn Tap + Send + Sync),
         ) -> Result<(), BridgeError> {
             Ok(self
                 .remove_tap_device_from_bridge(tap.get_name().to_string())

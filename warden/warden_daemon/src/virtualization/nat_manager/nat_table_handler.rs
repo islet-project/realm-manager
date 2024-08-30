@@ -1,18 +1,18 @@
-use std::net::IpAddr;
+use ipnet::IpNet;
 
 use super::ip_table_handler::{IpTableHandler, IpTableHandlerError};
 
-const TABLE_NAME: &'static str = "nat";
-const CHAIN_NAME: &'static str = "DAEMONVIRT_PRT";
+const TABLE_NAME: &str = "nat";
+const CHAIN_NAME: &str = "DAEMONVIRT_PRT";
 
 pub struct NatIpTableManager {
     handler: iptables_wrapper::NatIptablesTableManager,
 }
 
 impl NatIpTableManager {
-    pub fn new(if_ip: IpAddr, if_mask: u8) -> Result<impl IpTableHandler, IpTableHandlerError> {
+    pub fn new(if_ip: IpNet) -> Result<NatIpTableManager, IpTableHandlerError> {
         Ok(Self {
-            handler: iptables_wrapper::NatIptablesTableManager::new(if_ip, if_mask)
+            handler: iptables_wrapper::NatIptablesTableManager::new(if_ip)
                 .map_err(|err| IpTableHandlerError::HandlerError(err.to_string()))?,
         })
     }
@@ -47,21 +47,20 @@ impl IpTableHandler for NatIpTableManager {
 }
 
 mod iptables_wrapper {
-    use super::{IpAddr, CHAIN_NAME, TABLE_NAME};
+    use super::{CHAIN_NAME, TABLE_NAME};
+    use ipnet::IpNet;
     use iptables::IPTables;
-
-    use crate::virtualization::nat_manager::utils::create_network_string;
 
     pub struct NatIptablesTableManager {
         handler: IPTables,
-        network_string: String,
+        if_ip: IpNet,
     }
 
     impl NatIptablesTableManager {
-        pub fn new(if_ip: IpAddr, if_mask: u8) -> Result<Self, Box<dyn std::error::Error>> {
+        pub fn new(if_ip: IpNet) -> Result<Self, Box<dyn std::error::Error>> {
             Ok(Self {
-                handler: iptables::new(if_ip.is_ipv6())?,
-                network_string: create_network_string(if_ip, if_mask),
+                handler: iptables::new(if_ip.addr().is_ipv6())?,
+                if_ip,
             })
         }
 
@@ -74,22 +73,23 @@ mod iptables_wrapper {
         }
 
         pub fn insert_ip_table_rules(&self) -> Result<(), Box<dyn std::error::Error>> {
+            let network_string = self.if_ip.to_string();
             self.handler.append_replace(
                 TABLE_NAME,
                 CHAIN_NAME,
-                &format!("-s {} -d 224.0.0.0/24 -j RETURN", &self.network_string),
+                &format!("-s {} -d 224.0.0.0/24 -j RETURN", network_string),
             )?;
             self.handler.append_replace(
                 TABLE_NAME,
                 CHAIN_NAME,
-                &format!("-s {} -d 225.255.255.255 -j RETURN", &self.network_string),
-            )?; // DELETE
+                &format!("-s {} -d 225.255.255.255 -j RETURN", network_string),
+            )?;
             self.handler.append_replace(
                 TABLE_NAME,
                 CHAIN_NAME,
                 &format!(
                     "-s {} ! -d {} -p tcp -j MASQUERADE --to-ports 1024-65535",
-                    &self.network_string, &self.network_string
+                    network_string, network_string
                 ),
             )?;
             self.handler.append_replace(
@@ -97,7 +97,7 @@ mod iptables_wrapper {
                 CHAIN_NAME,
                 &format!(
                     "-s {} ! -d {} -p udp -j MASQUERADE --to-ports 1024-65535",
-                    &self.network_string, &self.network_string
+                    network_string, network_string
                 ),
             )?;
             self.handler.append_replace(
@@ -105,7 +105,7 @@ mod iptables_wrapper {
                 CHAIN_NAME,
                 &format!(
                     "-s {} ! -d {} -j MASQUERADE",
-                    &self.network_string, &self.network_string
+                    network_string, network_string
                 ),
             )
         }

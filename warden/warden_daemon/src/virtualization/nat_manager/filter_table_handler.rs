@@ -1,25 +1,21 @@
-use std::net::IpAddr;
+use ipnet::IpNet;
 
 use super::ip_table_handler::{IpTableHandler, IpTableHandlerError};
 
-const TABLE_NAME: &'static str = "filter";
-const FWI_CHAIN_NAME: &'static str = "DAEMONVIRT_FWI";
-const FWO_CHAIN_NAME: &'static str = "DAEMONVIRT_FWO";
-const FWX_CHAIN_NAME: &'static str = "DAEMONVIRT_FWX";
-const INP_CHAIN_NAME: &'static str = "DAEMONVIRT_INP";
-const OUT_CHAIN_NAME: &'static str = "DAEMONVIRT_OUT";
+const TABLE_NAME: &str = "filter";
+const FWI_CHAIN_NAME: &str = "DAEMONVIRT_FWI";
+const FWO_CHAIN_NAME: &str = "DAEMONVIRT_FWO";
+const FWX_CHAIN_NAME: &str = "DAEMONVIRT_FWX";
+const INP_CHAIN_NAME: &str = "DAEMONVIRT_INP";
+const OUT_CHAIN_NAME: &str = "DAEMONVIRT_OUT";
 pub struct FilterIpTableManager {
     handler: iptables_wrapper::FilterIptablesTableManager,
 }
 
 impl FilterIpTableManager {
-    pub fn new(
-        if_name: String,
-        if_ip: IpAddr,
-        if_mask: u8,
-    ) -> Result<impl IpTableHandler, IpTableHandlerError> {
+    pub fn new(if_name: String, if_ip: IpNet) -> Result<FilterIpTableManager, IpTableHandlerError> {
         Ok(Self {
-            handler: iptables_wrapper::FilterIptablesTableManager::new(if_name, if_ip, if_mask)
+            handler: iptables_wrapper::FilterIptablesTableManager::new(if_name, if_ip)
                 .map_err(|err| IpTableHandlerError::HandlerError(err.to_string()))?,
         })
     }
@@ -55,29 +51,22 @@ impl IpTableHandler for FilterIpTableManager {
 
 mod iptables_wrapper {
     use super::{
-        IpAddr, FWI_CHAIN_NAME, FWO_CHAIN_NAME, FWX_CHAIN_NAME, INP_CHAIN_NAME, OUT_CHAIN_NAME,
-        TABLE_NAME,
+        FWI_CHAIN_NAME, FWO_CHAIN_NAME, FWX_CHAIN_NAME, INP_CHAIN_NAME, OUT_CHAIN_NAME, TABLE_NAME,
     };
+    use ipnet::IpNet;
     use iptables::IPTables;
-
-    use crate::virtualization::nat_manager::utils::create_network_string;
-
     pub struct FilterIptablesTableManager {
         if_name: String,
+        if_ip: IpNet,
         handler: IPTables,
-        network_string: String,
     }
 
     impl FilterIptablesTableManager {
-        pub fn new(
-            if_name: String,
-            if_ip: IpAddr,
-            if_mask: u8,
-        ) -> Result<Self, Box<dyn std::error::Error>> {
+        pub fn new(if_name: String, if_ip: IpNet) -> Result<Self, Box<dyn std::error::Error>> {
             Ok(Self {
                 if_name,
-                handler: iptables::new(if_ip.is_ipv6())?,
-                network_string: create_network_string(if_ip, if_mask),
+                if_ip,
+                handler: iptables::new(if_ip.addr().is_ipv6())?,
             })
         }
 
@@ -126,7 +115,7 @@ mod iptables_wrapper {
                     FWI_CHAIN_NAME,
                     &format!(
                         "-d {} -o {} -m conntrack --ctstate RELATED,ESTABLISHED -j ACCEPT",
-                        &self.network_string, &self.if_name
+                        self.if_ip, &self.if_name
                     ),
                 )
                 .map_err(|err| (FWI_CHAIN_NAME.to_string(), err))?;
@@ -144,7 +133,7 @@ mod iptables_wrapper {
                 .append_replace(
                     "filter",
                     FWO_CHAIN_NAME,
-                    &format!("-s {} -i {} -j ACCEPT", &self.network_string, &self.if_name),
+                    &format!("-s {} -i {} -j ACCEPT", self.if_ip, &self.if_name),
                 )
                 .map_err(|err| (FWO_CHAIN_NAME.to_string(), err))?;
             self.handler

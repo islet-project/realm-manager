@@ -1,10 +1,11 @@
 use std::{
     env,
-    net::{IpAddr, Ipv4Addr},
+    net::Ipv4Addr,
     path::{Path, PathBuf},
     str::FromStr,
 };
 
+use ipnet::{IpNet, Ipv4Net};
 use nix::{
     sys::signal::{self, Signal::SIGINT},
     unistd::Pid,
@@ -88,7 +89,6 @@ pub fn create_example_cli(unix_sock_path: PathBuf, warden_workdir_path: PathBuf)
             .map(|timeout_sec| u64::from_str(&timeout_sec).unwrap())
             .unwrap_or(60),
         bridge_name: String::from("virtbDaemonTest"),
-        bridge_ip: IpAddr::V4(Ipv4Addr::new(192, 168, 100, 1)),
-        bridge_mask: 24,
+        bridge_ip: IpNet::V4(Ipv4Net::new(Ipv4Addr::new(192, 168, 100, 1), 24).unwrap()),
     }
 }
