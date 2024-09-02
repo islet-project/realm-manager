@@ -91,14 +91,16 @@ pub fn create_example_cli(unix_sock_path: PathBuf, warden_workdir_path: PathBuf)
         realm_connection_wait_time_secs: env::var(STARTUP_TIMEOUT_ENV)
             .map(|timeout_sec| u64::from_str(&timeout_sec).unwrap())
             .unwrap_or(60),
-        bridge_name: env::var(NAT_NETWORK_NAME_ENV).unwrap_or("virtbDaemonTest".to_string()),
+        bridge_name: env::var(NAT_NETWORK_NAME_ENV)
+            .expect(&format!("Missing env var: {}", NAT_NETWORK_NAME_ENV)),
         bridge_ip: env::var(NAT_NETWORK_IP_ENV)
             .map(|ip_str| IpNet::from_str(&ip_str).unwrap())
             .unwrap_or(IpNet::V4(
                 Ipv4Net::new(Ipv4Addr::new(192, 168, 100, 0), 24).unwrap(),
             )),
         dhcp_exec_path: PathBuf::from_str(
-            &env::var(DHCP_BINARY_PATH_ENV).expect("Missing path to DHCP server binary!"),
+            &env::var(DHCP_BINARY_PATH_ENV)
+                .expect(&format!("Missing env var: {}", DHCP_BINARY_PATH_ENV)),
         )
         .unwrap(),
     }
