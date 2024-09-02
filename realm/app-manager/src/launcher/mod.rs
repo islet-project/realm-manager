@@ -1,24 +1,13 @@
-use std::{path::Path, process::ExitStatus};
+use std::path::Path;
+use std::process::ExitStatus;
 
 use async_trait::async_trait;
-use thiserror::Error;
-
-use dummy::DummyLauncherError;
-use handler::ApplicationHandlerError;
 
 pub mod dummy;
 pub mod handler;
+pub mod oci;
 
-#[derive(Debug, Error)]
-pub enum LauncherError {
-    #[error("Applicatino handler error")]
-    HandlerError(#[from] ApplicationHandlerError),
-
-    #[error("Dummy launcher error")]
-    DummyLauncherError(#[from] DummyLauncherError),
-}
-
-pub type Result<T> = std::result::Result<T, LauncherError>;
+use crate::error::Result;
 
 #[async_trait]
 pub trait ApplicationHandler {
@@ -30,7 +19,12 @@ pub trait ApplicationHandler {
 
 #[async_trait]
 pub trait Launcher {
-    async fn install(&mut self, path: &Path, name: &str, version: &str) -> Result<()>;
-    async fn read_vendor_data(&self, path: &Path) -> Result<Vec<Vec<u8>>>;
+    async fn install(
+        &mut self,
+        path: &Path,
+        im_url: &str,
+        name: &str,
+        version: &str,
+    ) -> Result<Vec<Vec<u8>>>;
     async fn prepare(&mut self, path: &Path) -> Result<Box<dyn ApplicationHandler + Send + Sync>>;
 }

@@ -1,17 +1,15 @@
 use devicemapper::DmOptions;
-use serde::Deserialize;
+use serde::{Deserialize, Serialize};
 use std::fmt::Display;
 use thiserror::Error;
 
-use super::{
-    device::{DeviceHandle, DeviceHandleWrapper},
-    Result,
-};
+use super::device::{DeviceHandle, DeviceHandleWrapper};
+use super::Result;
 
 #[derive(Debug, Error)]
 pub enum CryptError {}
 
-#[derive(Deserialize, Debug, Clone, Copy)]
+#[derive(Serialize, Deserialize, Debug, Clone, Copy)]
 pub enum Cipher {
     Aes,
     Twofish,
@@ -28,7 +26,7 @@ impl Display for Cipher {
     }
 }
 
-#[derive(Deserialize, Debug, Clone, Copy)]
+#[derive(Serialize, Deserialize, Debug, Clone, Copy)]
 pub enum HashAlgo {
     Sha256,
 }
@@ -41,7 +39,7 @@ impl Display for HashAlgo {
     }
 }
 
-#[derive(Deserialize, Debug, Clone, Copy)]
+#[derive(Serialize, Deserialize, Debug, Clone, Copy)]
 pub enum IvMode {
     Plain,
     Plain64,
@@ -58,7 +56,7 @@ impl Display for IvMode {
     }
 }
 
-#[derive(Deserialize, Debug, Clone, Copy)]
+#[derive(Serialize, Deserialize, Debug, Clone, Copy)]
 pub enum BlockMode {
     Cbc,
     Xts,
@@ -130,7 +128,7 @@ impl Display for DevicePath {
     }
 }
 
-#[derive(Deserialize, Debug, Clone)]
+#[derive(Serialize, Deserialize, Debug, Clone)]
 pub struct CryptoParams {
     pub cipher: Cipher,
     pub iv_mode: IvMode,

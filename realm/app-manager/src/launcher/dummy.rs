@@ -1,7 +1,8 @@
 use std::path::{Path, PathBuf};
 
 use async_trait::async_trait;
-use nix::libc::{getgid, getuid};
+use log::debug;
+use nix::unistd::{getgid, getuid};
 use thiserror::Error;
 use tokio::fs;
 
@@ -31,7 +32,7 @@ impl DummyLauncher {
 
 #[async_trait]
 impl Launcher for DummyLauncher {
-    async fn install(&mut self, path: &Path, _: &str, _: &str) -> Result<()> {
+    async fn install(&mut self, path: &Path, _: &str, _: &str, _: &str) -> Result<Vec<Vec<u8>>> {
         fs::copy("/usr/bin/busybox", path.join("busybox"))
             .await
             .map_err(DummyLauncherError::FileCopyError)?;
@@ -40,10 +41,6 @@ impl Launcher for DummyLauncher {
             .await
             .map_err(DummyLauncherError::FileWriteError)?;
 
-        Ok(())
-    }
-
-    async fn read_vendor_data(&self, _: &Path) -> Result<Vec<Vec<u8>>> {
         Ok(vec![vec![0x11, 0x22, 0x33]])
     }
 
@@ -52,12 +49,13 @@ impl Launcher for DummyLauncher {
             exec: PathBuf::from("/busybox"),
             argv: vec!["sh".to_owned(), "/script.sh".to_owned()],
             envp: std::env::vars().collect(),
-            uid: unsafe { getuid() },
-            gid: unsafe { getgid() },
+            uid: getuid(),
+            gid: getgid(),
             chroot: Some(path.to_owned()),
             chdir: Some(PathBuf::from("/")),
         };
 
+        debug!("Launching from config: {:?}", config);
         let handler = SimpleApplicationHandler::new(config);
         Ok(Box::new(handler))
     }

@@ -6,7 +6,6 @@ use nix::errno::Errno;
 use nix::sys::socket::{AddressFamily, SockaddrLike, SockaddrStorage};
 use thiserror::Error;
 use tokio::task::block_in_place;
-
 use warden_realm::NetAddr;
 
 #[derive(Debug, Error)]

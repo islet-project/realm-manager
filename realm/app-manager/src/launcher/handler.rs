@@ -10,9 +10,8 @@ use async_trait::async_trait;
 use log::info;
 use nix::{
     errno::Errno,
-    libc::{setgid, setuid},
     sys::signal::{self, Signal},
-    unistd::Pid,
+    unistd::{setgid, setuid, Gid, Pid, Uid},
 };
 use thiserror::Error;
 use tokio::{io::AsyncBufReadExt, task::block_in_place};
@@ -62,12 +61,13 @@ pub enum ApplicationHandlerError {
     WaitpidError(#[source] std::io::Error),
 }
 
+#[derive(Debug)]
 pub struct ExecConfig {
     pub exec: PathBuf,
     pub argv: Vec<String>,
     pub envp: HashMap<String, String>,
-    pub uid: u32,
-    pub gid: u32,
+    pub uid: Uid,
+    pub gid: Gid,
     pub chroot: Option<PathBuf>,
     pub chdir: Option<PathBuf>,
 }
@@ -335,8 +335,8 @@ impl ApplicationHandler for SimpleApplicationHandler {
                     set_current_dir(dir)?;
                 }
 
-                setuid(uid);
-                setgid(gid);
+                setuid(uid)?;
+                setgid(gid)?;
 
                 Ok(())
             });

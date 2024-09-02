@@ -1,49 +1,21 @@
 use std::sync::Arc;
 
-use devicemapper::{DmError, DmName, DmOptions, DmUuid, DM};
-use thiserror::Error;
+use devicemapper::{DmName, DmOptions, DmUuid, DM};
 use tokio::task::block_in_place;
 use uuid::Uuid;
 
-use crypt::CryptError;
-use device::{DeviceHandle, DeviceHandleError, DeviceHandleWrapper};
+use device::{DeviceHandle, DeviceHandleWrapper};
 
 pub mod crypt;
 pub mod device;
 
-#[derive(Debug, Error)]
-pub enum DeviceMapperError {
-    #[error("Device handle error")]
-    DeviceHandleError(#[from] DeviceHandleError),
-
-    #[error("Dm Crypt error")]
-    CryptError(#[from] CryptError),
-
-    #[error("Device mapper open error")]
-    OpenError(#[source] DmError),
-
-    #[error("`{0}` is not a valid device name acording to device mapper")]
-    InvalidName(String, #[source] devicemapper::DmError),
-
-    #[error("DmUuid conversion error")]
-    DmUuidConversionError(#[source] DmError),
-
-    #[error("Cannot create virtual mapping device named: {0}")]
-    CreateError(String, #[source] devicemapper::DmError),
-
-    #[error("Cannot remove device")]
-    RemoveDevice(#[source] devicemapper::DmError),
-}
-
-pub type Result<T> = std::result::Result<T, DeviceMapperError>;
+use crate::error::{Error, Result};
 
 pub struct DeviceMapper(Arc<DM>);
 
 impl DeviceMapper {
     pub fn init() -> Result<Self> {
-        Ok(Self(Arc::new(
-            DM::new().map_err(DeviceMapperError::OpenError)?,
-        )))
+        Ok(Self(Arc::new(DM::new().map_err(Error::DmOpenError)?)))
     }
 
     fn create_device_handle(
@@ -53,20 +25,19 @@ impl DeviceMapper {
         opt: Option<DmOptions>,
     ) -> Result<DeviceHandle> {
         let name = DmName::new(name.as_ref())
-            .map_err(|e| DeviceMapperError::InvalidName(name.as_ref().to_owned(), e))?;
+            .map_err(|e| Error::DmInvalidName(name.as_ref().to_owned(), e))?;
         let opt = opt.unwrap_or_default();
 
         let result = if let Some(uuid) = uuid {
             let uuid_str = uuid.as_ref().to_string();
-            let dm_uuid =
-                DmUuid::new(&uuid_str).map_err(DeviceMapperError::DmUuidConversionError)?;
+            let dm_uuid = DmUuid::new(&uuid_str).map_err(Error::DmUuidConversionError)?;
 
             block_in_place(|| self.0.device_create(name, Some(dm_uuid), opt))
         } else {
             block_in_place(|| self.0.device_create(name, None, opt))
         };
 
-        let info = result.map_err(|e| DeviceMapperError::CreateError(name.to_string(), e))?;
+        let info = result.map_err(|e| Error::DmCreateError(name.to_string(), e))?;
 
         Ok(DeviceHandle::new(self.0.clone(), info))
     }
@@ -88,7 +59,7 @@ impl DeviceMapper {
         block_in_place(|| {
             self.0
                 .device_remove(&device.handle().dev_id()?, opt.unwrap_or_default())
-                .map_err(DeviceMapperError::RemoveDevice)
+                .map_err(Error::DmRemoveDevice)
         })?;
 
         Ok(())

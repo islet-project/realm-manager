@@ -19,7 +19,7 @@ use crate::launcher::{ApplicationHandler, Launcher};
 use crate::util::disk::read_device_size;
 use crate::util::fs::{
     dirname, formatfs, mkdirp, mknod, mount, mount_overlayfs, read_to_string, stat, umount,
-    write_to_string, Filesystem,
+    write_to_file, Filesystem,
 };
 use crate::util::serde::{json_dump, json_load};
 
@@ -143,7 +143,7 @@ impl Application {
             // TODO: Generare a random salt
             let metadata = ApplicationMetadata { salt: Vec::new() };
 
-            write_to_string(metadata_path, json_dump(&metadata)?).await?;
+            write_to_file(metadata_path, json_dump(&metadata)?).await?;
 
             Ok(metadata)
         }
@@ -187,11 +187,15 @@ impl Application {
         let app_image_root_dir = app_image_dir.join("root");
         mkdirp(&app_image_root_dir).await?;
         info!("Installing application");
-        launcher
-            .install(&app_image_root_dir, &self.info.name, &self.info.version)
+        let mut vendor_data = launcher
+            .install(
+                &app_image_root_dir,
+                &self.info.image_registry,
+                &self.info.name,
+                &self.info.version,
+            )
             .await?;
 
-        let mut vendor_data = launcher.read_vendor_data(&app_image_root_dir).await?;
         let app_metadata = self.application_metadata(&app_image_dir).await?;
         vendor_data.push(app_metadata.salt);
         let infos: Vec<_> = vendor_data.iter().map(|i| i.as_slice()).collect();
