@@ -1,5 +1,6 @@
 linux
-initramfs/usr
+initramfs/usr/bin
+initramfs/usr/sbin
 toolchain
 tools
 .download
