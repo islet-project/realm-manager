@@ -94,7 +94,7 @@ pub fn create_example_cli(unix_sock_path: PathBuf, warden_workdir_path: PathBuf)
         bridge_ip: env::var(NAT_NETWORK_IP_ENV)
             .map(|ip_str| IpNet::from_str(&ip_str).unwrap())
             .unwrap_or(IpNet::V4(
-                Ipv4Net::new(Ipv4Addr::new(192, 168, 100, 1), 24).unwrap(),
+                Ipv4Net::new(Ipv4Addr::new(192, 168, 100, 0), 24).unwrap(),
             )),
     }
 }
