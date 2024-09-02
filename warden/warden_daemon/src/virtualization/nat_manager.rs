@@ -37,7 +37,8 @@ impl NetworkManagerHandler {
     }
 
     fn cleanup_routing_sync(config: NetworkConfig) -> Result<(), IpTableHandlerError> {
-        NatIpTableManager::new(config.net_if_ip)?.remove_ip_table_rules()?;
+        NatIpTableManager::new(config.net_if_name.clone(), config.net_if_ip)?
+            .remove_ip_table_rules()?;
         FilterIpTableManager::new(config.net_if_name.clone(), config.net_if_ip)?
             .remove_ip_table_rules()?;
         MangleTableManager::new(config.net_if_name.clone(), config.net_if_ip)?
@@ -52,7 +53,8 @@ impl NetworkManagerHandler {
     }
 
     fn prepare_routing_sync(config: NetworkConfig) -> Result<(), IpTableHandlerError> {
-        NatIpTableManager::new(config.net_if_ip)?.insert_ip_table_rules()?;
+        NatIpTableManager::new(config.net_if_name.clone(), config.net_if_ip)?
+            .insert_ip_table_rules()?;
         FilterIpTableManager::new(config.net_if_name.clone(), config.net_if_ip)?
             .insert_ip_table_rules()?;
         MangleTableManager::new(config.net_if_name.clone(), config.net_if_ip)?

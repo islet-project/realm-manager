@@ -33,13 +33,16 @@ Warden daemon that runs and manages realms and applications that are inside them
 First you need to compile Realm's kernel and tools: `../../realm/README.md`.
 Then fill empty envs in the undermentioned command and run.
 
-    RUST_TEST_TIME_INTEGRATION=240 RUST_LOG=trace REALM_QEMU_PATH=... REALM_KERNEL_PATH=... cargo test  -- --ignored --nocapture
+    cargo test --no-run
+    sudo RUST_TEST_TIME_INTEGRATION=240 RUST_LOG=trace REALM_QEMU_PATH=... REALM_KERNEL_PATH=... !TEST_BINARY! --ignored --nocapture
 
 Defaulted envs:
 
 - WARDEN_VSOCK_PORT=1337
 - TAP_DEVICE=tap100
 - REALM_STARTUP_TIMEOUT=60
+- NAT_NETWORK_NAME = virtbDaemonTest
+- NAT_NETWORK_IP = 192.168.100.1/24
 
 ### E2E Tests
 

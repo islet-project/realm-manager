@@ -14,7 +14,7 @@ use warden_daemon::daemon::Daemon;
 
 mod common;
 
-#[tokio::test]
+#[tokio::test(flavor = "multi_thread")]
 #[ignore]
 async fn sig_term_shutdown() {
     let workdir_path_manager = WorkdirManager::new().await;
@@ -28,7 +28,7 @@ async fn sig_term_shutdown() {
     assert!(handle.await.unwrap().is_ok());
 }
 
-#[tokio::test]
+#[tokio::test(flavor = "multi_thread")]
 #[ignore]
 async fn sig_int_shutdown() {
     let workdir_path_manager = WorkdirManager::new().await;
