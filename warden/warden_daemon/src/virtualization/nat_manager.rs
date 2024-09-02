@@ -90,8 +90,7 @@ impl NetworkManager for NetworkManagerHandler {
         )
         .await
         .map_err(|err| NetworkManagerError::CreateNatNetwork(err.to_string()))?;
-        Self::prepare_routing(config.clone())
-            .map_err(|err| NetworkManagerError::CreateNatNetwork(err.to_string()))?;
+        Self::prepare_routing(config.clone())?;
         Ok(Self {
             config,
             bridge,

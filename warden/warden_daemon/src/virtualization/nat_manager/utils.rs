@@ -8,7 +8,7 @@ pub mod rtnetlink_wrapper {
 
     #[derive(Error, Debug)]
     pub enum CommonRtNetLinkErrors {
-        #[error("Failed establish connection: {0}")]
+        #[error("Failed to establish connection: {0}")]
         ConnectionCreation(#[source] io::Error),
     }
 

@@ -1,15 +1,17 @@
+use std::io;
+
 use super::devices::Tap;
 
 pub struct TapDeviceFabric;
 
 impl TapDeviceFabric {
-    pub async fn create_tap(name: String) -> Result<Box<dyn Tap + Send + Sync>, impl ToString> {
-        tokio_tun_wrapper::create_tap(name)
+    pub async fn create_tap(name: String) -> Result<Box<dyn Tap + Send + Sync>, io::Error> {
+        tokio_tun_wrapper::create_tap(name).map_err(|err| io::Error::other(err.to_string()))
     }
-    pub async fn delete_tap(tap: Box<dyn Tap + Send + Sync>) -> Result<(), impl ToString> {
+    pub async fn delete_tap(tap: Box<dyn Tap + Send + Sync>) -> Result<(), io::Error> {
         rtnetlink_wrapper::delete_tap(tap.get_name().to_string())
             .await
-            .map_err(|err| err.to_string())
+            .map_err(|err| io::Error::other(err.to_string()))
     }
 }
 
@@ -53,7 +55,7 @@ mod rtnetlink_wrapper {
     #[derive(Error, Debug)]
     pub enum RtNetLinkTapError {
         #[error("Error occured while using RtNetLink: {0}")]
-        RtNetLink(#[source] CommonRtNetLinkErrors),
+        Connection(#[source] CommonRtNetLinkErrors),
         #[error("Error occured while acquiring tap device id: {0}")]
         TapIdAcquire(#[source] rtnetlink::Error),
         #[error("Error occured while deleting tap device: {0}")]
@@ -62,7 +64,7 @@ mod rtnetlink_wrapper {
 
     pub async fn delete_tap(name: String) -> Result<(), RtNetLinkTapError> {
         let (handle, connection) = get_handler_and_connection().map_err(|err| {
-            RtNetLinkTapError::RtNetLink(CommonRtNetLinkErrors::ConnectionCreation(err))
+            RtNetLinkTapError::Connection(CommonRtNetLinkErrors::ConnectionCreation(err))
         })?;
 
         if let Some(id) = get_device_id(&handle, name)

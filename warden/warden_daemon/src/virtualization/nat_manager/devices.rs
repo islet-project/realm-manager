@@ -3,9 +3,9 @@ use thiserror::Error;
 
 #[derive(Error, Debug)]
 pub enum BridgeError {
-    #[error("Failed to create bridge: {0}")]
+    #[error("Failed to add tap device to bridge: {0}")]
     AddTap(String),
-    #[error("Failed to delete bridge: {0}")]
+    #[error("Failed to delete tap device from bridge: {0}")]
     RemoveTap(String),
 }
 

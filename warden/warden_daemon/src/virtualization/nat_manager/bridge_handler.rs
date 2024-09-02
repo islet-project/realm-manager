@@ -1,3 +1,5 @@
+use std::io;
+
 use ipnet::IpNet;
 
 use super::devices::Bridge;
@@ -8,16 +10,19 @@ impl VirtualBridgeHandler {
     pub async fn create_bridge(
         name: String,
         ip: IpNet,
-    ) -> Result<Box<dyn Bridge + Send + Sync>, impl ToString> {
+    ) -> Result<Box<dyn Bridge + Send + Sync>, io::Error> {
         rtnetlink_wrapper::RtNetLinkBridge::new(name, ip)
             .await
             .map(|bridge| {
                 let bridge: Box<dyn Bridge + Send + Sync> = Box::new(bridge);
                 bridge
             })
+            .map_err(|err| io::Error::other(err.to_string()))
     }
-    pub async fn delete_bridge(bridge: &(dyn Bridge + Send + Sync)) -> Result<(), impl ToString> {
-        rtnetlink_wrapper::RtNetLinkBridge::delete_bridge(bridge.get_name().to_string()).await
+    pub async fn delete_bridge(bridge: &(dyn Bridge + Send + Sync)) -> Result<(), io::Error> {
+        rtnetlink_wrapper::RtNetLinkBridge::delete_bridge(bridge.get_name().to_string())
+            .await
+            .map_err(|err| io::Error::other(err.to_string()))
     }
 }
 
@@ -38,7 +43,7 @@ mod rtnetlink_wrapper {
     #[derive(Error, Debug)]
     pub enum RtNetLinkBridgeError {
         #[error("Error occured while using RtNetLink: {0}")]
-        RtNetLink(#[source] CommonRtNetLinkErrors),
+        Connection(#[source] CommonRtNetLinkErrors),
         #[error("Can't create a bride: {bridge_name} err: {err}")]
         BridgeCreation {
             bridge_name: String,
@@ -89,7 +94,7 @@ mod rtnetlink_wrapper {
         pub async fn new(name: String, ip: IpNet) -> Result<Self, RtNetLinkBridgeError> {
             let bridge = Self { name };
             let (handle, connection) = get_handler_and_connection().map_err(|err| {
-                RtNetLinkBridgeError::RtNetLink(CommonRtNetLinkErrors::ConnectionCreation(err))
+                RtNetLinkBridgeError::Connection(CommonRtNetLinkErrors::ConnectionCreation(err))
             })?;
 
             bridge.create_bridge(&handle).await.map_err(|err| {
@@ -128,7 +133,7 @@ mod rtnetlink_wrapper {
 
         pub async fn delete_bridge(name: String) -> Result<(), RtNetLinkBridgeError> {
             let (handle, connection) = get_handler_and_connection().map_err(|err| {
-                RtNetLinkBridgeError::RtNetLink(CommonRtNetLinkErrors::ConnectionCreation(err))
+                RtNetLinkBridgeError::Connection(CommonRtNetLinkErrors::ConnectionCreation(err))
             })?;
             let bridge_id = get_device_id(&handle, name.clone())
                 .await
@@ -171,7 +176,7 @@ mod rtnetlink_wrapper {
             tap_name: String,
         ) -> Result<(), RtNetLinkBridgeError> {
             let (handle, connection) = get_handler_and_connection().map_err(|err| {
-                RtNetLinkBridgeError::RtNetLink(CommonRtNetLinkErrors::ConnectionCreation(err))
+                RtNetLinkBridgeError::Connection(CommonRtNetLinkErrors::ConnectionCreation(err))
             })?;
 
             let bridge_id = get_device_id(&handle, self.name.clone())
@@ -203,7 +208,7 @@ mod rtnetlink_wrapper {
             tap_name: String,
         ) -> Result<(), RtNetLinkBridgeError> {
             let (handle, connection) = get_handler_and_connection().map_err(|err| {
-                RtNetLinkBridgeError::RtNetLink(CommonRtNetLinkErrors::ConnectionCreation(err))
+                RtNetLinkBridgeError::Connection(CommonRtNetLinkErrors::ConnectionCreation(err))
             })?;
 
             let tap_id = get_device_id(&handle, tap_name.clone())
