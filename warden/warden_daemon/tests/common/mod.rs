@@ -75,6 +75,7 @@ pub fn create_example_cli(unix_sock_path: PathBuf, warden_workdir_path: PathBuf)
     const STARTUP_TIMEOUT_ENV: &str = "REALM_STARTUP_TIMEOUT";
     const NAT_NETWORK_NAME_ENV: &str = "NAT_NETWORK_NAME";
     const NAT_NETWORK_IP_ENV: &str = "NAT_NETWORK_IP";
+    const DHCP_BINARY_PATH_ENV: &str = "DHCP_EXEC_PATH";
     Cli {
         cid: VMADDR_CID_HOST,
         port: env::var(WARDEN_VSOCK_PORT_ENV)
@@ -96,5 +97,9 @@ pub fn create_example_cli(unix_sock_path: PathBuf, warden_workdir_path: PathBuf)
             .unwrap_or(IpNet::V4(
                 Ipv4Net::new(Ipv4Addr::new(192, 168, 100, 0), 24).unwrap(),
             )),
+        dhcp_exec_path: PathBuf::from_str(
+            &env::var(DHCP_BINARY_PATH_ENV).expect("Missing path to DHCP server binary!"),
+        )
+        .unwrap(),
     }
 }

@@ -1,6 +1,9 @@
 use std::{collections::HashMap, net::IpAddr};
 
-use super::network::{NetworkConfig, NetworkManager, NetworkManagerError};
+use super::{
+    dhcp::DHCPServer,
+    network::{NetworkConfig, NetworkManager, NetworkManagerError},
+};
 use async_trait::async_trait;
 use bridge_handler::VirtualBridgeHandler;
 use devices::{Bridge, Tap};
@@ -22,13 +25,14 @@ mod nat_table_handler;
 mod tap_handler;
 mod utils;
 
-pub struct NetworkManagerHandler {
+pub struct NetworkManagerHandler<DHCP: DHCPServer + Send + Sync> {
     config: NetworkConfig,
     bridge: Box<dyn Bridge + Send + Sync>,
+    dhcp_server: DHCP,
     taps: HashMap<Uuid, Box<dyn Tap + Send + Sync>>,
 }
 
-impl NetworkManagerHandler {
+impl<DHCP: DHCPServer + Send + Sync> NetworkManagerHandler<DHCP> {
     fn cleanup_routing(config: NetworkConfig) -> Result<(), NetworkManagerError> {
         block_in_place(|| {
             Self::cleanup_routing_sync(config)
@@ -84,23 +88,34 @@ impl NetworkManagerHandler {
 }
 
 #[async_trait]
-impl NetworkManager for NetworkManagerHandler {
-    async fn create_nat(config: NetworkConfig) -> Result<Self, NetworkManagerError> {
-        let bridge = VirtualBridgeHandler::create_bridge(
-            config.net_if_name.clone(),
-            Self::calculate_bridge_addr(&config.net_if_ip)?,
-        )
-        .await
-        .map_err(|err| NetworkManagerError::CreateNatNetwork(err.to_string()))?;
+impl<DHCP: DHCPServer + Send + Sync> NetworkManager for NetworkManagerHandler<DHCP> {
+    type DHCPServer = DHCP;
+    async fn create_nat(
+        config: NetworkConfig,
+        mut dhcp_server: Self::DHCPServer,
+    ) -> Result<Self, NetworkManagerError> {
+        let bridge_ip = Self::calculate_bridge_addr(&config.net_if_ip)?;
+        let bridge = VirtualBridgeHandler::create_bridge(config.net_if_name.clone(), bridge_ip)
+            .await
+            .map_err(|err| NetworkManagerError::CreateNatNetwork(err.to_string()))?;
         Self::prepare_routing(config.clone())?;
+        dhcp_server
+            .start(bridge_ip)
+            .await
+            .map_err(|err| NetworkManagerError::CreateNatNetwork(err.to_string()))?;
         Ok(Self {
             config,
             bridge,
+            dhcp_server,
             taps: HashMap::new(),
         })
     }
     async fn shutdown_nat(&mut self) -> Result<(), NetworkManagerError> {
         self.shutdown_all_taps().await?;
+        self.dhcp_server
+            .stop()
+            .await
+            .map_err(|err| NetworkManagerError::DestroyNatNetwork(err.to_string()))?;
         VirtualBridgeHandler::delete_bridge(self.bridge.as_ref())
             .await
             .map_err(|err| NetworkManagerError::DestroyNatNetwork(err.to_string()))?;

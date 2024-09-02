@@ -24,7 +24,12 @@ pub struct NetworkConfig {
 
 #[async_trait]
 pub trait NetworkManager {
-    async fn create_nat(config: NetworkConfig) -> Result<Self, NetworkManagerError>
+    type DHCPServer;
+
+    async fn create_nat(
+        config: NetworkConfig,
+        dhcp_server: Self::DHCPServer,
+    ) -> Result<Self, NetworkManagerError>
     where
         Self: Sized;
 
