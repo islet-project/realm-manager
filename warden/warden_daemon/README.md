@@ -8,9 +8,30 @@ Warden daemon that runs and manages realms and applications that are inside them
 
 ## Running
 
+To run successfully run the daemon you have to install udhcpd:
+
+    sudo apt-get install udhcpd
+    touch /var/lib/misc/udhcpd.leases
+
+
+Then edit it's config :
+
+    sudo vim /etc/udhcpd.conf
+
+with following entries:
+
+    start           VIRT_IF_DHCP_POOL_BEGIN
+    end             VIRT_IF_DHCP_POOL_END
+    interface       VIRT_IF_NAME
+    option  subnet  VIRT_IF_MAKS
+    opt     router  VIRT_IF_IP + 1
+
+
 ### Command-line formula
 
     sudo RUST_LOG=debug target/debug/warden_daemon -q "../realm/tools/qemu/build/qemu-system-aarch64" -u "/tmp/usocket1" -w target/debug/warden_daemon_workdir -p 1337
+    sudo systemctl restart udhcpd
+
 
 ### All possible cmd args
 
@@ -22,6 +43,8 @@ Warden daemon that runs and manages realms and applications that are inside them
 |--cid| CID on which Warden daemon listens | 2 (VMADDR_CID_HOST)|
 |--port| Port on which Warden daemon listens | 80|
 |--realm-connection-wait-time-secs | Timeout for realm's connection to Warden after start | 60 sec|
+|--bridge_name| Name of daemon's virtual interface | virtbWarden|
+|--bridge_ip| IP of daemon's virtual interface | 192.168.100.0/24|
 
 ## Testing
 
