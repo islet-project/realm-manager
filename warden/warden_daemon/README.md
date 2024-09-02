@@ -8,7 +8,7 @@ Warden daemon that runs and manages realms and applications that are inside them
 
 ## Running
 
-To run successfully run the daemon you have to install udhcpd:
+To successfully run the daemon you have to install udhcpd:
 
     sudo apt-get install udhcpd
     touch /var/lib/misc/udhcpd.leases
