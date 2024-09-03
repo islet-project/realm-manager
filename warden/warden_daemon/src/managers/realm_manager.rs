@@ -234,16 +234,23 @@ impl Realm for RealmManager {
     }
 
     async fn get_realm_data(&self) -> Result<RealmData, RealmError> {
+        let ifs_ip = {
+            if self.state == State::Running || self.state == State::NeedReboot {
+                self.realm_client_handler
+                    .lock()
+                    .await
+                    .read_realm_ifs()
+                    .await
+                    .map_err(|err| RealmError::RealmAcuireIpsFail(err.to_string()))?
+            } else {
+                vec![]
+            }
+        };
+
         Ok(RealmData {
             state: self.state.clone(),
             applications: self.applications.keys().copied().collect(),
-            ips: self
-                .realm_client_handler
-                .lock()
-                .await
-                .read_realm_ifs()
-                .await
-                .map_err(|err| RealmError::RealmAcuireIpsFail(err.to_string()))?,
+            ips: ifs_ip,
         })
     }
 }
@@ -252,6 +259,7 @@ impl Realm for RealmManager {
 mod test {
     use super::{RealmError, RealmManager};
     use crate::managers::application::ApplicationError;
+    use crate::managers::realm::RealmNetwork;
     use crate::managers::vm_manager::VmManagerError;
     use crate::managers::{realm::Realm, realm_client::RealmClientError, realm_manager::State};
     use crate::utils::test_utilities::{
@@ -261,6 +269,7 @@ mod test {
     };
     use parameterized::parameterized;
     use std::collections::HashMap;
+    use std::net::Ipv4Addr;
     use std::{io::Error, sync::Arc};
     use tokio::sync::Mutex;
     use uuid::Uuid;
@@ -339,23 +348,43 @@ mod test {
     }
 
     #[tokio::test]
-    async fn get_realm_data() {
-        const STATE: State = State::Provisioning;
+    #[parameterized(state = {State::Provisioning, State::Halted})]
+    async fn get_realm_data_stopped(state: State) {
         let mut realm_manager = create_realm_manager(None, None);
-        realm_manager.state = STATE;
+        realm_manager.state = state.clone();
         let realm_data = realm_manager.get_realm_data().await.unwrap();
         assert_eq!(realm_data.applications.len(), 0);
         assert_eq!(realm_data.ips.len(), 0);
-        assert_eq!(realm_data.state, STATE);
+        assert_eq!(realm_data.state, state);
     }
 
     #[tokio::test]
-    async fn get_realm_data_error() {
+    #[parameterized(state = {State::Running, State::NeedReboot})]
+    async fn get_realm_data_running(state: State) {
+        let mut client_mock = MockRealmClient::new();
+        client_mock.expect_read_realm_ifs().return_once(|| {
+            Ok(vec![RealmNetwork {
+                ip: std::net::IpAddr::V4(Ipv4Addr::LOCALHOST),
+                if_name: String::new(),
+            }])
+        });
+        let mut realm_manager = create_realm_manager(None, Some(client_mock));
+        realm_manager.state = state.clone();
+        let realm_data = realm_manager.get_realm_data().await.unwrap();
+        assert_eq!(realm_data.applications.len(), 0);
+        assert_eq!(realm_data.ips.len(), 1);
+        assert_eq!(realm_data.state, state);
+    }
+
+    #[tokio::test]
+    #[parameterized(state = {State::Running, State::NeedReboot})]
+    async fn get_realm_data_error(state: State) {
         let mut client_mock = MockRealmClient::new();
         client_mock
             .expect_read_realm_ifs()
             .return_once(|| Err(RealmClientError::RealmConnectionFail(String::new())));
-        let realm_manager = create_realm_manager(None, Some(client_mock));
+        let mut realm_manager = create_realm_manager(None, Some(client_mock));
+        realm_manager.state = state;
         assert!(matches!(
             realm_manager.get_realm_data().await,
             Err(RealmError::RealmAcuireIpsFail(_))
