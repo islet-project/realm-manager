@@ -1,5 +1,5 @@
 use serde::{Deserialize, Serialize};
-use std::path::PathBuf;
+use std::{net::IpAddr, path::PathBuf};
 use uuid::Uuid;
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, PartialOrd)]
@@ -10,11 +10,19 @@ pub enum State {
     NeedReboot,
 }
 
+
+#[derive(Debug, Clone, PartialEq, PartialOrd, Serialize, Deserialize)]
+pub struct RealmNetwork {
+    pub ip: IpAddr,
+    pub if_name: String,
+}
+
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, PartialOrd)]
 pub struct RealmDescription {
     pub uuid: Uuid,
     pub state: State,
-    pub applications: Vec<Uuid>
+    pub applications: Vec<Uuid>,
+    pub network: Vec<RealmNetwork>
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, PartialOrd)]
