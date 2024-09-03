@@ -179,9 +179,9 @@ impl RealmClient for RealmClientHandler {
             .handle_ip_response()
             .await?
             .into_iter()
-            .map(|if_data| RealmNetwork {
-                ip: if_data.1.address,
-                if_name: if_data.0,
+            .map(|(if_name, ip)| RealmNetwork {
+                ip: ip.address,
+                if_name,
             })
             .collect())
     }
