@@ -77,10 +77,16 @@ pub enum State {
 }
 
 #[derive(Debug, PartialEq, PartialOrd, Serialize, Deserialize)]
+pub struct RealmNetwork {
+    pub ip: IpAddr,
+    pub if_name: String,
+}
+
+#[derive(Debug, PartialEq, PartialOrd, Serialize, Deserialize)]
 pub struct RealmData {
     pub state: State,
     pub applications: Vec<Uuid>,
-    pub ips: Vec<IpAddr>,
+    pub ips: Vec<RealmNetwork>,
 }
 
 #[derive(Debug, Serialize, Deserialize, PartialEq, PartialOrd)]

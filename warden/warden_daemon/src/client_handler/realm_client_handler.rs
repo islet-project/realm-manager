@@ -1,7 +1,7 @@
+use crate::managers::realm::RealmNetwork;
 use crate::managers::realm_client::{RealmClient, RealmClientError, RealmProvisioningConfig};
 use async_trait::async_trait;
 use std::collections::HashMap;
-use std::net::IpAddr;
 use std::sync::Arc;
 use thiserror::Error;
 use tokio::sync::Mutex;
@@ -173,13 +173,16 @@ impl RealmClient for RealmClientHandler {
         self.provision_applications(realm_provisioning_config, cid)
             .await
     }
-    async fn read_realm_ifs(&mut self) -> Result<Vec<IpAddr>, RealmClientError> {
+    async fn read_realm_ifs(&mut self) -> Result<Vec<RealmNetwork>, RealmClientError> {
         self.send_command(Request::GetIfAddrs()).await?;
         Ok(self
             .handle_ip_response()
             .await?
-            .into_values()
-            .map(|if_data| if_data.address)
+            .into_iter()
+            .map(|if_data| RealmNetwork {
+                ip: if_data.1.address,
+                if_name: if_data.0,
+            })
             .collect())
     }
 }
@@ -542,7 +545,7 @@ mod test {
         let mut realm_client_handler = create_realm_client_handler(None, None);
         realm_client_handler.sender = Some(Box::new(sender_mock));
         assert!(
-            matches!(realm_client_handler.read_realm_ifs().await, Ok(hash_map) if hash_map[0].is_loopback())
+            matches!(realm_client_handler.read_realm_ifs().await, Ok(hash_map) if hash_map[0].ip.is_loopback())
         );
     }
 

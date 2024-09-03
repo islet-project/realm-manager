@@ -1,6 +1,7 @@
 use super::repository::{Repository, RepositoryError};
 use crate::client_handler::realm_client_handler::{RealmConnector, RealmSender, RealmSenderError};
 use crate::managers::application::{ApplicationData, ApplicationDisk};
+use crate::managers::realm::RealmNetwork;
 use crate::managers::vm_manager::{VmManager, VmManagerError};
 use crate::managers::{
     application::{Application, ApplicationConfig, ApplicationError},
@@ -11,7 +12,6 @@ use crate::managers::{
 };
 use async_trait::async_trait;
 use mockall::mock;
-use std::net::IpAddr;
 use std::process::ExitStatus;
 use std::time::Duration;
 use std::{str::FromStr, sync::Arc};
@@ -156,7 +156,7 @@ mock! {
         async fn reboot_realm(&mut self,
             realm_provisioning_config: RealmProvisioningConfig,
             cid: u32,) -> Result<(), RealmClientError>;
-        async fn read_realm_ifs(&mut self) -> Result<Vec<IpAddr>, RealmClientError>;
+        async fn read_realm_ifs(&mut self) -> Result<Vec<RealmNetwork>, RealmClientError>;
     }
 }
 

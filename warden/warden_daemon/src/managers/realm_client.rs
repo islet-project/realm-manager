@@ -1,11 +1,9 @@
-use std::net::IpAddr;
-
 use async_trait::async_trait;
 use serde::{Deserialize, Serialize};
 use thiserror::Error;
 use uuid::Uuid;
 
-use super::application::ApplicationData;
+use super::{application::ApplicationData, realm::RealmNetwork};
 
 #[derive(Debug, Error, PartialEq, PartialOrd)]
 pub enum RealmClientError {
@@ -35,7 +33,7 @@ pub trait RealmClient {
     ) -> Result<(), RealmClientError>;
     async fn start_application(&mut self, application_uuid: &Uuid) -> Result<(), RealmClientError>;
     async fn stop_application(&mut self, application_uuid: &Uuid) -> Result<(), RealmClientError>;
-    async fn read_realm_ifs(&mut self) -> Result<Vec<IpAddr>, RealmClientError>;
+    async fn read_realm_ifs(&mut self) -> Result<Vec<RealmNetwork>, RealmClientError>;
     async fn kill_application(&mut self, application_uuid: &Uuid) -> Result<(), RealmClientError>;
     async fn shutdown_realm(&mut self) -> Result<(), RealmClientError>;
     async fn reboot_realm(
