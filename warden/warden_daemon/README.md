@@ -7,29 +7,14 @@ Warden daemon that runs and manages realms and applications that are inside them
     cargo build
 
 ## Running
+To successfully run the daemon you have to install:
 
-To successfully run the daemon you have to install udhcpd:
-
-    sudo apt-get install udhcpd
-    touch /var/lib/misc/udhcpd.leases
+    sudo apt-get install dnsmasq
 
 
-Then edit it's config :
+### Example command-line formula
 
-    sudo vim /etc/udhcpd.conf
-
-with following entries:
-
-    start           VIRT_IF_DHCP_POOL_BEGIN
-    end             VIRT_IF_DHCP_POOL_END
-    interface       VIRT_IF_NAME
-    option  subnet  VIRT_IF_MAKS
-    opt     router  VIRT_IF_IP + 1
-
-
-### Command-line formula
-
-    sudo RUST_LOG=debug target/debug/warden_daemon -q "../realm/tools/qemu/build/qemu-system-aarch64" -u "/tmp/usocket1" -w target/debug/warden_daemon_workdir -p 1337 -d "/usr/sbin/udhcpd"
+    sudo RUST_LOG=info target/debug/warden_daemon -q "../../realm/tools/qemu/build/qemu-system-aarch64" -u "/tmp/usocket123" -w "target/random12" -p 1337 -d "/usr/sbin/dnsmasq"
 
 ### All possible cmd args
 
@@ -42,8 +27,11 @@ with following entries:
 |--cid| CID on which Warden daemon listens | 2 (VMADDR_CID_HOST)|
 |--port| Port on which Warden daemon listens | 80|
 |--realm-connection-wait-time-secs | Timeout for realm's connection to Warden after start | 60 sec|
-|--bridge_name| Name of daemon's virtual interface | virtbWarden|
-|--bridge_ip| IP of daemon's virtual interface | 192.168.100.0/24|
+|--bridge-name| Name of daemon's virtual interface | virtbWarden|
+|--bridge-ip| IP of daemon's virtual interface | 192.168.100.0/24|
+|--dhcp-connections-number| Number of dhcp connections that is used to calculate dhcp range for server| 20|
+|--dns-records| Additional records for Dnsmasq. Use following pattern: */\<domain\>\[/\<domain\>...\]/\[\<ipaddr\>\]* | N/A|
+
 
 ## Testing
 

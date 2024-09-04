@@ -26,7 +26,7 @@ pub struct Cli {
     #[arg(short='i', long, default_value_t=IpNet::V4(Ipv4Net::new(Ipv4Addr::new(192, 168, 100, 0), 24).expect("This should be valid IP4 addr.")))]
     pub bridge_ip: IpNet,
     #[arg(short = 'n', long, value_parser=clap::value_parser!(u8).range(2..253), default_value_t = 20)]
-    pub bridge_dhcp_connections_number: u8,
+    pub dhcp_connections_number: u8,
     #[arg(long)]
     pub dns_records: Vec<String>,
 }

@@ -37,7 +37,7 @@ impl Daemon {
         })));
         let udhcp_server = DnsmasqServerHandler::new(
             &cli.dhcp_exec_path,
-            cli.bridge_dhcp_connections_number,
+            cli.dhcp_connections_number,
             cli.dns_records,
         )?;
         let network_manager = Arc::new(Mutex::new(

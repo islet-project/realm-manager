@@ -98,7 +98,7 @@ pub fn create_example_cli(unix_sock_path: PathBuf, warden_workdir_path: PathBuf)
             .unwrap_or(IpNet::V4(
                 Ipv4Net::new(Ipv4Addr::new(192, 168, 100, 0), 24).unwrap(),
             )),
-        bridge_dhcp_connections_number: 20,
+        dhcp_connections_number: 20,
         dns_records: vec![],
         dhcp_exec_path: PathBuf::from_str(
             &env::var(DHCP_BINARY_PATH_ENV)
