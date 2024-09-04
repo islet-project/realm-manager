@@ -416,7 +416,8 @@ mod test {
             description: RealmDescription {
                 uuid: realm_uuid,
                 state: State::Halted,
-                applications: vec![]
+                applications: vec![],
+                network: vec![]
             },
         };
         let (mut communicator, respondent) = create_communicators();

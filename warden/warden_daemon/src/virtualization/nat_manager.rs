@@ -100,7 +100,7 @@ impl<DHCP: DHCPServer + Send + Sync> NetworkManager for NetworkManagerHandler<DH
             .map_err(|err| NetworkManagerError::CreateNatNetwork(err.to_string()))?;
         Self::prepare_routing(config.clone())?;
         dhcp_server
-            .start(bridge_ip)
+            .start(bridge_ip, &config.net_if_name)
             .await
             .map_err(|err| NetworkManagerError::CreateNatNetwork(err.to_string()))?;
         Ok(Self {
