@@ -184,6 +184,11 @@ def main():
     _ = subparsers.add_parser("invalid_json")
     _ = subparsers.add_parser("exit")
 
+    if "use_oci" in args:
+        im_url = args.use_oci
+    else:
+        im_url = None
+
     host = MockedWarden(kernel=args.kernel, vsock_port=args.vsock_port, guest_cid=args.guest_cid, tap_device=args.tap_device, qemu_serial=args.qemu_serial)
     host.start()
 
@@ -266,7 +271,7 @@ def main():
                 elif cmd == "getifaddrs":
                     r = host.getifaddrs()
                 elif cmd == "setup_exmapleapp":
-                    r = host.send_exmapleapp_provision_info()
+                    r = host.send_exmapleapp_provision_info(im_url)
 
                 print(f"Command returned: {r}")
 

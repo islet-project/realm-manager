@@ -7,11 +7,9 @@ crypto:
   iv_offset: 0
 launcher:
   Oci:
-    RusTLS:
+    RaTLS:
       root_ca: /usr/share/app-manager/ratls/root-ca.crt
-    # RaTLS:
-      # root_ca: /usr/share/app-manager/ratls/root-ca.crt
-      # token_resolver: 
-      #   from_file: /usr/share/app-manager/ratls/token.bin
+      token_resolver: 
+        from_file: /usr/share/app-manager/ratls/token.bin
 keysealing: Dummy
 autostartall: true
