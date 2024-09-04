@@ -8,6 +8,7 @@ use crate::app::ApplicationError;
 use crate::config::ConfigError;
 use crate::dm::crypt::CryptError;
 use crate::dm::device::DeviceHandleError;
+use crate::key::hkdf::HkdfSealingError;
 use crate::key::ring::KeyRingError;
 use crate::launcher::dummy::DummyLauncherError;
 use crate::launcher::handler::ApplicationHandlerError;
@@ -83,6 +84,9 @@ pub enum Error {
 
     #[error("OCI launcher error")]
     OciLauncher(#[from] OciLauncherError),
+
+    #[error("Hkdf sealing error")]
+    HkdfSealing(#[from] HkdfSealingError)
 }
 
 pub type Result<T> = std::result::Result<T, Error>;

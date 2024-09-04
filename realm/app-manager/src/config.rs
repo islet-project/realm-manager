@@ -1,3 +1,4 @@
+use std::collections::HashSet;
 use std::path::{Path, PathBuf};
 
 use super::Result;
@@ -40,9 +41,24 @@ pub enum LauncherType {
     Oci(OciLauncherConfig),
 }
 
+#[derive(Debug, Serialize, Deserialize, Eq, PartialEq, Hash)]
+pub enum RsiIsletSealingFlags {
+    Key,
+    Rim,
+    RealmId,
+    Svn
+}
+
+#[derive(Debug, Serialize, Deserialize)]
+pub enum IkmSource {
+    StubbedHex(String),
+    Rsi(HashSet<RsiIsletSealingFlags>)
+}
+
 #[derive(Debug, Serialize, Deserialize)]
 pub enum KeySealingType {
     Dummy,
+    HkdfSha256(IkmSource)
 }
 
 #[allow(dead_code)]

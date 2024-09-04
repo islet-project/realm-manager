@@ -11,7 +11,10 @@ use warden_realm::{ApplicationInfo, ProtocolError, Request, Response};
 use crate::app::Application;
 use crate::config::{Config, KeySealingType, LauncherType};
 use crate::error::Error;
-use crate::key::{dummy::DummyKeySealing, KeySealing};
+use crate::key::dummy::DummyKeySealingFactory;
+use crate::key::hkdf::HkdfSealingFactory;
+use crate::key::KeySealingFactory;
+use crate::key::KeySealing;
 use crate::launcher::handler::ApplicationHandlerError;
 use crate::launcher::oci::OciLauncher;
 use crate::launcher::ApplicationHandler;
@@ -41,6 +44,7 @@ pub struct Manager {
     config: Config,
     apps: HashMap<Uuid, (Application, Box<dyn ApplicationHandler + Send + Sync>)>,
     conn: JsonFramed<VsockStream, Request, Response>,
+    sealing_factory: Box<dyn KeySealingFactory + Send + Sync>
 }
 
 impl Manager {
@@ -50,10 +54,17 @@ impl Manager {
             .map_err(ManagerError::VsockConnectionError)?;
         info!("Connected to warden daemon");
 
+        info!("Initializing key sealing");
+        let sealing_factory = match &config.keysealing {
+            KeySealingType::Dummy => Box::new(DummyKeySealingFactory::new(vec![0x11, 0x22, 0x33])) as Box<dyn KeySealingFactory + Send + Sync>,
+            KeySealingType::HkdfSha256(ikm_source) => Box::new(HkdfSealingFactory::new(ikm_source)?) as Box<dyn KeySealingFactory + Send + Sync>
+        };
+
         Ok(Self {
             config,
             apps: HashMap::new(),
             conn: JsonFramed::new(vsock),
+            sealing_factory
         })
     }
 
@@ -65,9 +76,7 @@ impl Manager {
     }
 
     fn make_keyseal(&self) -> Result<Box<dyn KeySealing + Send + Sync>> {
-        match self.config.keysealing {
-            KeySealingType::Dummy => Ok(Box::new(DummyKeySealing::new(vec![0x11, 0x22, 0x33]))),
-        }
+        Ok(self.sealing_factory.create())
     }
 
     async fn recv_msg(&mut self) -> Result<Request> {

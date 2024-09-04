@@ -11,5 +11,7 @@ launcher:
       root_ca: /usr/share/app-manager/ratls/root-ca.crt
       token_resolver: 
         from_file: /usr/share/app-manager/ratls/token.bin
-keysealing: Dummy
+keysealing: 
+  HkdfSha256:
+    StubbedHex: AABB
 autostartall: true

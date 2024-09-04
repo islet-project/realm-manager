@@ -9,6 +9,7 @@ use manager::Manager;
 mod app;
 mod cli;
 mod config;
+mod consts;
 mod dm;
 mod error;
 mod key;

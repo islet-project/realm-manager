@@ -18,7 +18,7 @@ use serde::{Deserialize, Serialize};
 use thiserror::Error;
 
 use super::handler::{ExecConfig, SimpleApplicationHandler};
-use super::{ApplicationHandler, Launcher, Result};
+use super::{ApplicationHandler, ApplicationMetadata, Launcher, Result};
 use crate::config::{OciLauncherConfig, TokenResolver};
 use crate::error::Error;
 use crate::util::fs::{mkdirp, read_to_string, rename, rmrf, write_to_file};
@@ -255,7 +255,7 @@ impl Launcher for OciLauncher {
         im_url: &str,
         name: &str,
         version: &str,
-    ) -> Result<Vec<Vec<u8>>> {
+    ) -> Result<ApplicationMetadata> {
         debug!("Installing {}:{} from {}", name, version, im_url);
         let oci_client = self.create_oci_client(im_url)?;
 
@@ -332,7 +332,10 @@ impl Launcher for OciLauncher {
             .await?;
         }
 
-        Ok(new_vendor_cert)
+        Ok(ApplicationMetadata {
+            vendor_data: new_vendor_cert,
+            image_hash: vec![1,2,3] // TODO: manifest digest
+        })
     }
 
     async fn prepare(&mut self, path: &Path) -> Result<Box<dyn ApplicationHandler + Send + Sync>> {

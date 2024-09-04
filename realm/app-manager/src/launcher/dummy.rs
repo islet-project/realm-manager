@@ -7,7 +7,7 @@ use thiserror::Error;
 use tokio::fs;
 
 use super::handler::{ExecConfig, SimpleApplicationHandler};
-use super::{ApplicationHandler, Launcher, Result};
+use super::{ApplicationHandler, ApplicationMetadata, Launcher, Result};
 
 #[derive(Debug, Error)]
 pub enum DummyLauncherError {
@@ -32,7 +32,7 @@ impl DummyLauncher {
 
 #[async_trait]
 impl Launcher for DummyLauncher {
-    async fn install(&mut self, path: &Path, _: &str, _: &str, _: &str) -> Result<Vec<Vec<u8>>> {
+    async fn install(&mut self, path: &Path, _: &str, _: &str, _: &str) -> Result<ApplicationMetadata> {
         fs::copy("/usr/bin/busybox", path.join("busybox"))
             .await
             .map_err(DummyLauncherError::FileCopyError)?;
@@ -41,7 +41,10 @@ impl Launcher for DummyLauncher {
             .await
             .map_err(DummyLauncherError::FileWriteError)?;
 
-        Ok(vec![vec![0x11, 0x22, 0x33]])
+        Ok(ApplicationMetadata {
+            vendor_data: vec![vec![0x11, 0x22, 0x33]],
+            image_hash: vec![1,2,3,4]
+        })
     }
 
     async fn prepare(&mut self, path: &Path) -> Result<Box<dyn ApplicationHandler + Send + Sync>> {
