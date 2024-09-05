@@ -25,6 +25,8 @@ QEMU_DIR             = $(TOOLS_DIR)/qemu
 UTIL_LINUX_UPSTREAM  = https://github.com/util-linux/util-linux.git
 UTIL_LINUX_DIR       = $(TOOLS_DIR)/util-linux
 
+RSI_KO_DIR           = $(ROOT_DIR)/linux-rsi
+
 APP_MANAGER_DIR      = $(ROOT_DIR)/app-manager
 APP_MANAGER_BIN      = $(APP_MANAGER_DIR)/target/aarch64-unknown-linux-gnu/debug/app-manager
 
@@ -139,19 +141,25 @@ compile-util-linux: $(UTIL_LINUX_DIR)
 	fi;
 	@$(MAKE) -C "$(UTIL_LINUX_DIR)" blkid CC=aarch64-none-linux-gnu-gcc LDFLAGS="--static" -j $(shell nproc)
 
+compile-rsi-ko: $(RSI_KO_DIR)
+	@echo "$(GREEN_COLOR)Building rsi kernel module.$(NC)"
+	@$(MAKE) -C $(RSI_KO_DIR)
+
 compile-app-manager: 
 	@echo "$(GREEN_COLOR)Building app-manager.$(NC)"
 	@cd "$(APP_MANAGER_DIR)" && cargo build --target=aarch64-unknown-linux-gnu
 
-prepare-initramfs: compile-busybox compile-strace compile-gdbserver compile-app-manager compile-util-linux
+prepare-initramfs: compile-busybox compile-strace compile-gdbserver compile-app-manager compile-util-linux compile-rsi-ko
 	@echo "$(GREEN_COLOR)Preparing initramfs.$(NC)"
 	@mkdir -p "$(INITRAMFS_DIR)/usr/bin"
 	@mkdir -p "$(INITRAMFS_DIR)/usr/sbin"
+	@mkdir -p "$(INITRAMFS_DIR)/lib/modules"
 	@cp -v "$(BUSYBOX_DIR)/busybox" "$(INITRAMFS_DIR)/usr/bin"
 	@cp -v "$(STRACE_DIR)/src/strace" "$(INITRAMFS_DIR)/usr/bin"
 	@cp -v "$(GDB_DIR)/build/gdbserver/gdbserver" "$(INITRAMFS_DIR)/usr/bin"
 	@cp -v "$(UTIL_LINUX_DIR)/blkid" "$(INITRAMFS_DIR)/usr/sbin"
 	@cp -v "$(APP_MANAGER_BIN)" "$(INITRAMFS_DIR)/usr/bin/"
+	@cp -v "$(RSI_KO_DIR)/rsi.ko" "$(INITRAMFS_DIR)/lib/modules/"
 
 compile-image: prepare-initramfs $(KERNEL_DIR)
 	@echo "$(GREEN_COLOR)Building kernel image.$(NC)"
