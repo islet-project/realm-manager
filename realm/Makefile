@@ -7,8 +7,9 @@ TOOLS_DIR            = $(ROOT_DIR)/tools
 GNU_TOOLCHAIN_URL    = https://developer.arm.com/-/media/Files/downloads/gnu/13.2.rel1/binrel/arm-gnu-toolchain-13.2.rel1-x86_64-aarch64-none-linux-gnu.tar.xz
 GNU_TOOLCHAIN_DIR    = $(TOOLCHAIN_DIR)/aarch64-none-linux-gnu/bin
 
-KERNEL_UPSTREAM      = https://github.com/torvalds/linux
+KERNEL_UPSTREAM      = https://git.gitlab.arm.com/linux-arm/linux-cca.git
 KERNEL_DIR           = $(ROOT_DIR)/linux
+KERNEL_REV           = cca-full/rmm-v1.0-eac5
 
 BUSYBOX_UPSTREAM     = https://github.com/mirror/busybox.git
 BUSYBOX_DIR          = $(TOOLS_DIR)/busybox
@@ -62,7 +63,9 @@ toolchains: makedir
 
 fetch-linux-kernel:
 	@echo "$(GREEN_COLOR)Fetching Linux kernel source.$(NC)"
-	@[ -d "$(KERNEL_DIR)" ] || git clone --depth=1 $(KERNEL_UPSTREAM) $(KERNEL_DIR)
+	@[ -d "$(KERNEL_DIR)" ] || \
+		git clone --depth=1 --branch $(KERNEL_REV) $(KERNEL_UPSTREAM) $(KERNEL_DIR) && \
+		(cd "$(KERNEL_DIR)" && patch -p1 < "$(ROOT_DIR)/config/linux-rsi-pages.patch")
 
 fetch-busybox:
 	@echo "$(GREEN_COLOR)Fetching busybox source.$(NC)"
@@ -143,6 +146,12 @@ compile-util-linux: $(UTIL_LINUX_DIR)
 
 compile-rsi-ko: $(RSI_KO_DIR)
 	@echo "$(GREEN_COLOR)Building rsi kernel module.$(NC)"
+	@if [ ! -f "$(KERNEL_DIR)/.config" ]; then \
+		echo "$(GREEN_COLOR)Precompiling kernel.$(NC)"; \
+		ARCH=arm64 CROSS_COMPILE=aarch64-none-linux-gnu- $(MAKE) -C "$(KERNEL_DIR)" defconfig; \
+		cd "$(KERNEL_DIR)" && "$(KERNEL_DIR)/scripts/kconfig/merge_config.sh" -m "$(KERNEL_DIR)/.config" "$(CONFIG_DIR)/kernel.config"; \
+		ARCH=arm64 CROSS_COMPILE=aarch64-none-linux-gnu- $(MAKE) -C "$(KERNEL_DIR)" modules -j $(shell nproc); \
+	fi;
 	@$(MAKE) -C $(RSI_KO_DIR)
 
 compile-app-manager: 
