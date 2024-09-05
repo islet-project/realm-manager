@@ -26,6 +26,9 @@ QEMU_DIR             = $(TOOLS_DIR)/qemu
 UTIL_LINUX_UPSTREAM  = https://github.com/util-linux/util-linux.git
 UTIL_LINUX_DIR       = $(TOOLS_DIR)/util-linux
 
+RSICTL_UPSTREAM      = https://github.com/islet-project/remote-attestation.git
+RSICTL_DIR           = $(TOOLS_DIR)/remote-attestation
+
 RSI_KO_DIR           = $(ROOT_DIR)/linux-rsi
 
 APP_MANAGER_DIR      = $(ROOT_DIR)/app-manager
@@ -63,9 +66,9 @@ toolchains: makedir
 
 fetch-linux-kernel:
 	@echo "$(GREEN_COLOR)Fetching Linux kernel source.$(NC)"
-	@[ -d "$(KERNEL_DIR)" ] || \
+	@[ -d "$(KERNEL_DIR)" ] || (\
 		git clone --depth=1 --branch $(KERNEL_REV) $(KERNEL_UPSTREAM) $(KERNEL_DIR) && \
-		(cd "$(KERNEL_DIR)" && patch -p1 < "$(ROOT_DIR)/config/linux-rsi-pages.patch")
+		(cd "$(KERNEL_DIR)" && patch -p1 < "$(ROOT_DIR)/config/linux-rsi-pages.patch"))
 
 fetch-busybox:
 	@echo "$(GREEN_COLOR)Fetching busybox source.$(NC)"
@@ -91,9 +94,13 @@ fetch-gdb:
 fetch-util-linux:
 	@echo "$(GREEN_COLOR)Fetching util-linux source.$(NC)"
 	@[ -d "$(UTIL_LINUX_DIR)" ] || git clone --depth=1 $(UTIL_LINUX_UPSTREAM) $(UTIL_LINUX_DIR)
-	
 
-deps: toolchains fetch-linux-kernel fetch-busybox fetch-strace fetch-gdb fetch-qemu fetch-util-linux
+fetch-rsictl:
+	@echo "$(GREEN_COLOR)Fetching rsictl source.$(NC)"
+	@[ -d "$(RSICTL_DIR)" ] || git clone --depth=1 $(RSICTL_UPSTREAM) $(RSICTL_DIR)
+
+
+deps: toolchains fetch-linux-kernel fetch-busybox fetch-strace fetch-gdb fetch-qemu fetch-util-linux fetch-rsictl
 
 compile-busybox: $(BUSYBOX_DIR)
 	@echo "$(GREEN_COLOR)Building busybox.$(NC)"
@@ -154,11 +161,16 @@ compile-rsi-ko: $(RSI_KO_DIR)
 	fi;
 	@$(MAKE) -C $(RSI_KO_DIR)
 
+compile-rsictl: $(RSICTL_DIR)
+	@echo "$(GREEN_COLOR)Building rsictl.$(NC)"
+	@cd "$(RSICTL_DIR)/tools/rsictl" && cargo build --target=aarch64-unknown-linux-gnu
+
+
 compile-app-manager: 
 	@echo "$(GREEN_COLOR)Building app-manager.$(NC)"
 	@cd "$(APP_MANAGER_DIR)" && cargo build --target=aarch64-unknown-linux-gnu
 
-prepare-initramfs: compile-busybox compile-strace compile-gdbserver compile-app-manager compile-util-linux compile-rsi-ko
+prepare-initramfs: compile-busybox compile-strace compile-gdbserver compile-app-manager compile-util-linux compile-rsi-ko compile-rsictl
 	@echo "$(GREEN_COLOR)Preparing initramfs.$(NC)"
 	@mkdir -p "$(INITRAMFS_DIR)/usr/bin"
 	@mkdir -p "$(INITRAMFS_DIR)/usr/sbin"
@@ -169,6 +181,7 @@ prepare-initramfs: compile-busybox compile-strace compile-gdbserver compile-app-
 	@cp -v "$(UTIL_LINUX_DIR)/blkid" "$(INITRAMFS_DIR)/usr/sbin"
 	@cp -v "$(APP_MANAGER_BIN)" "$(INITRAMFS_DIR)/usr/bin/"
 	@cp -v "$(RSI_KO_DIR)/rsi.ko" "$(INITRAMFS_DIR)/lib/modules/"
+	@cp -v "$(RSICTL_DIR)/tools/rsictl/target/aarch64-unknown-linux-gnu/debug/rsictl" "$(INITRAMFS_DIR)/usr/bin/"
 
 compile-image: prepare-initramfs $(KERNEL_DIR)
 	@echo "$(GREEN_COLOR)Building kernel image.$(NC)"
