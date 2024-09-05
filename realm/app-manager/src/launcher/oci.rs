@@ -12,7 +12,6 @@ use log::{debug, error, info};
 use nix::errno::Errno;
 use nix::unistd::{getgid, getuid, Gid, Group, Uid, User};
 use oci_spec::image::Config as RuntimeConfig;
-use oci_spec::image::Descriptor;
 use oci_spec::image::ImageConfiguration as OciConfig;
 use ratls::{load_root_cert_store, RaTlsCertResolver, RaTlsError, TokenFromFile};
 use serde::{Deserialize, Serialize};
@@ -77,7 +76,7 @@ pub struct OciLauncher {
 #[derive(Debug, Serialize, Deserialize)]
 struct Metadata {
     vendor_cert: Vec<Vec<u8>>,
-    layers: Vec<Descriptor>,
+    config_hash: String,
     image_config: OciConfig,
 }
 
@@ -267,12 +266,12 @@ impl Launcher for OciLauncher {
             .map_err(OciLauncherError::ImageInfoFetching)?;
 
         let current_metadata = self.try_read_metadata(path).await;
-        let new_layers = image_info.layers(); // TODO: or manifest hash or something else
+        let new_config_hash = image_info.config_digest().value();
         let new_vendor_cert = Self::read_vendor_cert(image_info.annotations())?;
         // TODO: check the cert against some root ca
 
         let installation_required = current_metadata
-            .map(|i| &i.layers != new_layers || i.vendor_cert != new_vendor_cert)
+            .map(|i| &i.config_hash != new_config_hash || i.vendor_cert != new_vendor_cert)
             .unwrap_or(true);
 
         if installation_required {
@@ -319,7 +318,7 @@ impl Launcher for OciLauncher {
                 &path,
                 Metadata {
                     vendor_cert: new_vendor_cert.clone(),
-                    layers: new_layers.clone(),
+                    config_hash: new_config_hash.to_string(),
                     image_config: image_info.config().clone(),
                 },
             )

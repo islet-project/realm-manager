@@ -27,6 +27,6 @@ warden_realm = { path = "../../protocol/warden_realm" }
 utils = { path = "../../utils" }
 clap = { version = "*", features = ["derive"] }
 simple_logger = "*"
-ir-client = { path = "../../../image-registry/ir-client" }
+ir-client = { git = "https://github.com/islet-project/image-registry" }
 ratls = { git = "https://github.com/islet-project/remote-attestation", branch = "dev/z.abramowska/temp" }
 oci-spec = "*"

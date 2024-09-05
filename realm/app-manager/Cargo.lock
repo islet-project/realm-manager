@@ -1180,7 +1180,8 @@ checksum = "8f518f335dce6725a761382244631d86cf0ccb2863413590b31338feb467f9c3"
 
 [[package]]
 name = "ir-client"
-version = "0.2.0"
+version = "0.3.0"
+source = "git+https://github.com/islet-project/image-registry#388f742d40fee015313012679245c979e2946400"
 dependencies = [
  "async-compression",
  "clap",
