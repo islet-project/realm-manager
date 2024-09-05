@@ -19,7 +19,7 @@ pub trait ApplicationHandler {
 
 pub struct ApplicationMetadata {
     pub vendor_data: Vec<Vec<u8>>,
-    pub image_hash: Vec<u8>
+    pub image_hash: Vec<u8>,
 }
 
 #[async_trait]

@@ -18,8 +18,7 @@ use crate::key::KeySealing;
 use crate::launcher::{ApplicationHandler, Launcher};
 use crate::util::disk::read_device_size;
 use crate::util::fs::{
-    dirname, formatfs, mkdirp, mknod, mount, mount_overlayfs, stat, umount,
-    Filesystem,
+    dirname, formatfs, mkdirp, mknod, mount, mount_overlayfs, stat, umount, Filesystem,
 };
 
 #[derive(Debug, Error)]
@@ -179,7 +178,11 @@ impl Application {
             )
             .await?;
 
-        let infos: Vec<_> = application_metadata.vendor_data.iter().map(|i| i.as_slice()).collect();
+        let infos: Vec<_> = application_metadata
+            .vendor_data
+            .iter()
+            .map(|i| i.as_slice())
+            .collect();
         let keyseal = keyseal.seal(&infos, &application_metadata.image_hash)?;
 
         let app_name = self.info.name.as_bytes().to_owned();

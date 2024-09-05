@@ -132,6 +132,7 @@ dependencies = [
  "nix 0.29.0",
  "oci-spec",
  "ratls",
+ "rust-rsi 0.1.0 (git+https://github.com/islet-project/remote-attestation?branch=dev/m.szaknis/key_sealing)",
  "serde",
  "serde_json",
  "serde_yaml",
@@ -1916,7 +1917,7 @@ dependencies = [
  "rand",
  "rcgen",
  "rsa",
- "rust-rsi",
+ "rust-rsi 0.1.0 (git+https://github.com/islet-project/remote-attestation?branch=dev/z.abramowska/temp)",
  "rustls",
  "rustls-pemfile",
  "rustls-webpki",
@@ -2079,6 +2080,23 @@ dependencies = [
  "spki",
  "subtle",
  "zeroize",
+]
+
+[[package]]
+name = "rust-rsi"
+version = "0.1.0"
+source = "git+https://github.com/islet-project/remote-attestation?branch=dev/m.szaknis/key_sealing#fc93e6806fdce605c02ebf5008ac633ba7ef5a8a"
+dependencies = [
+ "bindgen",
+ "cc",
+ "ciborium",
+ "coset",
+ "ecdsa",
+ "hex",
+ "nix 0.27.1",
+ "p256",
+ "p384",
+ "sha2",
 ]
 
 [[package]]

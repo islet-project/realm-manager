@@ -2,6 +2,9 @@ use std::collections::HashSet;
 use std::path::{Path, PathBuf};
 
 use super::Result;
+use rust_rsi::{
+    RSI_SEALING_KEY_FLAGS_KEY, RSI_SEALING_KEY_FLAGS_REALM_ID, RSI_SEALING_KEY_FLAGS_RIM,
+};
 use serde::{Deserialize, Serialize};
 use thiserror::Error;
 
@@ -16,9 +19,11 @@ pub enum ConfigError {
 
 #[derive(Debug, Serialize, Deserialize, Clone)]
 pub enum TokenResolver {
-    #[serde(rename = "from_file")]
-    FromFile(String),
-    // TODO: Add RSI
+    #[serde(rename = "file")]
+    File(String),
+
+    #[serde(rename = "rsi")]
+    Rsi,
 }
 
 #[derive(Debug, Serialize, Deserialize, Clone)]
@@ -42,23 +47,36 @@ pub enum LauncherType {
 }
 
 #[derive(Debug, Serialize, Deserialize, Eq, PartialEq, Hash)]
-pub enum RsiIsletSealingFlags {
+pub enum RsiSealingKeyFlags {
     Key,
     Rim,
     RealmId,
-    Svn
+}
+
+impl From<&RsiSealingKeyFlags> for u64 {
+    fn from(value: &RsiSealingKeyFlags) -> Self {
+        match value {
+            RsiSealingKeyFlags::Key => RSI_SEALING_KEY_FLAGS_KEY,
+            RsiSealingKeyFlags::Rim => RSI_SEALING_KEY_FLAGS_RIM,
+            RsiSealingKeyFlags::RealmId => RSI_SEALING_KEY_FLAGS_REALM_ID,
+        }
+    }
 }
 
 #[derive(Debug, Serialize, Deserialize)]
 pub enum IkmSource {
     StubbedHex(String),
-    Rsi(HashSet<RsiIsletSealingFlags>)
+
+    RsiSealingKey {
+        flags: HashSet<RsiSealingKeyFlags>,
+        svn: Option<u64>,
+    },
 }
 
 #[derive(Debug, Serialize, Deserialize)]
 pub enum KeySealingType {
     Dummy,
-    HkdfSha256(IkmSource)
+    HkdfSha256(IkmSource),
 }
 
 #[allow(dead_code)]

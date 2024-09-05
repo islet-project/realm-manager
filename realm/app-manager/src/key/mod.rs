@@ -9,7 +9,7 @@ pub trait KeySealing {
     fn seal(
         self: Box<Self>,
         infos: &[&[u8]],
-        image_hash: &[u8]
+        image_hash: &[u8],
     ) -> Result<Box<dyn KeySealing + Send + Sync>>;
 }
 

@@ -32,7 +32,13 @@ impl DummyLauncher {
 
 #[async_trait]
 impl Launcher for DummyLauncher {
-    async fn install(&mut self, path: &Path, _: &str, _: &str, _: &str) -> Result<ApplicationMetadata> {
+    async fn install(
+        &mut self,
+        path: &Path,
+        _: &str,
+        _: &str,
+        _: &str,
+    ) -> Result<ApplicationMetadata> {
         fs::copy("/usr/bin/busybox", path.join("busybox"))
             .await
             .map_err(DummyLauncherError::FileCopyError)?;
@@ -43,7 +49,7 @@ impl Launcher for DummyLauncher {
 
         Ok(ApplicationMetadata {
             vendor_data: vec![vec![0x11, 0x22, 0x33]],
-            image_hash: vec![1,2,3,4]
+            image_hash: vec![1, 2, 3, 4],
         })
     }
 

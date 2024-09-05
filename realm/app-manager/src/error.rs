@@ -19,6 +19,7 @@ use crate::util::fs;
 use crate::util::net::NetError;
 use crate::util::os::OsError;
 use crate::util::serde::JsonError;
+use crate::util::token::RsiTokenResolverError;
 
 #[derive(Debug, Error)]
 pub enum Error {
@@ -86,7 +87,10 @@ pub enum Error {
     OciLauncher(#[from] OciLauncherError),
 
     #[error("Hkdf sealing error")]
-    HkdfSealing(#[from] HkdfSealingError)
+    HkdfSealing(#[from] HkdfSealingError),
+
+    #[error("Rsi token resolver error")]
+    RsiTokenResolver(#[from] RsiTokenResolverError),
 }
 
 pub type Result<T> = std::result::Result<T, Error>;

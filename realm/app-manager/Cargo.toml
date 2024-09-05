@@ -32,3 +32,4 @@ ratls = { git = "https://github.com/islet-project/remote-attestation", branch = 
 oci-spec = "*"
 hkdf = "*"
 hex-literal = "*"
+rust-rsi = { git = "https://github.com/islet-project/remote-attestation", branch = "dev/m.szaknis/key_sealing" }

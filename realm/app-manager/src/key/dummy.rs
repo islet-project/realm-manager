@@ -31,7 +31,7 @@ impl KeySealing for DummyKeySealing {
     fn seal(
         self: Box<Self>,
         infos: &[&[u8]],
-        _: &[u8]
+        _: &[u8],
     ) -> Result<Box<dyn KeySealing + Send + Sync>> {
         let mut hasher = Sha256::new();
 
@@ -47,7 +47,7 @@ impl KeySealing for DummyKeySealing {
 }
 
 pub struct DummyKeySealingFactory {
-    ikm: Vec<u8>
+    ikm: Vec<u8>,
 }
 
 impl DummyKeySealingFactory {
@@ -61,4 +61,3 @@ impl KeySealingFactory for DummyKeySealingFactory {
         Box::new(DummyKeySealing::new(self.ikm.clone()))
     }
 }
-
