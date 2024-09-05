@@ -12,7 +12,7 @@ serde_json = { version = "*", features = ["alloc"] }
 thiserror = "*"
 uuid = { version = "*", features = ["serde", "v4"] }
 const-hex = "*"
-nix = { version = "*", features = ["process", "signal", "net", "user"] }
+nix = { version = "*", features = ["process", "signal", "net", "user", "kmod"] }
 tokio-serde = { version = "*", features = ["json"] }
 tokio-util = { version = "*", features = ["codec"] }
 tokio = { version = "*", features = ["io-util", "sync", "rt", "rt-multi-thread", "fs", "macros", "process", "time"] }

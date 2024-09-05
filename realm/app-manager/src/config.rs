@@ -102,4 +102,11 @@ impl Config {
 
         Ok(serde_yaml::from_str(&content).map_err(ConfigError::InvalidConfigFile)?)
     }
+
+    pub fn requires_rsi(&self) -> bool {
+        match self.keysealing {
+            KeySealingType::HkdfSha256(IkmSource::RsiSealingKey { .. }) => true,
+            _ => false
+        }
+    }
 }

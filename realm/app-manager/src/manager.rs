@@ -10,6 +10,7 @@ use warden_realm::{ApplicationInfo, ProtocolError, Request, Response};
 
 use crate::app::Application;
 use crate::config::{Config, KeySealingType, LauncherType};
+use crate::consts::RSI_KO;
 use crate::error::Error;
 use crate::key::dummy::DummyKeySealingFactory;
 use crate::key::hkdf::HkdfSealingFactory;
@@ -20,7 +21,7 @@ use crate::launcher::oci::OciLauncher;
 use crate::launcher::ApplicationHandler;
 use crate::launcher::{dummy::DummyLauncher, Launcher};
 use crate::util::net::read_if_addrs;
-use crate::util::os::{reboot, SystemPowerAction};
+use crate::util::os::{insmod, reboot, SystemPowerAction};
 
 use super::Result;
 pub type ProtocolResult<T> = std::result::Result<T, ProtocolError>;
@@ -49,6 +50,11 @@ pub struct Manager {
 
 impl Manager {
     pub async fn new(config: Config) -> Result<Self> {
+        if config.requires_rsi() {
+            info!("Loading rsi kernel module");
+            insmod(RSI_KO, "").await?;
+        }
+
         let vsock = VsockStream::connect(VsockAddr::new(VMADDR_CID_HOST, config.vsock_port))
             .await
             .map_err(ManagerError::VsockConnectionError)?;
