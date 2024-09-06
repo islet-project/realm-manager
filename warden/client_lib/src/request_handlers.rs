@@ -559,6 +559,8 @@ mod test {
             },
             kernel: KernelConfig {
                 kernel_path: PathBuf::new(),
+                kernel_cmd_params: None,
+                kernel_initramfs_path: None,
             },
         }
     }

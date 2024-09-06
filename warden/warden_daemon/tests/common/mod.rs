@@ -65,6 +65,8 @@ pub fn create_example_realm_config() -> RealmConfig {
         },
         kernel: KernelConfig {
             kernel_path: get_kernel_path(),
+            kernel_cmd_params: None,
+            kernel_initramfs_path: None,
         },
     }
 }
