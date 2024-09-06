@@ -5,8 +5,6 @@ use uuid::Uuid;
 
 #[derive(Debug, Error)]
 pub enum VmManagerError {
-    #[error("Unable to create realm's vm: {0}")]
-    Create(String),
     #[error("Unable to launch Vm: {0}")]
     Launch(#[from] std::io::Error),
     #[error("To stop realm's vm you need to launch it first.")]

@@ -2,7 +2,6 @@ use std::path::PathBuf;
 use std::process::{Child, Command, ExitStatus};
 
 use log::debug;
-use thiserror::Error;
 use uuid::Uuid;
 
 use crate::managers::realm_configuration::{
@@ -10,13 +9,6 @@ use crate::managers::realm_configuration::{
 };
 use crate::managers::vm_manager::{VmManager, VmManagerError};
 use crate::storage::app_disk_manager::ApplicationDiskManager;
-
-#[derive(Debug, Error)]
-pub enum LkvmError {
-    #[error("Missing param: {0}")]
-    MissingObligatoryParam(String),
-}
-
 pub struct LkvmRunner {
     realm_workdir: PathBuf,
     command: Command,
@@ -24,11 +16,7 @@ pub struct LkvmRunner {
 }
 
 impl LkvmRunner {
-    pub fn new(
-        path_to_runner: PathBuf,
-        realm_workdir: PathBuf,
-        config: &RealmConfig,
-    ) -> Result<Self, VmManagerError> {
+    pub fn new(path_to_runner: PathBuf, realm_workdir: PathBuf, config: &RealmConfig) -> Self {
         let mut runner = LkvmRunner {
             realm_workdir,
             command: Command::new(path_to_runner),
@@ -36,13 +24,11 @@ impl LkvmRunner {
         };
         runner.command.arg("run");
         runner.setup_cpu(&config.cpu);
-        runner
-            .setup_kernel(&config.kernel)
-            .map_err(|err| VmManagerError::Create(err.to_string()))?;
+        runner.setup_kernel(&config.kernel);
         runner.setup_memory(&config.memory);
         runner.setup_network(&config.network);
         runner.control_output();
-        Ok(runner)
+        runner
     }
     pub fn configure_cca_settings(&mut self) {
         self.command.arg("--debug");
@@ -51,10 +37,11 @@ impl LkvmRunner {
         self.command.arg("--realm");
         self.command.arg("--measurement-algo=\"sha256\"");
     }
-    fn setup_network(&mut self, config: &NetworkConfig) {
-        self.command.arg("-n").arg("virtio"); // TODO!
+    fn setup_network(&mut self, _config: &NetworkConfig) {
+        // TODO!
+        self.command.arg("-n").arg("virtio");
     }
-    fn setup_kernel(&mut self, config: &KernelConfig) -> Result<(), LkvmError> {
+    fn setup_kernel(&mut self, config: &KernelConfig) {
         self.command.arg("-k").arg(&config.kernel_path);
         if let Some(initramfs_path) = &config.kernel_initramfs_path {
             self.command.arg("-i").arg(initramfs_path);
@@ -64,7 +51,6 @@ impl LkvmRunner {
                 .arg("-p")
                 .arg(&format!("\"{}\"", kernel_cmd_params));
         }
-        Ok(())
     }
     fn setup_cpu(&mut self, config: &CpuConfig) {
         self.command.arg("-c").arg(config.cores_number.to_string());
@@ -75,13 +61,14 @@ impl LkvmRunner {
     fn control_output(&mut self) {
         self.command.arg("--console").arg("serial");
     }
-    fn setup_disk(&self, command: &mut Command, application_uuids: &[&Uuid]) {
+    fn setup_disk(&self, _command: &mut Command, application_uuids: &[&Uuid]) {
         for app_uuid in application_uuids {
             let mut app_disk_path = self.realm_workdir.join(app_uuid.to_string());
             app_disk_path.push(ApplicationDiskManager::DISK_NAME);
-            command
-                .arg("-drive")
-                .arg(format!("file={}", app_disk_path.to_string_lossy()));
+            // TODO!
+            // command
+            //     .arg("-drive")
+            //     .arg(format!("file={}", app_disk_path.to_string_lossy()));
         }
     }
     fn kill_and_wait(child: &mut Child) -> Result<(), VmManagerError> {
@@ -99,10 +86,8 @@ impl VmManager for LkvmRunner {
     fn launch_vm(&mut self, application_uuids: &[&Uuid]) -> Result<(), VmManagerError> {
         let mut command = Command::new(self.command.get_program());
         command.args(self.command.get_args());
-        
-        // TODO!
-        // self.setup_disk(&mut command, application_uuids);
-        // TODO!
+
+        self.setup_disk(&mut command, application_uuids);
 
         debug!("Spawning realm with command: {:?}", command);
         command

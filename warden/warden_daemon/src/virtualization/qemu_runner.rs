@@ -17,11 +17,7 @@ pub struct QemuRunner {
 }
 
 impl QemuRunner {
-    pub fn new(
-        path_to_qemu: PathBuf,
-        realm_workdir: PathBuf,
-        config: &RealmConfig,
-    ) -> Result<Self, VmManagerError> {
+    pub fn new(path_to_qemu: PathBuf, realm_workdir: PathBuf, config: &RealmConfig) -> Self {
         let mut runner = QemuRunner {
             realm_workdir,
             command: Command::new(path_to_qemu),
@@ -33,7 +29,7 @@ impl QemuRunner {
         runner.setup_machine(&config.machine);
         runner.setup_network(&config.network);
         runner.control_output();
-        Ok(runner)
+        runner
     }
     fn setup_network(&mut self, config: &NetworkConfig) {
         self.command.arg("-netdev").arg(format!(
