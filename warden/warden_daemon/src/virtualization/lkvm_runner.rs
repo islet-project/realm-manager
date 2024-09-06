@@ -34,6 +34,7 @@ impl LkvmRunner {
             command: Command::new(path_to_runner),
             vm: None,
         };
+        runner.command.arg("run");
         runner.setup_cpu(&config.cpu);
         runner
             .setup_kernel(&config.kernel)
@@ -43,18 +44,21 @@ impl LkvmRunner {
         runner.control_output();
         Ok(runner)
     }
-    pub fn configure_realm_settings(&mut self) {
+    pub fn configure_cca_settings(&mut self) {
+        self.command.arg("--debug");
         self.command.arg("--irqchip=gicv3");
         self.command.arg("--disable-sve");
-        self.command.arg("--debug");
         self.command.arg("--realm");
         self.command.arg("--measurement-algo=\"sha256\"");
     }
     fn setup_network(&mut self, config: &NetworkConfig) {
-        self.command.arg("-n").arg("virtio");
+        self.command.arg("-n").arg("virtio"); // TODO!
     }
     fn setup_kernel(&mut self, config: &KernelConfig) -> Result<(), LkvmError> {
         self.command.arg("-k").arg(&config.kernel_path);
+        if let Some(initramfs_path) = &config.kernel_initramfs_path {
+            self.command.arg("-i").arg(initramfs_path);
+        }
         if let Some(kernel_cmd_params) = &config.kernel_cmd_params {
             self.command
                 .arg("-p")
@@ -94,8 +98,12 @@ impl LkvmRunner {
 impl VmManager for LkvmRunner {
     fn launch_vm(&mut self, application_uuids: &[&Uuid]) -> Result<(), VmManagerError> {
         let mut command = Command::new(self.command.get_program());
-        // command.args(self.command.get_args());
+        command.args(self.command.get_args());
+        
+        // TODO!
         // self.setup_disk(&mut command, application_uuids);
+        // TODO!
+
         debug!("Spawning realm with command: {:?}", command);
         command
             .spawn()

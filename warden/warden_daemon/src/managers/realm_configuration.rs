@@ -34,5 +34,6 @@ pub struct NetworkConfig {
 #[derive(Serialize, Deserialize, Debug, Default)]
 pub struct KernelConfig {
     pub kernel_path: PathBuf,
+    pub kernel_initramfs_path: Option<String>,
     pub kernel_cmd_params: Option<String>,
 }

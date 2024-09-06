@@ -31,4 +31,6 @@ pub struct Cli {
     pub dns_records: Vec<String>,
     #[arg(long, default_value_t = false)]
     pub lkvm_runner: bool,
+    #[arg(long, default_value_t = false)]
+    pub cca_enable: bool,
 }
