@@ -37,9 +37,10 @@ impl LkvmRunner {
         self.command.arg("--realm");
         self.command.arg("--measurement-algo=\"sha256\"");
     }
-    fn setup_network(&mut self, _config: &NetworkConfig) {
+    fn setup_network(&mut self, config: &NetworkConfig) {
         // TODO!
         self.command.arg("-n").arg("virtio");
+        self.command.arg("--vsock").arg(config.vsock_cid.to_string());
     }
     fn setup_kernel(&mut self, config: &KernelConfig) {
         self.command.arg("-k").arg(&config.kernel_path);
