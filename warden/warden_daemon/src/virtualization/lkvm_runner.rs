@@ -35,7 +35,7 @@ impl LkvmRunner {
         self.command.arg("--irqchip=gicv3");
         self.command.arg("--disable-sve");
         self.command.arg("--realm");
-        self.command.arg("--measurement-algo=\"sha256\"");
+        self.command.arg("--measurement-algo=sha256");
     }
     fn setup_network(&mut self, config: &NetworkConfig) {
         // TODO!
