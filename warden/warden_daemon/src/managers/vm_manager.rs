@@ -5,14 +5,16 @@ use uuid::Uuid;
 
 #[derive(Debug, Error)]
 pub enum VmManagerError {
+    #[error("Unable to create realm's vm: {0}")]
+    Create(String),
     #[error("Unable to launch Vm: {0}")]
-    LaunchFail(#[from] std::io::Error),
+    Launch(#[from] std::io::Error),
     #[error("To stop realm's vm you need to launch it first.")]
     VmNotLaunched,
     #[error("Unable to stop realm's vm.")]
-    StopFail,
+    Stop,
     #[error("Unable to destroy realm's vm: {0}")]
-    DestroyFail(String),
+    Destroy(String),
 }
 
 pub trait VmManager {

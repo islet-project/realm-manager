@@ -92,11 +92,11 @@ impl QemuRunner {
     fn kill_and_wait(child: &mut Child) -> Result<(), VmManagerError> {
         child
             .kill()
-            .map_err(|err| VmManagerError::DestroyFail(err.to_string()))?;
+            .map_err(|err| VmManagerError::Destroy(err.to_string()))?;
         child
             .wait()
             .map(|_| ())
-            .map_err(|err| VmManagerError::DestroyFail(err.to_string()))
+            .map_err(|err| VmManagerError::Destroy(err.to_string()))
     }
 }
 
@@ -111,12 +111,12 @@ impl VmManager for QemuRunner {
             .map(|child| {
                 self.vm = Some(child);
             })
-            .map_err(VmManagerError::LaunchFail)
+            .map_err(VmManagerError::Launch)
     }
     fn stop_vm(&mut self) -> Result<(), VmManagerError> {
         self.vm
             .as_mut()
-            .map(|child| child.kill().map_err(|_| VmManagerError::StopFail))
+            .map(|child| child.kill().map_err(|_| VmManagerError::Stop))
             .unwrap_or(Err(VmManagerError::VmNotLaunched))
     }
     fn delete_vm(&mut self) -> Result<(), VmManagerError> {

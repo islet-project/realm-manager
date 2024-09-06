@@ -1,7 +1,9 @@
 use crate::virtualization::dnsmasq_server_handler::DnsmasqServerHandler;
+use crate::virtualization::lkvm_runner::LkvmRunner;
 use crate::virtualization::nat_manager::NetworkManagerHandler;
 use crate::virtualization::network::NetworkConfig;
 use crate::virtualization::network::NetworkManager;
+use crate::virtualization::qemu_runner::QemuRunner;
 
 use super::cli::Cli;
 use super::client_handler::client_command_handler::ClientHandler;
@@ -49,7 +51,21 @@ impl Daemon {
             .await?,
         ));
         let realm_fabric = Box::new(RealmManagerFabric::new(
-            cli.qemu_path,
+            Box::new(move |path, config| {
+                if cli.lkvm_runner {
+                    Ok(Box::new(LkvmRunner::new(
+                        cli.virtualizer_path.clone(),
+                        path,
+                        config,
+                    )?))
+                } else {
+                    Ok(Box::new(QemuRunner::new(
+                        cli.virtualizer_path.clone(),
+                        path,
+                        config,
+                    )?))
+                }
+            }),
             vsock_server.clone(),
             cli.warden_workdir_path.clone(),
             network_manager.clone(),

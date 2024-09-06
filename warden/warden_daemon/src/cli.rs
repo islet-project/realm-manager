@@ -12,7 +12,7 @@ pub struct Cli {
     #[arg(short, long, value_parser=clap::value_parser!(u32).range(80..), default_value_t = 80)]
     pub port: u32,
     #[arg(short, long)]
-    pub qemu_path: PathBuf,
+    pub virtualizer_path: PathBuf,
     #[arg(short, long)]
     pub unix_sock_path: PathBuf,
     #[arg(short, long)]
@@ -29,4 +29,6 @@ pub struct Cli {
     pub dhcp_total_clients: u8,
     #[arg(long)]
     pub dns_records: Vec<String>,
+    #[arg(long, default_value_t = false)]
+    pub lkvm_runner: bool,
 }

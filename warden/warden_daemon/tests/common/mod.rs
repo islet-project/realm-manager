@@ -81,7 +81,7 @@ pub fn create_example_cli(unix_sock_path: PathBuf, warden_workdir_path: PathBuf)
         port: env::var(WARDEN_VSOCK_PORT_ENV)
             .map(|port| u32::from_str(&port).unwrap())
             .unwrap_or(1337),
-        qemu_path: PathBuf::from_str(
+        virtualizer_path: PathBuf::from_str(
             &env::var(REALM_QEMU_PATH_ENV)
                 .expect(&format!("Missing env var: {}", REALM_QEMU_PATH_ENV)),
         )
@@ -100,6 +100,7 @@ pub fn create_example_cli(unix_sock_path: PathBuf, warden_workdir_path: PathBuf)
             )),
         dhcp_total_clients: 20,
         dns_records: vec![],
+        lkvm_runner: false,
         dhcp_exec_path: PathBuf::from_str(
             &env::var(DHCP_BINARY_PATH_ENV)
                 .expect(&format!("Missing env var: {}", DHCP_BINARY_PATH_ENV)),

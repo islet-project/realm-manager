@@ -11,13 +11,11 @@ use crate::managers::realm_configuration::{
 use crate::managers::vm_manager::{VmManager, VmManagerError};
 use crate::storage::app_disk_manager::ApplicationDiskManager;
 
-
 #[derive(Debug, Error)]
 pub enum LkvmError {
     #[error("Missing param: {0}")]
-    MissingObligatoryParam(String)
+    MissingObligatoryParam(String),
 }
-
 
 pub struct LkvmRunner {
     realm_workdir: PathBuf,
@@ -30,14 +28,16 @@ impl LkvmRunner {
         path_to_runner: PathBuf,
         realm_workdir: PathBuf,
         config: &RealmConfig,
-    ) -> Result<Self, LkvmError> {
+    ) -> Result<Self, VmManagerError> {
         let mut runner = LkvmRunner {
             realm_workdir,
             command: Command::new(path_to_runner),
             vm: None,
         };
         runner.setup_cpu(&config.cpu);
-        runner.setup_kernel(&config.kernel)?;
+        runner
+            .setup_kernel(&config.kernel)
+            .map_err(|err| VmManagerError::Create(err.to_string()))?;
         runner.setup_memory(&config.memory);
         runner.setup_network(&config.network);
         runner.control_output();
@@ -55,9 +55,10 @@ impl LkvmRunner {
     }
     fn setup_kernel(&mut self, config: &KernelConfig) -> Result<(), LkvmError> {
         self.command.arg("-k").arg(&config.kernel_path);
-        self.command.arg("-i").arg(config.initramfs_path.as_ref().ok_or(LkvmError::MissingObligatoryParam("Initramfs".to_string()))?);
         if let Some(kernel_cmd_params) = &config.kernel_cmd_params {
-            self.command.arg("-p").arg(&format!("\"{}\"", kernel_cmd_params));
+            self.command
+                .arg("-p")
+                .arg(&format!("\"{}\"", kernel_cmd_params));
         }
         Ok(())
     }
@@ -82,11 +83,11 @@ impl LkvmRunner {
     fn kill_and_wait(child: &mut Child) -> Result<(), VmManagerError> {
         child
             .kill()
-            .map_err(|err| VmManagerError::DestroyFail(err.to_string()))?;
+            .map_err(|err| VmManagerError::Destroy(err.to_string()))?;
         child
             .wait()
             .map(|_| ())
-            .map_err(|err| VmManagerError::DestroyFail(err.to_string()))
+            .map_err(|err| VmManagerError::Destroy(err.to_string()))
     }
 }
 
@@ -101,12 +102,12 @@ impl VmManager for LkvmRunner {
             .map(|child| {
                 self.vm = Some(child);
             })
-            .map_err(VmManagerError::LaunchFail)
+            .map_err(VmManagerError::Launch)
     }
     fn stop_vm(&mut self) -> Result<(), VmManagerError> {
         self.vm
             .as_mut()
-            .map(|child| child.kill().map_err(|_| VmManagerError::StopFail))
+            .map(|child| child.kill().map_err(|_| VmManagerError::Stop))
             .unwrap_or(Err(VmManagerError::VmNotLaunched))
     }
     fn delete_vm(&mut self) -> Result<(), VmManagerError> {
