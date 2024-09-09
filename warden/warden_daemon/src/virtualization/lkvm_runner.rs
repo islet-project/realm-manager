@@ -38,7 +38,7 @@ impl LkvmRunner {
         self.command.arg("--measurement-algo=sha256");
     }
     fn setup_network(&mut self, config: &NetworkConfig) {
-        self.command.arg("-n").arg(format!("tapif={}", config.tap_device));
+        self.command.arg("-n").arg(format!("tapif={},guest_mac={}", config.tap_device, config.mac_address));
         self.command.arg("--vsock").arg(config.vsock_cid.to_string());
     }
     fn setup_kernel(&mut self, config: &KernelConfig) {
