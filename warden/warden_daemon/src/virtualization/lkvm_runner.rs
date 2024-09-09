@@ -38,8 +38,7 @@ impl LkvmRunner {
         self.command.arg("--measurement-algo=sha256");
     }
     fn setup_network(&mut self, config: &NetworkConfig) {
-        // TODO!
-        self.command.arg("-n").arg("virtio");
+        self.command.arg("-n").arg(format!("tapif={}", config.tap_device));
         self.command.arg("--vsock").arg(config.vsock_cid.to_string());
     }
     fn setup_kernel(&mut self, config: &KernelConfig) {
@@ -62,14 +61,13 @@ impl LkvmRunner {
     fn control_output(&mut self) {
         self.command.arg("--console").arg("serial");
     }
-    fn setup_disk(&self, _command: &mut Command, application_uuids: &[&Uuid]) {
+    fn setup_disk(&self, command: &mut Command, application_uuids: &[&Uuid]) {
         for app_uuid in application_uuids {
             let mut app_disk_path = self.realm_workdir.join(app_uuid.to_string());
             app_disk_path.push(ApplicationDiskManager::DISK_NAME);
-            // TODO!
-            // command
-            //     .arg("-drive")
-            //     .arg(format!("file={}", app_disk_path.to_string_lossy()));
+            command
+                .arg("-d")
+                .arg(app_disk_path.to_string_lossy().to_string());
         }
     }
     fn kill_and_wait(child: &mut Child) -> Result<(), VmManagerError> {
