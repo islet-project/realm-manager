@@ -75,7 +75,7 @@ impl RealmManager {
         Ok(())
     }
 
-    async fn hande_provisioning_response(
+    async fn handle_provisioning_response(
         &mut self,
         provisioning_result: Result<(), RealmClientError>,
     ) -> Result<(), RealmError> {
@@ -88,7 +88,7 @@ impl RealmManager {
                 self.state = State::Halted;
                 Err(RealmError::RealmStartFail(
                     match self.vm_manager.get_exit_status() {
-                        Some(runner_error) => format!("{}, {}", err.to_string(), runner_error),
+                        Some(runner_error) => format!("{}, {}", err, runner_error),
                         None => {
                             self.vm_manager
                                 .delete_vm()
@@ -141,7 +141,7 @@ impl Realm for RealmManager {
                 self.config.get().network.vsock_cid,
             )
             .await;
-        self.hande_provisioning_response(resp).await
+        self.handle_provisioning_response(resp).await
     }
 
     async fn stop(&mut self) -> Result<(), RealmError> {
@@ -283,6 +283,7 @@ mod test {
     use parameterized::parameterized;
     use std::collections::HashMap;
     use std::net::Ipv4Addr;
+    use std::process::ExitStatus;
     use std::{io::Error, sync::Arc};
     use tokio::sync::Mutex;
     use uuid::Uuid;
@@ -312,6 +313,60 @@ mod test {
                 "Can't start realm that is not halted."
             )))
         );
+    }
+
+    #[tokio::test]
+    async fn start_respnse_handle() {
+        let mut realm_manager = create_realm_manager(None, None);
+        assert!(realm_manager
+            .handle_provisioning_response(Ok(()))
+            .await
+            .is_ok());
+    }
+
+    #[tokio::test]
+    async fn start_response_handle_vm_not_launched() {
+        let mut vm_manager_mock = MockVmManager::new();
+        vm_manager_mock
+            .expect_get_exit_status()
+            .returning(|| Some(ExitStatus::default()));
+        let mut realm_manager = create_realm_manager(Some(vm_manager_mock), None);
+        assert!(matches!(
+            realm_manager
+                .handle_provisioning_response(Err(RealmClientError::RealmDisconnection()))
+                .await,
+            Err(RealmError::RealmStartFail(_))
+        ));
+    }
+
+    #[tokio::test]
+    async fn start_response_handle_vm_destroy_error() {
+        let mut vm_manager_mock = MockVmManager::new();
+        vm_manager_mock.expect_get_exit_status().returning(|| None);
+        vm_manager_mock
+            .expect_delete_vm()
+            .returning(|| Err(VmManagerError::VmNotLaunched));
+        let mut realm_manager = create_realm_manager(Some(vm_manager_mock), None);
+        assert!(matches!(
+            realm_manager
+                .handle_provisioning_response(Err(RealmClientError::RealmDisconnection()))
+                .await,
+            Err(RealmError::VmDestroyFail(_))
+        ));
+    }
+
+    #[tokio::test]
+    async fn start_response_handle_vm_destroy_success() {
+        let mut vm_manager_mock = MockVmManager::new();
+        vm_manager_mock.expect_get_exit_status().returning(|| None);
+        vm_manager_mock.expect_delete_vm().returning(|| Ok(()));
+        let mut realm_manager = create_realm_manager(Some(vm_manager_mock), None);
+        assert!(matches!(
+            realm_manager
+                .handle_provisioning_response(Err(RealmClientError::RealmDisconnection()))
+                .await,
+            Err(RealmError::RealmStartFail(_))
+        ));
     }
 
     #[tokio::test]
