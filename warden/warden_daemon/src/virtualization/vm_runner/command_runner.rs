@@ -1,8 +1,6 @@
-use std::process::Command;
-
-use uuid::Uuid;
+use std::{path::Path, process::Command};
 
 pub trait CommandRunner {
     fn get_command(&self) -> &Command;
-    fn setup_disk(&self, command: &mut Command, application_uuids: &[&Uuid]);
+    fn setup_disk(&self, command: &mut Command, app_disk_path: &Path);
 }

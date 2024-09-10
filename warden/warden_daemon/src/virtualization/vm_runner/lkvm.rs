@@ -1,22 +1,18 @@
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
 use std::process::Command;
-use uuid::Uuid;
 
 use crate::managers::realm_configuration::{
     CpuConfig, KernelConfig, MemoryConfig, NetworkConfig, RealmConfig,
 };
-use crate::storage::app_disk_manager::ApplicationDiskManager;
 
 use super::command_runner::CommandRunner;
 pub struct LkvmRunner {
-    realm_workdir: PathBuf,
     command: Command,
 }
 
 impl LkvmRunner {
-    pub fn new(path_to_runner: PathBuf, realm_workdir: PathBuf, config: &RealmConfig) -> Self {
+    pub fn new(path_to_runner: PathBuf, config: &RealmConfig) -> Self {
         let mut runner = LkvmRunner {
-            realm_workdir,
             command: Command::new(path_to_runner),
         };
         runner.command.arg("run");
@@ -63,22 +59,15 @@ impl LkvmRunner {
     fn control_output(&mut self) {
         self.command.arg("--console").arg("serial");
     }
-    fn setup_disk(&self, command: &mut Command, application_uuids: &[&Uuid]) {
-        for app_uuid in application_uuids {
-            let mut app_disk_path = self.realm_workdir.join(app_uuid.to_string());
-            app_disk_path.push(ApplicationDiskManager::DISK_NAME);
-            command
-                .arg("-d")
-                .arg(app_disk_path.to_string_lossy().to_string());
-        }
-    }
 }
 
 impl CommandRunner for LkvmRunner {
     fn get_command(&self) -> &Command {
         &self.command
     }
-    fn setup_disk(&self, command: &mut Command, application_uuids: &[&Uuid]) {
-        self.setup_disk(command, application_uuids);
+    fn setup_disk(&self, command: &mut Command, app_disk_path: &Path) {
+        command
+            .arg("-d")
+            .arg(app_disk_path.to_string_lossy().to_string());
     }
 }

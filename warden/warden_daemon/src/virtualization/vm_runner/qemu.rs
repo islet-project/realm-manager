@@ -1,23 +1,19 @@
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
 use std::process::{Command, Stdio};
-use uuid::Uuid;
 
 use crate::managers::realm_configuration::{
     CpuConfig, KernelConfig, MemoryConfig, NetworkConfig, RealmConfig,
 };
-use crate::storage::app_disk_manager::ApplicationDiskManager;
 
 use super::command_runner::CommandRunner;
 
 pub struct QemuRunner {
-    realm_workdir: PathBuf,
     command: Command,
 }
 
 impl QemuRunner {
-    pub fn new(path_to_qemu: PathBuf, realm_workdir: PathBuf, config: &RealmConfig) -> Self {
+    pub fn new(path_to_qemu: PathBuf, config: &RealmConfig) -> Self {
         let mut runner = QemuRunner {
-            realm_workdir,
             command: Command::new(path_to_qemu),
         };
         runner.setup_cpu(&config.cpu);
@@ -73,22 +69,15 @@ impl QemuRunner {
         self.command.stdout(Stdio::piped());
         self.command.stderr(Stdio::piped());
     }
-    fn setup_disk(&self, command: &mut Command, application_uuids: &[&Uuid]) {
-        for app_uuid in application_uuids {
-            let mut app_disk_path = self.realm_workdir.join(app_uuid.to_string());
-            app_disk_path.push(ApplicationDiskManager::DISK_NAME);
-            command
-                .arg("-drive")
-                .arg(format!("file={}", app_disk_path.to_string_lossy()));
-        }
-    }
 }
 
 impl CommandRunner for QemuRunner {
     fn get_command(&self) -> &Command {
         &self.command
     }
-    fn setup_disk(&self, command: &mut Command, application_uuids: &[&Uuid]) {
-        self.setup_disk(command, application_uuids);
+    fn setup_disk(&self, command: &mut Command, app_disk_path: &Path) {
+        command
+            .arg("-drive")
+            .arg(format!("file={}", app_disk_path.to_string_lossy()));
     }
 }
