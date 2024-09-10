@@ -1,18 +1,16 @@
 use std::path::PathBuf;
-use std::process::{Child, Command, ExitStatus};
-
-use log::debug;
+use std::process::Command;
 use uuid::Uuid;
 
 use crate::managers::realm_configuration::{
     CpuConfig, KernelConfig, MemoryConfig, NetworkConfig, RealmConfig,
 };
-use crate::managers::vm_manager::{VmManager, VmManagerError};
 use crate::storage::app_disk_manager::ApplicationDiskManager;
+
+use super::command_runner::CommandRunner;
 pub struct LkvmRunner {
     realm_workdir: PathBuf,
     command: Command,
-    vm: Option<Child>,
 }
 
 impl LkvmRunner {
@@ -20,7 +18,6 @@ impl LkvmRunner {
         let mut runner = LkvmRunner {
             realm_workdir,
             command: Command::new(path_to_runner),
-            vm: None,
         };
         runner.command.arg("run");
         runner.setup_cpu(&config.cpu);
@@ -38,8 +35,13 @@ impl LkvmRunner {
         self.command.arg("--measurement-algo=sha256");
     }
     fn setup_network(&mut self, config: &NetworkConfig) {
-        self.command.arg("-n").arg(format!("tapif={},guest_mac={}", config.tap_device, config.mac_address));
-        self.command.arg("--vsock").arg(config.vsock_cid.to_string());
+        self.command.arg("-n").arg(format!(
+            "tapif={},guest_mac={}",
+            config.tap_device, config.mac_address
+        ));
+        self.command
+            .arg("--vsock")
+            .arg(config.vsock_cid.to_string());
     }
     fn setup_kernel(&mut self, config: &KernelConfig) {
         self.command.arg("-k").arg(&config.kernel_path);
@@ -70,48 +72,13 @@ impl LkvmRunner {
                 .arg(app_disk_path.to_string_lossy().to_string());
         }
     }
-    fn kill_and_wait(child: &mut Child) -> Result<(), VmManagerError> {
-        child
-            .kill()
-            .map_err(|err| VmManagerError::Destroy(err.to_string()))?;
-        child
-            .wait()
-            .map(|_| ())
-            .map_err(|err| VmManagerError::Destroy(err.to_string()))
-    }
 }
 
-impl VmManager for LkvmRunner {
-    fn launch_vm(&mut self, application_uuids: &[&Uuid]) -> Result<(), VmManagerError> {
-        let mut command = Command::new(self.command.get_program());
-        command.args(self.command.get_args());
-
-        self.setup_disk(&mut command, application_uuids);
-
-        debug!("Spawning realm with command: {:?}", command);
-        command
-            .spawn()
-            .map(|child| {
-                self.vm = Some(child);
-            })
-            .map_err(VmManagerError::Launch)
+impl CommandRunner for LkvmRunner {
+    fn get_command(&self) -> &Command {
+        &self.command
     }
-    fn stop_vm(&mut self) -> Result<(), VmManagerError> {
-        self.vm
-            .as_mut()
-            .map(|child| child.kill().map_err(|_| VmManagerError::Stop))
-            .unwrap_or(Err(VmManagerError::VmNotLaunched))
-    }
-    fn delete_vm(&mut self) -> Result<(), VmManagerError> {
-        self.vm
-            .as_mut()
-            .map(Self::kill_and_wait)
-            .unwrap_or(Err(VmManagerError::VmNotLaunched))
-    }
-    fn get_exit_status(&mut self) -> Option<ExitStatus> {
-        if let Some(vm) = &mut self.vm {
-            return vm.try_wait().ok()?;
-        }
-        None
+    fn setup_disk(&self, command: &mut Command, application_uuids: &[&Uuid]) {
+        self.setup_disk(command, application_uuids);
     }
 }

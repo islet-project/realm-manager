@@ -1,9 +1,10 @@
 use crate::virtualization::dnsmasq_server_handler::DnsmasqServerHandler;
-use crate::virtualization::lkvm_runner::LkvmRunner;
 use crate::virtualization::nat_manager::NetworkManagerHandler;
 use crate::virtualization::network::NetworkConfig;
 use crate::virtualization::network::NetworkManager;
-use crate::virtualization::qemu_runner::QemuRunner;
+use crate::virtualization::vm_runner::lkvm::LkvmRunner;
+use crate::virtualization::vm_runner::qemu::QemuRunner;
+use crate::virtualization::vm_runner::VmRunner;
 
 use super::cli::Cli;
 use super::client_handler::client_command_handler::ClientHandler;
@@ -57,13 +58,12 @@ impl Daemon {
                     if cli.cca_enable {
                         runner.configure_cca_settings();
                     }
-                    Ok(Box::new(runner))
+                    Ok(Box::new(VmRunner::new(runner)))
                 }
-                false => Ok(Box::new(QemuRunner::new(
-                    cli.virtualizer_path.clone(),
-                    path,
-                    config,
-                ))),
+                false => {
+                    let runner = QemuRunner::new(cli.virtualizer_path.clone(), path, config);
+                    Ok(Box::new(VmRunner::new(runner)))
+                }
             }),
             vsock_server.clone(),
             cli.warden_workdir_path.clone(),
