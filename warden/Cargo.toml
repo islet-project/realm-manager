@@ -1,0 +1,7 @@
+[workspace]
+
+members = [
+    "client_lib",
+    "cmd_client",
+    "warden_daemon"
+]
