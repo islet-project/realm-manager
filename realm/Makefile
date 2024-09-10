@@ -32,7 +32,6 @@ RSICTL_DIR           = $(TOOLS_DIR)/remote-attestation
 RSI_KO_DIR           = $(ROOT_DIR)/linux-rsi
 
 APP_MANAGER_DIR      = $(ROOT_DIR)/app-manager
-APP_MANAGER_BIN      = $(APP_MANAGER_DIR)/target/aarch64-unknown-linux-gnu/debug/app-manager
 
 DEVICE_MAPPER_RS_DIR = $(ROOT_DIR)/thirdparty/devicemapper-rs
 DEVICE_MAPPER_RS_URL = "https://github.com/stratis-storage/devicemapper-rs.git"
@@ -42,6 +41,8 @@ INITRAMFS_DIR      = $(ROOT_DIR)/initramfs
 QEMU_TAP_DEVICE    ?= tap100
 QEMU_VSOCK_CID     ?= 100
 EXEC               ?= app-manager
+
+RELEASE            ?= true
 
 GREEN_COLOR = \\033[0;32m
 RED_COLOR   = \\033[0;31m
@@ -149,13 +150,14 @@ compile-util-linux: $(UTIL_LINUX_DIR)
 			./autogen.sh && \
 			./configure --host=aarch64-none-linux-gnu --disable-shared --without-tinfo --without-ncurses  --disable-pylibmount; \
 	fi;
-	@$(MAKE) -C "$(UTIL_LINUX_DIR)" blkid CC=aarch64-none-linux-gnu-gcc LDFLAGS="--static" -j $(shell nproc)
+	@$(MAKE) -C "$(UTIL_LINUX_DIR)" blkid CC=aarch64-none-linux-gnu-gcc LDFLAGS="--static" -j $(shell nproc) && \
+		aarch64-none-linux-gnu-strip "$(UTIL_LINUX_DIR)/blkid"
 
 compile-rsi-ko: $(RSI_KO_DIR)
 	@echo "$(GREEN_COLOR)Building rsi kernel module.$(NC)"
 	@if [ ! -f "$(KERNEL_DIR)/.config" ]; then \
 		echo "$(GREEN_COLOR)Precompiling kernel.$(NC)"; \
-		ARCH=arm64 CROSS_COMPILE=aarch64-none-linux-gnu- $(MAKE) -C "$(KERNEL_DIR)" defconfig; \
+		ARCH=arm64 CROSS_COMPILE=aarch64-none-linux-gnu- $(MAKE) -C "$(KERNEL_DIR)" virtconfig; \
 		cd "$(KERNEL_DIR)" && "$(KERNEL_DIR)/scripts/kconfig/merge_config.sh" -m "$(KERNEL_DIR)/.config" "$(CONFIG_DIR)/kernel.config"; \
 		ARCH=arm64 CROSS_COMPILE=aarch64-none-linux-gnu- $(MAKE) -C "$(KERNEL_DIR)" modules -j $(shell nproc); \
 	fi;
@@ -168,28 +170,40 @@ compile-rsictl: $(RSICTL_DIR)
 
 compile-app-manager: 
 	@echo "$(GREEN_COLOR)Building app-manager.$(NC)"
+ifdef RELEASE
+	@cd "$(APP_MANAGER_DIR)" && cargo build --target=aarch64-unknown-linux-gnu --release 
+else
 	@cd "$(APP_MANAGER_DIR)" && cargo build --target=aarch64-unknown-linux-gnu
+endif
 
-prepare-initramfs: compile-busybox compile-strace compile-gdbserver compile-app-manager compile-util-linux compile-rsi-ko compile-rsictl
+ifdef RELEASE
+prepare-initramfs: compile-busybox  compile-util-linux compile-rsi-ko compile-app-manager
+else
+prepare-initramfs: compile-busybox  compile-util-linux compile-rsi-ko compile-app-manager compile-strace compile-gdbserver compile-rsictl 
+endif
 	@echo "$(GREEN_COLOR)Preparing initramfs.$(NC)"
 	@mkdir -p "$(INITRAMFS_DIR)/usr/bin"
 	@mkdir -p "$(INITRAMFS_DIR)/usr/sbin"
 	@mkdir -p "$(INITRAMFS_DIR)/lib/modules"
 	@cp -v "$(BUSYBOX_DIR)/busybox" "$(INITRAMFS_DIR)/usr/bin"
+	@cp -v "$(RSI_KO_DIR)/rsi.ko" "$(INITRAMFS_DIR)/lib/modules/"
+	@cp -v "$(UTIL_LINUX_DIR)/blkid" "$(INITRAMFS_DIR)/usr/sbin"
+ifdef RELEASE
+	@cp -v "$(APP_MANAGER_DIR)/target/aarch64-unknown-linux-gnu/release/app-manager" "$(INITRAMFS_DIR)/usr/bin/"
+else
 	@cp -v "$(STRACE_DIR)/src/strace" "$(INITRAMFS_DIR)/usr/bin"
 	@cp -v "$(GDB_DIR)/build/gdbserver/gdbserver" "$(INITRAMFS_DIR)/usr/bin"
-	@cp -v "$(UTIL_LINUX_DIR)/blkid" "$(INITRAMFS_DIR)/usr/sbin"
-	@cp -v "$(APP_MANAGER_BIN)" "$(INITRAMFS_DIR)/usr/bin/"
-	@cp -v "$(RSI_KO_DIR)/rsi.ko" "$(INITRAMFS_DIR)/lib/modules/"
 	@cp -v "$(RSICTL_DIR)/tools/rsictl/target/aarch64-unknown-linux-gnu/debug/rsictl" "$(INITRAMFS_DIR)/usr/bin/"
+	@cp -v "$(APP_MANAGER_DIR)/target/aarch64-unknown-linux-gnu/debug/app-manager" "$(INITRAMFS_DIR)/usr/bin/"
+endif
 
 compile-image: prepare-initramfs $(KERNEL_DIR)
 	@echo "$(GREEN_COLOR)Building kernel image.$(NC)"
 	@if [ ! -f "$(KERNEL_DIR)/.config" ]; then \
-		ARCH=arm64 CROSS_COMPILE=aarch64-none-linux-gnu- $(MAKE) -C "$(KERNEL_DIR)" defconfig; \
+		ARCH=arm64 CROSS_COMPILE=aarch64-none-linux-gnu- $(MAKE) -C "$(KERNEL_DIR)" virtconfig; \
 		cd "$(KERNEL_DIR)" && "$(KERNEL_DIR)/scripts/kconfig/merge_config.sh" -m "$(KERNEL_DIR)/.config" "$(CONFIG_DIR)/kernel.config"; \
 	fi;
-	@ARCH=arm64 CROSS_COMPILE=aarch64-none-linux-gnu- $(MAKE) -C "$(KERNEL_DIR)" Image -j $(shell nproc)
+	@ARCH=arm64 CROSS_COMPILE=aarch64-none-linux-gnu- $(MAKE) -C "$(KERNEL_DIR)" -j $(shell nproc)
 
 compile-qemu: $(QEMU_DIR)
 	@echo "$(GREEN_COLOR)Building QEMU.$(NC)"
