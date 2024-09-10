@@ -152,7 +152,10 @@ impl RealmClient for RealmClientHandler {
     async fn stop_application(&mut self, application_uuid: &Uuid) -> Result<(), RealmClientError> {
         self.send_command(Request::StopApp(*application_uuid))
             .await?;
-        Self::handle_success_command(self.read_response(self.response_timeout).await?)
+        if Self::handle_success_command(self.read_response(self.response_timeout).await?).is_err() {
+            return self.kill_application(application_uuid).await;
+        }
+        Ok(())
     }
     async fn kill_application(&mut self, application_uuid: &Uuid) -> Result<(), RealmClientError> {
         self.send_command(Request::KillApp(*application_uuid))
@@ -447,6 +450,26 @@ mod test {
                 Request::StopApp(uuid) if uuid == uuid_cpy => Ok(()),
                 _ => Err(RealmSenderError::Timeout),
             });
+            mock.expect_receive_response()
+                .returning(|_| Ok(Response::Success()));
+            mock
+        };
+        let mut realm_client_handler = create_realm_client_handler(None, None);
+        realm_client_handler.sender = Some(Box::new(sender_mock));
+        assert!(realm_client_handler
+            .stop_application(&app_uuid)
+            .await
+            .is_ok());
+    }
+
+    #[tokio::test]
+    async fn kill_after_stop() {
+        let app_uuid = Uuid::new_v4();
+        let sender_mock = {
+            let mut mock = MockRealmSender::new();
+            mock.expect_send().returning(|_| Ok(()));
+            mock.expect_send()
+                .return_once(|_| Err(RealmSenderError::Timeout));
             mock.expect_receive_response()
                 .returning(|_| Ok(Response::Success()));
             mock
