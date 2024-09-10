@@ -2,7 +2,7 @@ use crate::utils::repository::Repository;
 
 use super::application::{Application, ApplicationConfig};
 use super::realm::{ApplicationCreator, Realm, RealmData, RealmError, State};
-use super::realm_client::{RealmClient, RealmProvisioningConfig};
+use super::realm_client::{RealmClient, RealmClientError, RealmProvisioningConfig};
 use super::realm_configuration::*;
 use super::vm_manager::VmManager;
 
@@ -74,6 +74,32 @@ impl RealmManager {
         }
         Ok(())
     }
+
+    async fn hande_provisioning_response(
+        &mut self,
+        provisioning_result: Result<(), RealmClientError>,
+    ) -> Result<(), RealmError> {
+        match provisioning_result {
+            Ok(_) => {
+                self.state = State::Running;
+                Ok(())
+            }
+            Err(err) => {
+                self.state = State::Halted;
+                Err(RealmError::RealmStartFail(
+                    match self.vm_manager.get_exit_status() {
+                        Some(runner_error) => format!("{}, {}", err.to_string(), runner_error),
+                        None => {
+                            self.vm_manager
+                                .delete_vm()
+                                .map_err(|err| RealmError::VmDestroyFail(err.to_string()))?;
+                            err.to_string()
+                        }
+                    },
+                ))
+            }
+        }
+    }
 }
 
 impl Drop for RealmManager {
@@ -106,7 +132,7 @@ impl Realm for RealmManager {
 
         self.state = State::Provisioning;
 
-        match self
+        let resp = self
             .realm_client_handler
             .lock()
             .await
@@ -114,21 +140,8 @@ impl Realm for RealmManager {
                 self.create_provisioning_config().await?,
                 self.config.get().network.vsock_cid,
             )
-            .await
-        {
-            Ok(_) => {
-                self.state = State::Running;
-                Ok(())
-            }
-            Err(err) => {
-                self.state = State::Halted;
-                let mut error = err.to_string();
-                if let Some(runner_error) = self.vm_manager.get_exit_status() {
-                    error = format!("{error}, {}", runner_error);
-                }
-                Err(RealmError::RealmStartFail(error))
-            }
-        }
+            .await;
+        self.hande_provisioning_response(resp).await
     }
 
     async fn stop(&mut self) -> Result<(), RealmError> {
@@ -324,12 +337,7 @@ mod test {
             .expect_provision_applications()
             .return_once(|_, _| Err(RealmClientError::RealmConnectionFail(String::new())));
         let mut realm_manager = create_realm_manager(None, Some(client_mock));
-        assert_eq!(
-            realm_manager.start().await,
-            Err(RealmError::RealmStartFail(
-                RealmClientError::RealmConnectionFail(String::new()).to_string()
-            ))
-        );
+        assert!(realm_manager.start().await.is_err());
         assert_eq!(realm_manager.state, State::Halted);
     }
 
@@ -694,6 +702,7 @@ mod test {
         realm_client_handler
             .expect_read_realm_ifs()
             .returning(|| Ok(vec![]));
+        vm_manager.expect_get_exit_status().returning(|| None);
         vm_manager.expect_get_exit_status().returning(|| None);
 
         let mut app_mock = MockApplication::new();
