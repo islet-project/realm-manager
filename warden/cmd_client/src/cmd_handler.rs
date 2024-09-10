@@ -1,12 +1,12 @@
 use std::str::FromStr;
 
+use client_lib::WardenConnection;
 use log::info;
 use uuid::Uuid;
 use warden_client::{
     application::ApplicationConfig,
     realm::{CpuConfig, KernelConfig, MemoryConfig, NetworkConfig, RealmConfig},
 };
-use client_lib::WardenConnection;
 
 use crate::commands::Command;
 
@@ -33,7 +33,7 @@ impl CommandHanlder {
                 vsock_cid,
                 kernel,
                 kernel_initramfs,
-                kernel_options
+                kernel_options,
             } => {
                 let cpu = CpuConfig {
                     cpu,
@@ -42,7 +42,7 @@ impl CommandHanlder {
                 let kernel = KernelConfig {
                     kernel_path: kernel,
                     kernel_initramfs_path: kernel_initramfs,
-                    kernel_cmd_params: kernel_options
+                    kernel_cmd_params: kernel_options,
                 };
                 let memory = MemoryConfig { ram_size };
                 let network = NetworkConfig {
@@ -89,8 +89,21 @@ impl CommandHanlder {
             Command::RebootRealm { id } => {
                 Ok(self.connection.reboot_realm(Uuid::from_str(&id)?).await?)
             }
-            Command::CreateApplication { realm_id, name, version, image_registry, image_storage_size_mb, data_storage_size_mb } => {
-                let application_config = ApplicationConfig { name, version, image_registry, image_storage_size_mb, data_storage_size_mb };
+            Command::CreateApplication {
+                realm_id,
+                name,
+                version,
+                image_registry,
+                image_storage_size_mb,
+                data_storage_size_mb,
+            } => {
+                let application_config = ApplicationConfig {
+                    name,
+                    version,
+                    image_registry,
+                    image_storage_size_mb,
+                    data_storage_size_mb,
+                };
                 let application_uuid = self
                     .connection
                     .create_application(Uuid::from_str(&realm_id)?, application_config)
@@ -112,8 +125,22 @@ impl CommandHanlder {
                 .connection
                 .stop_application(Uuid::from_str(&realm_id)?, Uuid::from_str(&application_id)?)
                 .await?),
-            Command::UpdateApplication { application_id, realm_id, name, version, image_registry, image_storage_size_mb, data_storage_size_mb } => {
-                let application_config = ApplicationConfig { name, version, image_registry, image_storage_size_mb, data_storage_size_mb };
+            Command::UpdateApplication {
+                application_id,
+                realm_id,
+                name,
+                version,
+                image_registry,
+                image_storage_size_mb,
+                data_storage_size_mb,
+            } => {
+                let application_config = ApplicationConfig {
+                    name,
+                    version,
+                    image_registry,
+                    image_storage_size_mb,
+                    data_storage_size_mb,
+                };
                 self.connection
                     .update_application(
                         Uuid::from_str(&realm_id)?,

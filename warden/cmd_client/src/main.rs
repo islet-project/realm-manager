@@ -1,10 +1,10 @@
 use clap::Parser;
+use client_lib::WardenConnection;
 use cmd_handler::CommandHanlder;
 use cmd_parser::CmdParser;
 use log::{error, info};
 use std::path::PathBuf;
 use utils::parse_users_input;
-use client_lib::WardenConnection;
 
 mod cmd_handler;
 mod cmd_parser;
@@ -29,12 +29,12 @@ async fn main() -> Result<(), anyhow::Error> {
         info!("Insert new command:");
         match parse_users_input() {
             Ok(cmd) => handle_cmd(cmd, &mut handler).await,
-            Err(err) => error!("{}", err.to_string())
+            Err(err) => error!("{}", err.to_string()),
         }
     }
 }
 
-async fn handle_cmd(cmd: CmdParser, handler:& mut CommandHanlder) {
+async fn handle_cmd(cmd: CmdParser, handler: &mut CommandHanlder) {
     match handler.handle_command(cmd.command).await {
         Err(err) => error!("Error occured why handling command: {:#?}!", err),
         Ok(_) => info!("Command handled successfully."),
