@@ -76,11 +76,10 @@ impl RealmClientHandler {
             .map_err(|err| RealmClientError::CommunicationFail(err.to_string()))
     }
 
-    async fn read_response(&mut self) -> Result<Response, RealmClientError> {
-        let response_timeout = self.response_timeout;
+    async fn read_response(&mut self, timeout: Duration) -> Result<Response, RealmClientError> {
         let realm_sender = self.acquire_realm_sender()?;
         realm_sender
-            .receive_response(response_timeout)
+            .receive_response(timeout)
             .await
             .map_err(|err| match err {
                 RealmSenderError::Disconnection => RealmClientError::RealmDisconnection(),
@@ -89,7 +88,7 @@ impl RealmClientHandler {
     }
 
     async fn handle_shutdown_response(&mut self) -> Result<(), RealmClientError> {
-        match self.read_response().await {
+        match self.read_response(self.response_timeout).await {
             Err(RealmClientError::RealmDisconnection()) => {
                 self.sender = None;
                 Ok(())
@@ -100,7 +99,7 @@ impl RealmClientHandler {
     }
 
     async fn handle_ip_response(&mut self) -> Result<HashMap<String, NetAddr>, RealmClientError> {
-        match self.read_response().await? {
+        match self.read_response(self.response_timeout).await? {
             Response::IfAddrs(addrs) => Ok(addrs),
             resp => Err(Self::handle_invalid_response(resp)),
         }
@@ -138,7 +137,7 @@ impl RealmClient for RealmClientHandler {
             realm_sender = realm_sender_receiver => {
                 let _ = self.sender.insert(realm_sender.map_err(|err| RealmClientError::RealmConnectionFail(err.to_string()))?);
                 self.send_command(Request::ProvisionInfo(realm_provisioning_config.into())).await?;
-                Self::handle_success_command(self.read_response().await?)
+                Self::handle_success_command(self.read_response(self.connection_wait_time).await?)
             }
             _ = sleep(self.connection_wait_time) => {
                 Err(RealmClientError::RealmConnectionFail(String::from("Timeout on listening for realm connection.")))
@@ -148,17 +147,17 @@ impl RealmClient for RealmClientHandler {
     async fn start_application(&mut self, application_uuid: &Uuid) -> Result<(), RealmClientError> {
         self.send_command(Request::StartApp(*application_uuid))
             .await?;
-        Self::handle_success_command(self.read_response().await?)
+        Self::handle_success_command(self.read_response(self.response_timeout).await?)
     }
     async fn stop_application(&mut self, application_uuid: &Uuid) -> Result<(), RealmClientError> {
         self.send_command(Request::StopApp(*application_uuid))
             .await?;
-        Self::handle_success_command(self.read_response().await?)
+        Self::handle_success_command(self.read_response(self.response_timeout).await?)
     }
     async fn kill_application(&mut self, application_uuid: &Uuid) -> Result<(), RealmClientError> {
         self.send_command(Request::KillApp(*application_uuid))
             .await?;
-        Self::handle_success_command(self.read_response().await?)
+        Self::handle_success_command(self.read_response(self.response_timeout).await?)
     }
     async fn shutdown_realm(&mut self) -> Result<(), RealmClientError> {
         self.send_command(Request::Shutdown()).await?;
@@ -202,6 +201,8 @@ mod test {
     use crate::utils::test_utilities::{
         create_example_realm_provisioning_config, MockRealmConnector, MockRealmSender,
     };
+
+    const TIMEOUT: Duration = Duration::from_secs(1);
 
     #[tokio::test]
     async fn send_command() {
@@ -248,7 +249,7 @@ mod test {
 
         let mut realm_client_handler = create_realm_client_handler(None, None);
         realm_client_handler.sender = Some(Box::new(realm_sender_mock));
-        assert!(realm_client_handler.read_response().await.is_ok());
+        assert!(realm_client_handler.read_response(TIMEOUT).await.is_ok());
     }
 
     #[tokio::test]
@@ -261,7 +262,7 @@ mod test {
         let mut realm_client_handler = create_realm_client_handler(None, None);
         realm_client_handler.sender = Some(Box::new(realm_sender_mock));
         assert!(matches!(
-            realm_client_handler.read_response().await,
+            realm_client_handler.read_response(TIMEOUT).await,
             Err(RealmClientError::RealmDisconnection())
         ));
     }
@@ -278,7 +279,7 @@ mod test {
         let mut realm_client_handler = create_realm_client_handler(None, None);
         realm_client_handler.sender = Some(Box::new(realm_sender_mock));
         assert!(matches!(
-            realm_client_handler.read_response().await,
+            realm_client_handler.read_response(TIMEOUT).await,
             Err(RealmClientError::CommunicationFail(_))
         ));
     }
@@ -332,7 +333,7 @@ mod test {
     async fn handle_shutdown_communication_fail() {
         let mut realm_client_handler = create_realm_client_handler(None, None);
         assert!(matches!(
-            realm_client_handler.read_response().await,
+            realm_client_handler.read_response(TIMEOUT).await,
             Err(RealmClientError::RealmConnectionFail(_))
         ));
     }
@@ -373,7 +374,7 @@ mod test {
     async fn read_response_connection_issue() {
         let mut realm_client_handler = create_realm_client_handler(None, None);
         assert!(matches!(
-            realm_client_handler.read_response().await,
+            realm_client_handler.read_response(TIMEOUT).await,
             Err(RealmClientError::RealmConnectionFail(_))
         ));
     }
