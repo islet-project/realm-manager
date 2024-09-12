@@ -1,0 +1,16 @@
+#!/bin/sh
+#
+# Setting up networking
+#
+
+case "$1" in
+  start)
+    echo "Running ntpd -n -q"
+    /sbin/ntpd -n -q
+    ;;
+  *)
+    echo "Usage: $0 {start}"
+    exit 1
+esac
+
+exit $?
