@@ -175,6 +175,7 @@ impl ClientHandler {
                     .await
                     .list_realms()
                     .await
+                    .map_err(ClientError::WardenDaemonError)?
                     .into_iter()
                     .map(|description| description.into())
                     .collect();
@@ -303,13 +304,13 @@ impl Client for ClientHandler {
 #[cfg(test)]
 mod test {
     use crate::utils::test_utilities::{
-        create_example_realm_description, create_example_uuid, MockApplication, MockRealm,
-        MockWardenDaemon,
+        create_example_realm_data, create_example_realm_description, create_example_uuid,
+        MockApplication, MockRealm, MockWardenDaemon,
     };
     use crate::{
         managers::{
             application::Application,
-            realm::{Realm, RealmData, RealmError, State},
+            realm::{Realm, RealmError},
             warden::WardenError,
         },
         utils::test_utilities::create_example_client_app_config,
@@ -472,10 +473,7 @@ mod test {
                 realm_manager.expect_reboot().returning(|| Ok(()));
                 realm_manager
                     .expect_get_realm_data()
-                    .returning(|| RealmData {
-                        state: State::Halted,
-                        applications: vec![],
-                    });
+                    .returning(|| Ok(create_example_realm_data()));
                 realm_manager
                     .expect_get_application()
                     .return_once(|_| Ok(application_manager));
@@ -496,7 +494,7 @@ mod test {
             warden_daemon.expect_destroy_realm().returning(|_| Ok(()));
             warden_daemon
                 .expect_list_realms()
-                .returning(|| vec![create_example_realm_description()]);
+                .returning(|| Ok(vec![create_example_realm_description()]));
             warden_daemon
                 .expect_inspect_realm()
                 .returning(|_| Ok(create_example_realm_description()));

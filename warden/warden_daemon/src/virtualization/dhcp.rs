@@ -12,6 +12,6 @@ pub enum DHCPError {
 
 #[async_trait]
 pub trait DHCPServer {
-    async fn start(&mut self, interface_ip: IpNet) -> Result<(), DHCPError>;
+    async fn start(&mut self, interface_ip: IpNet, inteface_name: &str) -> Result<(), DHCPError>;
     async fn stop(&mut self) -> Result<(), DHCPError>;
 }

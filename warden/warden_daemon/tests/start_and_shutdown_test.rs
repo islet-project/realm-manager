@@ -37,8 +37,8 @@ async fn sig_int_shutdown() {
         .join(format!("usock-{}", Uuid::new_v4()));
     let mut cli =
         common::create_example_cli(usock_path, workdir_path_manager.get_path().to_path_buf());
-    cli.bridge_ip = IpNet::V4(Ipv4Net::new(Ipv4Addr::new(192, 168, 100, 0), 24).unwrap());
-    cli.network_address = String::from("BrigeTest2");
+    cli.network_address = IpNet::V4(Ipv4Net::new(Ipv4Addr::new(192, 168, 100, 0), 24).unwrap());
+    cli.bridge_name = String::from("BrigeTest2");
     let app = Daemon::new(cli).await.unwrap();
     let handle = app.run().await.unwrap();
     signal::kill(Pid::this(), SIGINT).unwrap();

@@ -1,7 +1,7 @@
+use crate::virtualization::dnsmasq_server_handler::DnsmasqServerHandler;
 use crate::virtualization::nat_manager::NetworkManagerHandler;
 use crate::virtualization::network::NetworkConfig;
 use crate::virtualization::network::NetworkManager;
-use crate::virtualization::udhcp_server_handler::UDHCPServerHandler;
 
 use super::cli::Cli;
 use super::client_handler::client_command_handler::ClientHandler;
@@ -25,7 +25,7 @@ pub struct Daemon {
     vsock_server: Arc<Mutex<VSockServer>>,
     usock_server: UnixSocketServer,
     warden: Box<dyn Warden + Send + Sync>,
-    network_manager: Arc<Mutex<NetworkManagerHandler<UDHCPServerHandler>>>,
+    network_manager: Arc<Mutex<NetworkManagerHandler<DnsmasqServerHandler>>>,
     cancellation_token: Arc<CancellationToken>,
 }
 
@@ -35,12 +35,14 @@ impl Daemon {
             cid: cli.cid,
             port: cli.port,
         })));
-        let udhcp_server = UDHCPServerHandler::new(&cli.dhcp_exec_path)?;
+        let mut udhcp_server =
+            DnsmasqServerHandler::new(&cli.dhcp_exec_path, cli.dhcp_total_clients)?;
+        udhcp_server.add_dns_args(cli.dns_records);
         let network_manager = Arc::new(Mutex::new(
             NetworkManagerHandler::create_nat(
                 NetworkConfig {
-                    net_if_name: cli.network_address,
-                    net_if_ip: cli.bridge_ip,
+                    net_if_name: cli.bridge_name,
+                    net_if_ip: cli.network_address,
                 },
                 udhcp_server,
             )

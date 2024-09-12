@@ -2,7 +2,7 @@ use warden_realm::ApplicationInfo;
 
 use crate::managers::{
     application::{ApplicationConfig, ApplicationData},
-    realm::{RealmDescription, State},
+    realm::{RealmDescription, RealmNetwork, State},
     realm_client::RealmProvisioningConfig,
     realm_configuration::{CpuConfig, KernelConfig, MemoryConfig, NetworkConfig, RealmConfig},
 };
@@ -92,6 +92,15 @@ impl From<State> for warden_client::realm::State {
     }
 }
 
+impl From<RealmNetwork> for warden_client::realm::RealmNetwork {
+    fn from(value: RealmNetwork) -> Self {
+        Self {
+            ip: value.ip,
+            if_name: value.if_name,
+        }
+    }
+}
+
 impl From<RealmDescription> for warden_client::realm::RealmDescription {
     fn from(val: RealmDescription) -> Self {
         type RealmDescription = warden_client::realm::RealmDescription;
@@ -99,6 +108,12 @@ impl From<RealmDescription> for warden_client::realm::RealmDescription {
             uuid: val.uuid,
             state: val.realm_data.state.into(),
             applications: val.realm_data.applications,
+            network: val
+                .realm_data
+                .ips
+                .into_iter()
+                .map(|data| data.into())
+                .collect(),
         }
     }
 }

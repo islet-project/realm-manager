@@ -1,6 +1,7 @@
 use super::repository::{Repository, RepositoryError};
 use crate::client_handler::realm_client_handler::{RealmConnector, RealmSender, RealmSenderError};
 use crate::managers::application::{ApplicationData, ApplicationDisk};
+use crate::managers::realm::RealmNetwork;
 use crate::managers::vm_manager::{VmManager, VmManagerError};
 use crate::managers::{
     application::{Application, ApplicationConfig, ApplicationError},
@@ -22,6 +23,7 @@ pub fn create_example_realm_data() -> RealmData {
     RealmData {
         state: State::Halted,
         applications: vec![],
+        ips: vec![],
     }
 }
 
@@ -69,7 +71,7 @@ mock! {
     impl Warden for WardenDaemon {
         async fn create_realm(&mut self, config: RealmConfig) -> Result<Uuid, WardenError>;
         async fn destroy_realm(&mut self, realm_uuid:& Uuid) -> Result<(), WardenError>;
-        async fn list_realms(&self) -> Vec<RealmDescription>;
+        async fn list_realms(&self) -> Result<Vec<RealmDescription>, WardenError>;
         async fn inspect_realm(&self, realm_uuid:& Uuid) -> Result<RealmDescription, WardenError>;
         fn get_realm(
             &mut self,
@@ -86,7 +88,7 @@ mock! {
         async fn stop(&mut self) -> Result<(), RealmError>;
         async fn reboot(&mut self) -> Result<(), RealmError>;
         async fn create_application(&mut self, config: ApplicationConfig) -> Result<Uuid, RealmError>;
-        fn get_realm_data(& self) -> RealmData;
+        async fn get_realm_data(& self) -> Result<RealmData, RealmError>;
         fn get_application(&self, uuid:& Uuid) -> Result<Arc<tokio::sync::Mutex<Box<dyn Application + Send + Sync>>>, RealmError>;
         async fn update_application(&mut self, uuid:& Uuid, new_config: ApplicationConfig) -> Result<(), RealmError>;
     }
@@ -154,6 +156,7 @@ mock! {
         async fn reboot_realm(&mut self,
             realm_provisioning_config: RealmProvisioningConfig,
             cid: u32,) -> Result<(), RealmClientError>;
+        async fn read_realm_ifs(&mut self) -> Result<Vec<RealmNetwork>, RealmClientError>;
     }
 }
 
