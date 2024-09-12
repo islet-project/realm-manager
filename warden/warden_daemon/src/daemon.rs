@@ -1,8 +1,12 @@
+use crate::virtualization::nat_manager::NetworkManagerHandler;
+use crate::virtualization::network::NetworkConfig;
+use crate::virtualization::network::NetworkManager;
+use crate::virtualization::udhcp_server_handler::UDHCPServerHandler;
+
 use super::cli::Cli;
 use super::client_handler::client_command_handler::ClientHandler;
 use super::fabric::realm_fabric::RealmManagerFabric;
 use super::fabric::warden_fabric::WardenFabric;
-use super::managers::warden::RealmCreator;
 use super::managers::warden::Warden;
 use super::socket::unix_socket_server::{UnixSocketServer, UnixSocketServerError};
 use super::socket::vsocket_server::{VSockServer, VSockServerConfig, VSockServerError};
@@ -21,6 +25,7 @@ pub struct Daemon {
     vsock_server: Arc<Mutex<VSockServer>>,
     usock_server: UnixSocketServer,
     warden: Box<dyn Warden + Send + Sync>,
+    network_manager: Arc<Mutex<NetworkManagerHandler<UDHCPServerHandler>>>,
     cancellation_token: Arc<CancellationToken>,
 }
 
@@ -30,19 +35,34 @@ impl Daemon {
             cid: cli.cid,
             port: cli.port,
         })));
-        let realm_fabric: Box<dyn RealmCreator + Send + Sync> = Box::new(RealmManagerFabric::new(
+        let udhcp_server = UDHCPServerHandler::new(&cli.dhcp_exec_path)?;
+        let network_manager = Arc::new(Mutex::new(
+            NetworkManagerHandler::create_nat(
+                NetworkConfig {
+                    net_if_name: cli.network_address,
+                    net_if_ip: cli.bridge_ip,
+                },
+                udhcp_server,
+            )
+            .await?,
+        ));
+        let realm_fabric = Box::new(RealmManagerFabric::new(
             cli.qemu_path,
             vsock_server.clone(),
             cli.warden_workdir_path.clone(),
+            network_manager.clone(),
             Duration::from_secs(cli.realm_connection_wait_time_secs),
         ));
-        let warden_fabric = WardenFabric::new(cli.warden_workdir_path).await?;
-        let warden = warden_fabric.create_warden(realm_fabric).await?;
+        let warden = WardenFabric::new(cli.warden_workdir_path)
+            .await?
+            .create_warden(realm_fabric)
+            .await?;
         let usock_server = UnixSocketServer::new(&cli.unix_sock_path)?;
         Ok(Self {
             vsock_server,
             warden,
             usock_server,
+            network_manager,
             cancellation_token: Arc::new(CancellationToken::new()),
         })
     }
@@ -81,6 +101,10 @@ impl Daemon {
             }
             info!("Shutting down application.");
             self.cancellation_token.cancel();
+
+            if let Err(err) = self.network_manager.lock().await.shutdown_nat().await {
+                error!("Failed to shutdown network manager: {err}");
+            }
 
             if !vsock_thread.is_finished() {
                 debug!("VSockServer result: {:#?}", vsock_thread.await);

@@ -4,12 +4,14 @@ use crate::managers::realm::{ApplicationCreator, Realm};
 use crate::managers::realm_client::RealmClient;
 use crate::managers::realm_configuration::RealmConfig;
 use crate::managers::realm_manager::RealmManager;
+use crate::managers::vm_manager::VmManager;
 use crate::managers::warden::{RealmCreator, WardenError};
 use crate::socket::vsocket_server::VSockServer;
 use crate::storage::{
     create_config_path, create_workdir_path_with_uuid, read_subfolders_uuids, YamlConfigRepository,
 };
 use crate::utils::repository::Repository;
+use crate::virtualization::network::NetworkManager;
 use crate::virtualization::qemu_runner::QemuRunner;
 
 use async_trait::async_trait;
@@ -22,23 +24,26 @@ use uuid::Uuid;
 
 use super::application_fabric::ApplicationFabric;
 
-pub struct RealmManagerFabric {
+pub struct RealmManagerFabric<N: NetworkManager + Send + Sync> {
     qemu_path: PathBuf,
     vsock_server: Arc<Mutex<VSockServer>>,
+    network_manager: Arc<Mutex<N>>,
     warden_workdir_path: PathBuf,
     realm_connection_wait_time: Duration,
 }
 
-impl RealmManagerFabric {
+impl<N: NetworkManager + Send + Sync + 'static> RealmManagerFabric<N> {
     pub fn new(
         qemu_path: PathBuf,
         vsock_server: Arc<Mutex<VSockServer>>,
         warden_workdir_path: PathBuf,
+        network_manager: Arc<Mutex<N>>,
         realm_connection_wait_time: Duration,
     ) -> Self {
-        RealmManagerFabric {
+        RealmManagerFabric::<N> {
             qemu_path,
             vsock_server,
+            network_manager,
             warden_workdir_path,
             realm_connection_wait_time,
         }
@@ -67,10 +72,21 @@ impl RealmManagerFabric {
         }
         Ok(loaded_applications)
     }
+
+    async fn create_vm_runner(
+        &self,
+        realm_workdir: PathBuf,
+        config: &RealmConfig,
+    ) -> Result<Box<dyn VmManager + Send + Sync>, WardenError> {
+        Ok(Box::new(
+            QemuRunner::new(self.qemu_path.clone(), realm_workdir.clone(), config)
+                .map_err(|err| WardenError::RealmCreationFail(err.to_string()))?,
+        ))
+    }
 }
 
 #[async_trait]
-impl RealmCreator for RealmManagerFabric {
+impl<N: NetworkManager + Send + Sync + 'static> RealmCreator for RealmManagerFabric<N> {
     async fn create_realm(
         &self,
         realm_id: Uuid,
@@ -81,7 +97,15 @@ impl RealmCreator for RealmManagerFabric {
         tokio::fs::create_dir(&realm_workdir)
             .await
             .map_err(|err| WardenError::RealmCreationFail(err.to_string()))?;
-        let runner = QemuRunner::new(self.qemu_path.clone(), realm_workdir.clone(), &config);
+        self.network_manager
+            .lock()
+            .await
+            .create_tap_device_for_realm(config.network.tap_device.clone(), realm_id)
+            .await
+            .map_err(|err| WardenError::RealmCreationFail(err.to_string()))?;
+        let vm_runner = self
+            .create_vm_runner(realm_workdir.clone(), &config)
+            .await?;
         Ok(Box::new(RealmManager::new(
             Box::new(
                 YamlConfigRepository::<RealmConfig>::new(
@@ -92,7 +116,7 @@ impl RealmCreator for RealmManagerFabric {
                 .map_err(|err| WardenError::RealmCreationFail(err.to_string()))?,
             ),
             HashMap::new(),
-            Box::new(runner),
+            vm_runner,
             Arc::new(Mutex::new(Box::new(RealmClientHandler::new(
                 self.vsock_server.clone(),
                 self.realm_connection_wait_time,
@@ -125,17 +149,31 @@ impl RealmCreator for RealmManagerFabric {
         ))
         .await
         .map_err(|err| WardenError::RealmCreationFail(err.to_string()))?;
-        let runner = QemuRunner::new(self.qemu_path.clone(), realm_workdir_path, repository.get());
+        self.network_manager
+            .lock()
+            .await
+            .create_tap_device_for_realm(repository.get().network.tap_device.clone(), *realm_id)
+            .await
+            .map_err(|err| WardenError::RealmCreationFail(err.to_string()))?;
+        let runner = self
+            .create_vm_runner(realm_workdir_path, repository.get())
+            .await?;
         Ok(Box::new(RealmManager::new(
             Box::new(repository),
             loaded_applications,
-            Box::new(runner),
+            runner,
             realm_client_handler,
             Box::new(application_fabric),
         )))
     }
 
     async fn clean_up_realm(&self, realm_id: &Uuid) -> Result<(), WardenError> {
+        self.network_manager
+            .lock()
+            .await
+            .shutdown_tap_device_for_realm(*realm_id)
+            .await
+            .map_err(|err| WardenError::DestroyFail(err.to_string()))?;
         tokio::fs::remove_dir_all(create_workdir_path_with_uuid(
             self.warden_workdir_path.clone(),
             realm_id,

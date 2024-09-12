@@ -9,6 +9,7 @@ use crate::managers::realm_configuration::{
 };
 use crate::managers::vm_manager::{VmManager, VmManagerError};
 use crate::storage::app_disk_manager::ApplicationDiskManager;
+
 pub struct QemuRunner {
     realm_workdir: PathBuf,
     command: Command,
@@ -16,7 +17,11 @@ pub struct QemuRunner {
 }
 
 impl QemuRunner {
-    pub fn new(path_to_qemu: PathBuf, realm_workdir: PathBuf, config: &RealmConfig) -> Self {
+    pub fn new(
+        path_to_qemu: PathBuf,
+        realm_workdir: PathBuf,
+        config: &RealmConfig,
+    ) -> Result<Self, VmManagerError> {
         let mut runner = QemuRunner {
             realm_workdir,
             command: Command::new(path_to_qemu),
@@ -28,7 +33,7 @@ impl QemuRunner {
         runner.setup_machine(&config.machine);
         runner.setup_network(&config.network);
         runner.control_output();
-        runner
+        Ok(runner)
     }
 
     fn setup_network(&mut self, config: &NetworkConfig) {

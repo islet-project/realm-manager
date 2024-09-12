@@ -1,4 +1,7 @@
+use std::net::Ipv4Addr;
+
 use common::WorkdirManager;
+use ipnet::{IpNet, Ipv4Net};
 use nix::{
     sys::signal::{
         self,
@@ -11,7 +14,7 @@ use warden_daemon::daemon::Daemon;
 
 mod common;
 
-#[tokio::test]
+#[tokio::test(flavor = "multi_thread")]
 #[ignore]
 async fn sig_term_shutdown() {
     let workdir_path_manager = WorkdirManager::new().await;
@@ -25,14 +28,17 @@ async fn sig_term_shutdown() {
     assert!(handle.await.unwrap().is_ok());
 }
 
-#[tokio::test]
+#[tokio::test(flavor = "multi_thread")]
 #[ignore]
 async fn sig_int_shutdown() {
     let workdir_path_manager = WorkdirManager::new().await;
     let usock_path = workdir_path_manager
         .get_path()
         .join(format!("usock-{}", Uuid::new_v4()));
-    let cli = common::create_example_cli(usock_path, workdir_path_manager.get_path().to_path_buf());
+    let mut cli =
+        common::create_example_cli(usock_path, workdir_path_manager.get_path().to_path_buf());
+    cli.bridge_ip = IpNet::V4(Ipv4Net::new(Ipv4Addr::new(192, 168, 100, 0), 24).unwrap());
+    cli.network_address = String::from("BrigeTest2");
     let app = Daemon::new(cli).await.unwrap();
     let handle = app.run().await.unwrap();
     signal::kill(Pid::this(), SIGINT).unwrap();

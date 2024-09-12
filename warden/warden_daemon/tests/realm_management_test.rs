@@ -5,7 +5,7 @@ use uuid::Uuid;
 use warden_client::realm::State;
 use warden_daemon::daemon::Daemon;
 
-#[tokio::test]
+#[tokio::test(flavor = "multi_thread")]
 #[ignore]
 async fn manage_realm() {
     env_logger::init();
