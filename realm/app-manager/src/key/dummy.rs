@@ -1,6 +1,6 @@
 use sha2::{Digest, Sha256};
 
-use super::{KeySealing, Result};
+use super::{KeySealing, KeySealingFactory, Result};
 
 pub struct DummyKeySealing {
     ikm: Vec<u8>,
@@ -15,7 +15,7 @@ impl DummyKeySealing {
 }
 
 impl KeySealing for DummyKeySealing {
-    fn derive_key(&self, infos: &mut dyn Iterator<Item = &&[u8]>) -> Result<Vec<u8>> {
+    fn derive_key(&self, infos: &[&[u8]]) -> Result<Vec<u8>> {
         let mut hasher = Sha256::new();
 
         hasher.update(self.ikm.as_slice());
@@ -30,7 +30,8 @@ impl KeySealing for DummyKeySealing {
 
     fn seal(
         self: Box<Self>,
-        infos: &mut dyn Iterator<Item = &&[u8]>,
+        infos: &[&[u8]],
+        _: &[u8],
     ) -> Result<Box<dyn KeySealing + Send + Sync>> {
         let mut hasher = Sha256::new();
 
@@ -42,5 +43,21 @@ impl KeySealing for DummyKeySealing {
         let digest = hasher.finalize();
 
         Ok(Box::new(DummyKeySealing::new(digest)))
+    }
+}
+
+pub struct DummyKeySealingFactory {
+    ikm: Vec<u8>,
+}
+
+impl DummyKeySealingFactory {
+    pub fn new(ikm: Vec<u8>) -> Self {
+        Self { ikm }
+    }
+}
+
+impl KeySealingFactory for DummyKeySealingFactory {
+    fn create(&self) -> Box<dyn KeySealing + Send + Sync> {
+        Box::new(DummyKeySealing::new(self.ikm.clone()))
     }
 }

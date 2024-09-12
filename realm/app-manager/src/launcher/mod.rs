@@ -17,6 +17,11 @@ pub trait ApplicationHandler {
     async fn try_wait(&mut self) -> Result<Option<ExitStatus>>;
 }
 
+pub struct ApplicationMetadata {
+    pub vendor_data: Vec<Vec<u8>>,
+    pub image_hash: Vec<u8>,
+}
+
 #[async_trait]
 pub trait Launcher {
     async fn install(
@@ -25,6 +30,6 @@ pub trait Launcher {
         im_url: &str,
         name: &str,
         version: &str,
-    ) -> Result<Vec<Vec<u8>>>;
+    ) -> Result<ApplicationMetadata>;
     async fn prepare(&mut self, path: &Path) -> Result<Box<dyn ApplicationHandler + Send + Sync>>;
 }

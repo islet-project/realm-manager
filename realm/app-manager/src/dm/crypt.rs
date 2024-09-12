@@ -103,7 +103,7 @@ impl Display for Key {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
             Key::Hex(h) => write!(f, "{}", h),
-            Key::Raw(v) => write!(f, "{}", hex::encode(v)),
+            Key::Raw(v) => write!(f, "{}", const_hex::encode(v)),
             Key::Keyring {
                 key_size,
                 key_type,

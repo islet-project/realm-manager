@@ -1,6 +1,7 @@
 linux
 initramfs/usr/bin
 initramfs/usr/sbin
+initramfs/lib/modules
 toolchain
 tools
 .download

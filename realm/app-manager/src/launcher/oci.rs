@@ -13,16 +13,19 @@ use nix::errno::Errno;
 use nix::unistd::{getgid, getuid, Gid, Group, Uid, User};
 use oci_spec::image::Config as RuntimeConfig;
 use oci_spec::image::ImageConfiguration as OciConfig;
-use ratls::{load_root_cert_store, RaTlsCertResolver, RaTlsError, TokenFromFile};
+use ratls::{
+    load_root_cert_store, InternalTokenResolver, RaTlsCertResolver, RaTlsError, TokenFromFile,
+};
 use serde::{Deserialize, Serialize};
 use thiserror::Error;
 
 use super::handler::{ExecConfig, SimpleApplicationHandler};
-use super::{ApplicationHandler, Launcher, Result};
+use super::{ApplicationHandler, ApplicationMetadata, Launcher, Result};
 use crate::config::{OciLauncherConfig, TokenResolver};
 use crate::error::Error;
 use crate::util::fs::{mkdirp, read_to_string, rename, rmrf, write_to_file};
 use crate::util::serde::{json_dump, json_load};
+use crate::util::token::RsiTokenResolver;
 
 const METADATA: &str = "metadata.json";
 
@@ -102,13 +105,17 @@ impl OciLauncher {
                 token_resolver,
             } => {
                 let token_resolver = match token_resolver {
-                    TokenResolver::FromFile(path) => TokenFromFile::from_path(path)
-                        .map_err(OciLauncherError::TokenReadingError)?,
+                    TokenResolver::File(path) => Arc::new(
+                        TokenFromFile::from_path(path)
+                            .map_err(OciLauncherError::TokenReadingError)?,
+                    )
+                        as Arc<dyn InternalTokenResolver + Send + Sync>,
+                    TokenResolver::Rsi => Arc::new(RsiTokenResolver::new())
+                        as Arc<dyn InternalTokenResolver + Send + Sync>,
                 };
 
-                let cert_resolver =
-                    RaTlsCertResolver::from_token_resolver(Arc::new(token_resolver))
-                        .map_err(OciLauncherError::RaTlsCertResolverCreation)?;
+                let cert_resolver = RaTlsCertResolver::from_token_resolver(token_resolver)
+                    .map_err(OciLauncherError::RaTlsCertResolverCreation)?;
 
                 Client::from_config(config.ratls(
                     load_root_cert_store(root_ca).map_err(OciLauncherError::RootCaLoading)?,
@@ -255,7 +262,7 @@ impl Launcher for OciLauncher {
         im_url: &str,
         name: &str,
         version: &str,
-    ) -> Result<Vec<Vec<u8>>> {
+    ) -> Result<ApplicationMetadata> {
         debug!("Installing {}:{} from {}", name, version, im_url);
         let oci_client = self.create_oci_client(im_url)?;
 
@@ -332,7 +339,10 @@ impl Launcher for OciLauncher {
             .await?;
         }
 
-        Ok(new_vendor_cert)
+        Ok(ApplicationMetadata {
+            vendor_data: new_vendor_cert,
+            image_hash: vec![1, 2, 3], // TODO: manifest digest
+        })
     }
 
     async fn prepare(&mut self, path: &Path) -> Result<Box<dyn ApplicationHandler + Send + Sync>> {

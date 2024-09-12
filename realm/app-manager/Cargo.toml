@@ -11,8 +11,8 @@ serde = { version = "*", features = ["derive", "alloc"] }
 serde_json = { version = "*", features = ["alloc"] }
 thiserror = "*"
 uuid = { version = "*", features = ["serde", "v4"] }
-hex = "*"
-nix = { version = "*", features = ["process", "signal", "net", "user"] }
+const-hex = "*"
+nix = { version = "*", features = ["process", "signal", "net", "user", "kmod"] }
 tokio-serde = { version = "*", features = ["json"] }
 tokio-util = { version = "*", features = ["codec"] }
 tokio = { version = "*", features = ["io-util", "sync", "rt", "rt-multi-thread", "fs", "macros", "process", "time"] }
@@ -30,3 +30,6 @@ simple_logger = "*"
 ir-client = { git = "https://github.com/islet-project/image-registry" }
 ratls = { git = "https://github.com/islet-project/remote-attestation", branch = "dev/z.abramowska/temp" }
 oci-spec = "*"
+hkdf = "*"
+hex-literal = "*"
+rust-rsi = { git = "https://github.com/islet-project/remote-attestation", branch = "dev/m.szaknis/key_sealing" }

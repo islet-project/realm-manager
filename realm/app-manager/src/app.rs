@@ -18,10 +18,8 @@ use crate::key::KeySealing;
 use crate::launcher::{ApplicationHandler, Launcher};
 use crate::util::disk::read_device_size;
 use crate::util::fs::{
-    dirname, formatfs, mkdirp, mknod, mount, mount_overlayfs, read_to_string, stat, umount,
-    write_to_file, Filesystem,
+    dirname, formatfs, mkdirp, mknod, mount, mount_overlayfs, stat, umount, Filesystem,
 };
-use crate::util::serde::{json_dump, json_load};
 
 #[derive(Debug, Error)]
 pub enum ApplicationError {
@@ -124,29 +122,13 @@ impl Application {
         infos: &[&[u8]],
     ) -> Result<Key> {
         const SUBCLASS: &str = "app-manager";
-        let raw_key = keyseal.derive_key(&mut infos.iter())?;
+        let raw_key = keyseal.derive_key(infos)?;
         self.keyring.logon_seal(SUBCLASS, &label, &raw_key)?;
         Ok(Key::Keyring {
             key_size: raw_key.len(),
             key_type: crate::dm::crypt::KeyType::Logon,
             key_desc: format!("{}:{}", SUBCLASS, label.as_ref()),
         })
-    }
-
-    async fn application_metadata(&self, path: impl AsRef<Path>) -> Result<ApplicationMetadata> {
-        let metadata_path = path.as_ref().join("metadata.json");
-        let result = read_to_string(&metadata_path).await;
-
-        if let Ok(content) = result {
-            Ok(json_load(content)?)
-        } else {
-            // TODO: Generare a random salt
-            let metadata = ApplicationMetadata { salt: Vec::new() };
-
-            write_to_file(metadata_path, json_dump(&metadata)?).await?;
-
-            Ok(metadata)
-        }
     }
 
     pub async fn setup(
@@ -187,7 +169,7 @@ impl Application {
         let app_image_root_dir = app_image_dir.join("root");
         mkdirp(&app_image_root_dir).await?;
         info!("Installing application");
-        let mut vendor_data = launcher
+        let application_metadata = launcher
             .install(
                 &app_image_root_dir,
                 &self.info.image_registry,
@@ -196,10 +178,12 @@ impl Application {
             )
             .await?;
 
-        let app_metadata = self.application_metadata(&app_image_dir).await?;
-        vendor_data.push(app_metadata.salt);
-        let infos: Vec<_> = vendor_data.iter().map(|i| i.as_slice()).collect();
-        let keyseal = keyseal.seal(&mut infos.iter())?;
+        let infos: Vec<_> = application_metadata
+            .vendor_data
+            .iter()
+            .map(|i| i.as_slice())
+            .collect();
+        let keyseal = keyseal.seal(&infos, &application_metadata.image_hash)?;
 
         let app_name = self.info.name.as_bytes().to_owned();
         let app_data_key = self.derive_key_for(

@@ -8,6 +8,7 @@ pub mod fs;
 pub mod net;
 pub mod os;
 pub mod serde;
+pub mod token;
 
 pub fn cstring_from_str(v: impl AsRef<str>) -> Result<CString> {
     Ok(CString::new(v.as_ref().as_bytes())?)
