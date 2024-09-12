@@ -28,7 +28,7 @@ To successfully run the daemon you have to install:
 |--port| Port on which Warden daemon listens | 80|
 |--realm-connection-wait-time-secs | Timeout for realm's connection to Warden after start | 60 sec|
 |--bridge-name| Name of daemon's virtual interface | virtbWarden|
-|--bridge-ip| IP of daemon's virtual interface | 192.168.100.0/24|
+|--network-address| IP of daemon's virtual interface | 192.168.100.0/24|
 |--dhcp-connections-number| Number of dhcp connections that is used to calculate dhcp range for server| 20|
 |--dns-records| Additional records for Dnsmasq. Use following pattern: */\<domain\>\[/\<domain\>...\]/\[\<ipaddr\>\]* | N/A|
 

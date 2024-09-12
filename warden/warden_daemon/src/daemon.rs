@@ -41,8 +41,8 @@ impl Daemon {
         let network_manager = Arc::new(Mutex::new(
             NetworkManagerHandler::create_nat(
                 NetworkConfig {
-                    net_if_name: cli.network_address,
-                    net_if_ip: cli.bridge_ip,
+                    net_if_name: cli.bridge_name,
+                    net_if_ip: cli.network_address,
                 },
                 udhcp_server,
             )

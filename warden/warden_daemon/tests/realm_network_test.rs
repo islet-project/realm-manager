@@ -18,7 +18,7 @@ async fn check_realms_network() {
         usock_path.clone(),
         workdir_path_manager.get_path().to_path_buf(),
     );
-    let bridge_ip = cli.bridge_ip.clone();
+    let bridge_ip = cli.network_address.clone();
     let app = Daemon::new(cli).await.unwrap();
     let handle = app.run().await.unwrap();
 
