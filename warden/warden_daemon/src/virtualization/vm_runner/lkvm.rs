@@ -21,14 +21,17 @@ impl LkvmRunner {
         runner.setup_memory(&config.memory);
         runner.setup_network(&config.network);
         runner.control_output();
+        runner.configure_optional_lkvm_args();
         runner
     }
     pub fn configure_cca_settings(&mut self) {
         self.command.arg("--debug");
-        self.command.arg("--irqchip=gicv3");
-        self.command.arg("--disable-sve");
         self.command.arg("--realm");
         self.command.arg("--measurement-algo=sha256");
+    }
+    fn configure_optional_lkvm_args(&mut self) {
+        self.command.arg("--irqchip=gicv3");
+        self.command.arg("--disable-sve");
     }
     fn setup_network(&mut self, config: &NetworkConfig) {
         self.command.arg("-n").arg(format!(

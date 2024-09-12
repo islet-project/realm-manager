@@ -52,18 +52,19 @@ impl Daemon {
             .await?,
         ));
         let realm_fabric = Box::new(RealmManagerFabric::new(
-            Box::new(move |path, config| match cli.lkvm_runner {
-                true => {
+            Box::new(move |path, config| {
+                Ok(if cli.lkvm_runner {
                     let mut runner = LkvmRunner::new(cli.virtualizer_path.clone(), config);
                     if cli.cca_enable {
                         runner.configure_cca_settings();
                     }
-                    Ok(Box::new(VmRunner::new(runner, path)))
-                }
-                false => {
-                    let runner = QemuRunner::new(cli.virtualizer_path.clone(), config);
-                    Ok(Box::new(VmRunner::new(runner, path)))
-                }
+                    Box::new(VmRunner::new(runner, path))
+                } else {
+                    Box::new(VmRunner::new(
+                        QemuRunner::new(cli.virtualizer_path.clone(), config),
+                        path,
+                    ))
+                })
             }),
             vsock_server.clone(),
             cli.warden_workdir_path.clone(),
