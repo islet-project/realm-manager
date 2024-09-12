@@ -50,7 +50,11 @@ impl DnsmasqServerHandler {
     }
 
     fn validate_exec_path(path_to_exec: &Path) -> Result<(), DnsmasqServerError> {
-        if !path_to_exec.exists() || !path_to_exec.ends_with(EXEC_NAME) {
+        if !path_to_exec
+            .file_name()
+            .map(|os_str| os_str.to_str().is_some_and(|str| str == EXEC_NAME))
+            .unwrap_or(false)
+        {
             return Err(DnsmasqServerError::InvalidPath);
         }
         Ok(())
