@@ -3,7 +3,7 @@ use log::info;
 
 use cli::Args;
 use config::Config;
-use error::Result;
+use error::{Error, Result};
 use manager::Manager;
 
 mod app;
@@ -17,7 +17,7 @@ mod manager;
 mod util;
 
 #[tokio::main]
-async fn main() -> Result<()> {
+async fn main() -> anyhow::Result<(), Error> {
     let args = Args::parse();
     simple_logger::init_with_level(args.log_level).expect("Cannot initialize logger.");
 

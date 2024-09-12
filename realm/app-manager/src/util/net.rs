@@ -6,7 +6,6 @@ use nix::errno::Errno;
 use nix::sys::socket::{AddressFamily, SockaddrLike, SockaddrStorage};
 use thiserror::Error;
 use tokio::task::block_in_place;
-
 use warden_realm::NetAddr;
 
 #[derive(Debug, Error)]
@@ -26,21 +25,20 @@ pub fn convert_sock_addr(storage: SockaddrStorage) -> Option<IpAddr> {
 }
 
 pub fn read_if_addrs() -> Result<HashMap<String, NetAddr>> {
-    let ifaddrs =
-        block_in_place(|| nix::ifaddrs::getifaddrs()).map_err(NetError::GetIfAddrsError)?;
+    let ifaddrs = block_in_place(nix::ifaddrs::getifaddrs).map_err(NetError::GetIfAddrsError)?;
 
     let mut net_addrs = HashMap::new();
 
     for ifaddr in ifaddrs {
-        let ipaddr = ifaddr.address.map(convert_sock_addr).flatten();
+        let ipaddr = ifaddr.address.and_then(convert_sock_addr);
 
         if let Some(addr) = ipaddr {
             net_addrs.insert(
                 ifaddr.interface_name,
                 NetAddr {
                     address: addr,
-                    netmask: ifaddr.netmask.map(convert_sock_addr).flatten(),
-                    destination: ifaddr.destination.map(convert_sock_addr).flatten(),
+                    netmask: ifaddr.netmask.and_then(convert_sock_addr),
+                    destination: ifaddr.destination.and_then(convert_sock_addr),
                 },
             );
         }

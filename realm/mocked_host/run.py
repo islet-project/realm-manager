@@ -118,9 +118,16 @@ class MockedWarden():
         o = {"jfdewhfdiwuehgfui": "dwehudwqiuydfg23quy"}
         return self.transaction(o)
 
-    def send_exmaple_provision_info(self):
+    def send_dummy_provision_info(self):
         r = self.provision([
             App(id=str(APP_ID), name="Test app", version="1.0", image_registry="http://registry.com", image_part_uuid=str(IMAGE_UUID), data_part_uuid=str(DATA_UUID))
+        ])
+        return r
+
+    def send_exmapleapp_provision_info(self, im_url: str):
+        r = self.provision([
+            App(id=str(APP_ID), name="exmapleapp", version="latest", image_registry=im_url,
+                image_part_uuid=str(IMAGE_UUID), data_part_uuid=str(DATA_UUID))
         ])
         return r
 
@@ -132,6 +139,14 @@ class MockedWarden():
     def wait_for_qemu(self):
         return self.qemu.communicate()
 
+    def send_provision_info(self, args):
+        if "use_oci" in args:
+            r = self.send_exmapleapp_provision_info(args.use_oci)
+        else:
+            r = self.send_dummy_provision_info()
+
+        return r
+
 
 def main():
     main_parser = argparse.ArgumentParser()
@@ -141,6 +156,7 @@ def main():
     main_parser.add_argument("--qemu-serial", type=str, default="tcp:localhost:1337")
     main_parser.add_argument('--kernel', type=str, default='../linux/arch/arm64/boot/Image')
     main_parser.add_argument("--test", action='store_true', default=False)
+    main_parser.add_argument("--use-oci", type=str, help="Image registry url", required=False)
     args = main_parser.parse_args()
 
 
@@ -159,6 +175,8 @@ def main():
     check_app_parser = subparsers.add_parser('check_app')
     check_app_parser.add_argument('--uuid', type=uuid.UUID, default=APP_ID)
 
+    _ = subparsers.add_parser("setup_exmapleapp")
+
     _ = subparsers.add_parser("reboot")
     _ = subparsers.add_parser("shutdown")
     _ = subparsers.add_parser("launch", help="Launch QEMU after issued shutdown")
@@ -166,11 +184,16 @@ def main():
     _ = subparsers.add_parser("invalid_json")
     _ = subparsers.add_parser("exit")
 
+    if "use_oci" in args:
+        im_url = args.use_oci
+    else:
+        im_url = None
+
     host = MockedWarden(kernel=args.kernel, vsock_port=args.vsock_port, guest_cid=args.guest_cid, tap_device=args.tap_device, qemu_serial=args.qemu_serial)
     host.start()
-    r = host.send_exmaple_provision_info()
 
     if args.test:
+        r = host.send_provision_info(args)
         assert r == {'Success': []}
 
         r = host.getifaddrs()
@@ -196,7 +219,7 @@ def main():
 
         host.reboot()
         host.reconnect()
-        r = host.send_exmaple_provision_info()
+        r = host.send_provision_info(args)
         assert r == {'Success': []}
 
         r = host.check_app()
@@ -207,7 +230,6 @@ def main():
         print("Test pass")
 
     else:
-        print(f"Provisioning finished with {r}")
 
         while True:
             sys.stdout.write("> ")
@@ -235,12 +257,12 @@ def main():
                 elif cmd == "reboot":
                     host.reboot()
                     host.reconnect()
-                    p = host.send_exmaple_provision_info()
+                    p = host.send_dummy_provision_info()
                     print(f"Provisioning finished with {p}")
                 elif cmd == "launch":
                     host.run_qemu()
                     host.reconnect()
-                    p = host.send_exmaple_provision_info()
+                    p = host.send_dummy_provision_info()
                     print(f"Provisioning finished with {p}")
                 elif cmd == "invalid_json":
                     r = host.invalid_json()
@@ -248,6 +270,8 @@ def main():
                     sys.exit()
                 elif cmd == "getifaddrs":
                     r = host.getifaddrs()
+                elif cmd == "setup_exmapleapp":
+                    r = host.send_exmapleapp_provision_info(im_url)
 
                 print(f"Command returned: {r}")
 

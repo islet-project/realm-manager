@@ -1,11 +1,15 @@
 workdir: /apps
 vsock_port: 1337
-image_registry: http://192.168.100.1:8888
 crypto:
   cipher: Aes
   iv_mode: Plain
   block_mode: Cbc
   iv_offset: 0
-launcher: Dummy
+launcher:
+  Oci:
+    RaTLS:
+      root_ca: /usr/share/app-manager/ratls/root-ca.crt
+      token_resolver: 
+        from_file: /usr/share/app-manager/ratls/token.bin
 keysealing: Dummy
 autostartall: true

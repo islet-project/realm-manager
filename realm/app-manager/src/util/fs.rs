@@ -46,6 +46,12 @@ pub enum FsError {
 
     #[error("Path has not parent")]
     PathHasNoParent(),
+
+    #[error("Failed to remove directory with content")]
+    RmRfError(#[source] std::io::Error),
+
+    #[error("Failed to move file or directory")]
+    RenameError(#[source] std::io::Error),
 }
 
 #[allow(dead_code)]
@@ -192,7 +198,7 @@ pub async fn read_to_string(path: impl AsRef<Path>) -> Result<String> {
         .map_err(FsError::FileReadError)?)
 }
 
-pub async fn write_to_string(path: impl AsRef<Path>, content: impl AsRef<[u8]>) -> Result<()> {
+pub async fn write_to_file(path: impl AsRef<Path>, content: impl AsRef<[u8]>) -> Result<()> {
     fs::write(path, content)
         .await
         .map_err(FsError::FileWriteError)?;
@@ -206,4 +212,16 @@ pub async fn dirname(path: impl AsRef<Path>) -> Result<PathBuf> {
         .parent()
         .ok_or(FsError::PathHasNoParent())?
         .to_owned())
+}
+
+pub async fn rmrf(path: impl AsRef<Path>) -> Result<()> {
+    fs::remove_dir_all(path).await.map_err(FsError::RmRfError)?;
+
+    Ok(())
+}
+
+pub async fn rename(src: impl AsRef<Path>, dst: impl AsRef<Path>) -> Result<()> {
+    fs::rename(src, dst).await.map_err(FsError::RenameError)?;
+
+    Ok(())
 }

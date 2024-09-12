@@ -1,45 +1,13 @@
-use std::{
-    ffi::{CString, FromVecWithNulError, NulError},
-    path::Path,
-};
+use std::ffi::CString;
+use std::path::Path;
 
-use net::NetError;
-use thiserror::Error;
-
-use disk::DiskError;
-use os::OsError;
+use crate::error::Result;
 
 pub mod disk;
 pub mod fs;
 pub mod net;
 pub mod os;
 pub mod serde;
-
-#[derive(Debug, Error)]
-pub enum UtilsError {
-    #[error("Filesystem util error")]
-    Fs(#[from] fs::FsError),
-
-    #[error("Serde error")]
-    Serde(#[from] serde::JsonError),
-
-    #[error("Disk error")]
-    Disk(#[from] DiskError),
-
-    #[error("String conversion error to CString")]
-    CstringConvError(#[from] NulError),
-
-    #[error("Vector conversion error to CString")]
-    CstringFromVecConvError(#[from] FromVecWithNulError),
-
-    #[error("OS error")]
-    Os(#[from] OsError),
-
-    #[error("Network util error")]
-    NetError(#[from] NetError),
-}
-
-pub type Result<T> = std::result::Result<T, UtilsError>;
 
 pub fn cstring_from_str(v: impl AsRef<str>) -> Result<CString> {
     Ok(CString::new(v.as_ref().as_bytes())?)

@@ -1,20 +1,21 @@
-use std::net::IpAddr;
 use std::{collections::HashMap, os::unix::process::ExitStatusExt};
 
 use log::{debug, error, info, warn};
 use thiserror::Error;
-use tokio::task::{block_in_place, JoinError, JoinSet};
+use tokio::task::{JoinError, JoinSet};
 use tokio_vsock::{VsockAddr, VsockStream, VMADDR_CID_HOST};
 use utils::serde::json_framed::{JsonFramed, JsonFramedError};
 use uuid::Uuid;
-use warden_realm::{ApplicationInfo, NetAddr, ProtocolError, Request, Response};
+use warden_realm::{ApplicationInfo, ProtocolError, Request, Response};
 
 use crate::app::Application;
 use crate::config::{Config, KeySealingType, LauncherType};
+use crate::error::Error;
 use crate::key::{dummy::DummyKeySealing, KeySealing};
 use crate::launcher::handler::ApplicationHandlerError;
+use crate::launcher::oci::OciLauncher;
+use crate::launcher::ApplicationHandler;
 use crate::launcher::{dummy::DummyLauncher, Launcher};
-use crate::launcher::{ApplicationHandler, LauncherError};
 use crate::util::net::read_if_addrs;
 use crate::util::os::{reboot, SystemPowerAction};
 
@@ -57,8 +58,9 @@ impl Manager {
     }
 
     fn make_launcher(&self) -> Result<Box<dyn Launcher + Send + Sync>> {
-        match self.config.launcher {
+        match &self.config.launcher {
             LauncherType::Dummy => Ok(Box::new(DummyLauncher::new())),
+            LauncherType::Oci(cfg) => Ok(Box::new(OciLauncher::from_oci_config(cfg.clone()))),
         }
     }
 
@@ -237,7 +239,7 @@ impl Manager {
                 match handler.try_wait().await {
                     Ok(Some(status)) => Ok(Response::ApplicationExited(status.into_raw())),
                     Ok(None) => Ok(Response::ApplicationIsRunning()),
-                    Err(LauncherError::HandlerError(ApplicationHandlerError::AppNotRunning())) => {
+                    Err(Error::Handler(ApplicationHandlerError::AppNotRunning())) => {
                         Ok(Response::ApplicationNotStarted())
                     }
                     Err(e) => Err(ProtocolError::ApplicationCheckStatusFailed(format!(
