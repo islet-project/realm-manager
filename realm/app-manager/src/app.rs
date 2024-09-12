@@ -64,7 +64,7 @@ impl Application {
         let path = Path::new("/dev/disk/by-partuuid/").join(&uuid_str);
 
         if !path.is_symlink() {
-            return Err(ApplicationError::PartitionNotFound(part_uuid.clone()).into());
+            return Err(ApplicationError::PartitionNotFound(*part_uuid).into());
         }
 
         let metadata = stat(&path).await?;
@@ -245,7 +245,7 @@ impl Application {
             &app_overlay_dir,
         )?;
 
-        Ok(launcher.prepare(&app_overlay_dir).await?)
+        launcher.prepare(&app_overlay_dir).await
     }
 
     pub fn id(&self) -> &Uuid {

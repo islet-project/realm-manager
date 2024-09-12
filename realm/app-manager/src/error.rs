@@ -22,13 +22,13 @@ use crate::util::serde::JsonError;
 #[derive(Debug, Error)]
 pub enum Error {
     #[error("Application error")]
-    ApplicationError(#[from] ApplicationError),
+    Application(#[from] ApplicationError),
 
     #[error("Config error")]
-    ConfigError(#[from] ConfigError),
+    Config(#[from] ConfigError),
 
     #[error("Manager error")]
-    ManagerError(#[from] ManagerError),
+    Manager(#[from] ManagerError),
 
     #[error("Filesystem util error")]
     Fs(#[from] fs::FsError),
@@ -40,49 +40,49 @@ pub enum Error {
     Disk(#[from] DiskError),
 
     #[error("String conversion error to CString")]
-    CstringConvError(#[from] NulError),
+    CstringConv(#[from] NulError),
 
     #[error("Vector conversion error to CString")]
-    CstringFromVecConvError(#[from] FromVecWithNulError),
+    CstringFromVecConv(#[from] FromVecWithNulError),
 
     #[error("OS error")]
     Os(#[from] OsError),
 
     #[error("Network util error")]
-    NetError(#[from] NetError),
+    Net(#[from] NetError),
 
     #[error("Device handle error")]
-    DeviceHandleError(#[from] DeviceHandleError),
+    DeviceHandle(#[from] DeviceHandleError),
 
     #[error("Dm Crypt error")]
-    CryptError(#[from] CryptError),
+    Crypt(#[from] CryptError),
 
     #[error("Device mapper open error")]
-    DmOpenError(#[source] DmError),
+    DmOpen(#[source] DmError),
 
     #[error("`{0}` is not a valid device name acording to device mapper")]
     DmInvalidName(String, #[source] devicemapper::DmError),
 
     #[error("DmUuid conversion error")]
-    DmUuidConversionError(#[source] DmError),
+    DmUuidConversion(#[source] DmError),
 
     #[error("Cannot create virtual mapping device named: {0}")]
-    DmCreateError(String, #[source] devicemapper::DmError),
+    DmCreate(String, #[source] devicemapper::DmError),
 
     #[error("Cannot remove device")]
     DmRemoveDevice(#[source] devicemapper::DmError),
 
     #[error("Key ring error")]
-    KeyRingError(#[from] KeyRingError),
+    KeyRing(#[from] KeyRingError),
 
     #[error("Applicatino handler error")]
-    HandlerError(#[from] ApplicationHandlerError),
+    Handler(#[from] ApplicationHandlerError),
 
     #[error("Dummy launcher error")]
-    DummyLauncherError(#[from] DummyLauncherError),
+    DummyLauncher(#[from] DummyLauncherError),
 
     #[error("OCI launcher error")]
-    OciLauncherError(#[from] OciLauncherError),
+    OciLauncher(#[from] OciLauncherError),
 }
 
 pub type Result<T> = std::result::Result<T, Error>;

@@ -8,7 +8,7 @@ use async_trait::async_trait;
 use ir_client::client::Client;
 use ir_client::config::Config;
 use ir_client::oci::reference::Reference;
-use log::{debug, error, info};
+use log::{debug, error, info, trace};
 use nix::errno::Errno;
 use nix::unistd::{getgid, getuid, Gid, Group, Uid, User};
 use oci_spec::image::Config as RuntimeConfig;
@@ -23,6 +23,8 @@ use crate::config::{OciLauncherConfig, TokenResolver};
 use crate::error::Error;
 use crate::util::fs::{mkdirp, read_to_string, rename, rmrf, write_to_file};
 use crate::util::serde::{json_dump, json_load};
+
+const METADATA: &str = "metadata.json";
 
 #[derive(Debug, Error)]
 pub enum OciLauncherError {
@@ -41,7 +43,7 @@ pub enum OciLauncherError {
     #[error("Failed to fetch image info from image registry")]
     ImageInfoFetching(#[source] ir_client::error::Error),
 
-    #[error("Version is invalid: {0}")]
+    #[error("Version is invalid: {1}, error: {0}")]
     InvalidVersion(#[source] ir_client::error::Error, String),
 
     #[error("Failed to download and unpack image")]
@@ -65,7 +67,7 @@ pub enum OciLauncherError {
     #[error("Failed to resolve user name or group name")]
     GetPwName(#[source] Errno),
 
-    #[error("Path convertsion error, {0:?} is not a valid Path")]
+    #[error("Path convertsion error, {1:?} is not a valid Path")]
     PathConversionError(#[source] Infallible, String),
 }
 
@@ -119,7 +121,7 @@ impl OciLauncher {
     }
 
     async fn try_read_metadata(&self, path: &Path) -> Option<Metadata> {
-        read_to_string(path.join("metadata.json"))
+        read_to_string(path.join(METADATA))
             .await
             .map(json_load)
             .ok()
@@ -129,23 +131,24 @@ impl OciLauncher {
     }
 
     async fn save_metadata(&self, path: &Path, metadata: Metadata) -> Result<()> {
-        write_to_file(path.join("metadata.json"), json_dump(metadata)?).await?;
+        write_to_file(path.join(METADATA), json_dump(metadata)?).await?;
         Ok(())
     }
 
     async fn move_unpack_to_img(&self, unpack: &Path, img: &Path) -> Result<()> {
-        let _ = rmrf(img).await;
+        let _ = rmrf(img)
+            .await
+            .map_err(|e| trace!("Failed to remove {:?}, error: {:?}", img, e));
         rename(unpack, img).await?;
 
         Ok(())
     }
 
     fn read_vendor_cert(annotations: Option<&HashMap<String, String>>) -> Result<Vec<Vec<u8>>> {
-        const VENDOR_CERT: &'static str = "com.samsung.islet.image.certificate";
+        const VENDOR_CERT: &str = "com.samsung.islet.image.certificate";
 
         let vendor_cert = annotations
-            .map(|m| m.get(VENDOR_CERT).cloned())
-            .flatten()
+            .and_then(|m| m.get(VENDOR_CERT).cloned())
             .unwrap_or("DUMMY".to_string()); // TODO: replace this after the served images are signed properly
                                              // .ok_or(OciLauncherError::FailedToFindRequiredAnnotations())?;
 
@@ -226,7 +229,7 @@ impl TryFrom<&RuntimeConfig> for ExecConfig {
 
         let cwd = match value.working_dir().as_ref() {
             Some(path) => Some(
-                PathBuf::from_str(&path)
+                PathBuf::from_str(path)
                     .map_err(|e| OciLauncherError::PathConversionError(e, path.clone()))?,
             ),
             None => None,
@@ -271,7 +274,7 @@ impl Launcher for OciLauncher {
         // TODO: check the cert against some root ca
 
         let installation_required = current_metadata
-            .map(|i| &i.config_hash != new_config_hash || i.vendor_cert != new_vendor_cert)
+            .map(|i| i.config_hash != new_config_hash || i.vendor_cert != new_vendor_cert)
             .unwrap_or(true);
 
         if installation_required {
@@ -302,9 +305,13 @@ impl Launcher for OciLauncher {
             };
 
             info!("Cleaning up, removing {:?}", temp_dir);
-            let _ = rmrf(&temp_dir).await;
-            info!("Cleaning up, removing {:?}", temp_dir);
-            let _ = rmrf(&unpack_dir).await;
+            let _ = rmrf(&temp_dir)
+                .await
+                .map_err(|e| error!("Failed to cleanup {:?}, error {:?}", temp_dir, e));
+            info!("Cleaning up, removing {:?}", unpack_dir);
+            let _ = rmrf(&unpack_dir)
+                .await
+                .map_err(|e| error!("Failed to cleanup {:?}, error {:?}", unpack_dir, e));
 
             result.map_err(|e| {
                 error!(
@@ -315,7 +322,7 @@ impl Launcher for OciLauncher {
             })?;
 
             self.save_metadata(
-                &path,
+                path,
                 Metadata {
                     vendor_cert: new_vendor_cert.clone(),
                     config_hash: new_config_hash.to_string(),

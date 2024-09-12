@@ -15,7 +15,7 @@ pub struct DeviceMapper(Arc<DM>);
 
 impl DeviceMapper {
     pub fn init() -> Result<Self> {
-        Ok(Self(Arc::new(DM::new().map_err(Error::DmOpenError)?)))
+        Ok(Self(Arc::new(DM::new().map_err(Error::DmOpen)?)))
     }
 
     fn create_device_handle(
@@ -30,14 +30,14 @@ impl DeviceMapper {
 
         let result = if let Some(uuid) = uuid {
             let uuid_str = uuid.as_ref().to_string();
-            let dm_uuid = DmUuid::new(&uuid_str).map_err(Error::DmUuidConversionError)?;
+            let dm_uuid = DmUuid::new(&uuid_str).map_err(Error::DmUuidConversion)?;
 
             block_in_place(|| self.0.device_create(name, Some(dm_uuid), opt))
         } else {
             block_in_place(|| self.0.device_create(name, None, opt))
         };
 
-        let info = result.map_err(|e| Error::DmCreateError(name.to_string(), e))?;
+        let info = result.map_err(|e| Error::DmCreate(name.to_string(), e))?;
 
         Ok(DeviceHandle::new(self.0.clone(), info))
     }

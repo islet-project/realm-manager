@@ -239,7 +239,7 @@ impl Manager {
                 match handler.try_wait().await {
                     Ok(Some(status)) => Ok(Response::ApplicationExited(status.into_raw())),
                     Ok(None) => Ok(Response::ApplicationIsRunning()),
-                    Err(Error::HandlerError(ApplicationHandlerError::AppNotRunning())) => {
+                    Err(Error::Handler(ApplicationHandlerError::AppNotRunning())) => {
                         Ok(Response::ApplicationNotStarted())
                     }
                     Err(e) => Err(ProtocolError::ApplicationCheckStatusFailed(format!(
