@@ -70,6 +70,7 @@ impl Daemon {
             cli.warden_workdir_path.clone(),
             network_manager.clone(),
             Duration::from_secs(cli.realm_connection_wait_time_secs),
+            Duration::from_secs(cli.realm_response_wait_time_secs),
         ));
         let warden = WardenFabric::new(cli.warden_workdir_path)
             .await?

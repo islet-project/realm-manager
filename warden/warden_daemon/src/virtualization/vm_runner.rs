@@ -1,4 +1,5 @@
 use std::{
+    io,
     path::PathBuf,
     process::{Child, Command, ExitStatus},
 };
@@ -31,6 +32,10 @@ impl<T: CommandRunner + Sized> VmRunner<T> {
         }
     }
 
+    fn get_child(&mut self) -> Result<&mut Child, VmManagerError> {
+        self.vm.as_mut().ok_or(VmManagerError::VmNotLaunched)
+    }
+
     fn kill_and_wait(child: &mut Child) -> Result<(), VmManagerError> {
         child
             .kill()
@@ -61,7 +66,17 @@ impl<T: CommandRunner + Sized> VmManager for VmRunner<T> {
             .map(|child| {
                 self.vm = Some(child);
             })
-            .map_err(VmManagerError::Launch)
+            .map_err(VmManagerError::Launch)?;
+        match self
+            .get_child()?
+            .try_wait()
+            .map_err(VmManagerError::Launch)?
+        {
+            Some(exit_status) => Err(VmManagerError::Launch(io::Error::other(
+                exit_status.to_string(),
+            ))),
+            None => Ok(()),
+        }
     }
     fn stop_vm(&mut self) -> Result<(), VmManagerError> {
         self.vm

@@ -2,7 +2,7 @@ use crate::utils::repository::Repository;
 
 use super::application::{Application, ApplicationConfig};
 use super::realm::{ApplicationCreator, Realm, RealmData, RealmError, State};
-use super::realm_client::{RealmClient, RealmProvisioningConfig};
+use super::realm_client::{RealmClient, RealmClientError, RealmProvisioningConfig};
 use super::realm_configuration::*;
 use super::vm_manager::VmManager;
 
@@ -74,6 +74,32 @@ impl RealmManager {
         }
         Ok(())
     }
+
+    async fn handle_provisioning_response(
+        &mut self,
+        provisioning_result: Result<(), RealmClientError>,
+    ) -> Result<(), RealmError> {
+        match provisioning_result {
+            Ok(_) => {
+                self.state = State::Running;
+                Ok(())
+            }
+            Err(err) => {
+                self.state = State::Halted;
+                Err(RealmError::RealmStartFail(
+                    match self.vm_manager.get_exit_status() {
+                        Some(runner_error) => format!("{}, {}", err, runner_error),
+                        None => {
+                            self.vm_manager
+                                .delete_vm()
+                                .map_err(|err| RealmError::VmDestroyFail(err.to_string()))?;
+                            err.to_string()
+                        }
+                    },
+                ))
+            }
+        }
+    }
 }
 
 impl Drop for RealmManager {
@@ -106,7 +132,7 @@ impl Realm for RealmManager {
 
         self.state = State::Provisioning;
 
-        match self
+        let resp = self
             .realm_client_handler
             .lock()
             .await
@@ -114,21 +140,8 @@ impl Realm for RealmManager {
                 self.create_provisioning_config().await?,
                 self.config.get().network.vsock_cid,
             )
-            .await
-        {
-            Ok(_) => {
-                self.state = State::Running;
-                Ok(())
-            }
-            Err(err) => {
-                self.state = State::Halted;
-                let mut error = err.to_string();
-                if let Some(runner_error) = self.vm_manager.get_exit_status() {
-                    error = format!("{error}, {}", runner_error);
-                }
-                Err(RealmError::RealmStartFail(error))
-            }
-        }
+            .await;
+        self.handle_provisioning_response(resp).await
     }
 
     async fn stop(&mut self) -> Result<(), RealmError> {
@@ -270,6 +283,7 @@ mod test {
     use parameterized::parameterized;
     use std::collections::HashMap;
     use std::net::Ipv4Addr;
+    use std::process::ExitStatus;
     use std::{io::Error, sync::Arc};
     use tokio::sync::Mutex;
     use uuid::Uuid;
@@ -302,6 +316,60 @@ mod test {
     }
 
     #[tokio::test]
+    async fn start_respnse_handle() {
+        let mut realm_manager = create_realm_manager(None, None);
+        assert!(realm_manager
+            .handle_provisioning_response(Ok(()))
+            .await
+            .is_ok());
+    }
+
+    #[tokio::test]
+    async fn start_response_handle_vm_not_launched() {
+        let mut vm_manager_mock = MockVmManager::new();
+        vm_manager_mock
+            .expect_get_exit_status()
+            .returning(|| Some(ExitStatus::default()));
+        let mut realm_manager = create_realm_manager(Some(vm_manager_mock), None);
+        assert!(matches!(
+            realm_manager
+                .handle_provisioning_response(Err(RealmClientError::RealmDisconnection()))
+                .await,
+            Err(RealmError::RealmStartFail(_))
+        ));
+    }
+
+    #[tokio::test]
+    async fn start_response_handle_vm_destroy_error() {
+        let mut vm_manager_mock = MockVmManager::new();
+        vm_manager_mock.expect_get_exit_status().returning(|| None);
+        vm_manager_mock
+            .expect_delete_vm()
+            .returning(|| Err(VmManagerError::VmNotLaunched));
+        let mut realm_manager = create_realm_manager(Some(vm_manager_mock), None);
+        assert!(matches!(
+            realm_manager
+                .handle_provisioning_response(Err(RealmClientError::RealmDisconnection()))
+                .await,
+            Err(RealmError::VmDestroyFail(_))
+        ));
+    }
+
+    #[tokio::test]
+    async fn start_response_handle_vm_destroy_success() {
+        let mut vm_manager_mock = MockVmManager::new();
+        vm_manager_mock.expect_get_exit_status().returning(|| None);
+        vm_manager_mock.expect_delete_vm().returning(|| Ok(()));
+        let mut realm_manager = create_realm_manager(Some(vm_manager_mock), None);
+        assert!(matches!(
+            realm_manager
+                .handle_provisioning_response(Err(RealmClientError::RealmDisconnection()))
+                .await,
+            Err(RealmError::RealmStartFail(_))
+        ));
+    }
+
+    #[tokio::test]
     async fn realm_start_launching_vm_error() {
         let mut vm_manager_mock = MockVmManager::new();
         vm_manager_mock
@@ -324,12 +392,7 @@ mod test {
             .expect_provision_applications()
             .return_once(|_, _| Err(RealmClientError::RealmConnectionFail(String::new())));
         let mut realm_manager = create_realm_manager(None, Some(client_mock));
-        assert_eq!(
-            realm_manager.start().await,
-            Err(RealmError::RealmStartFail(
-                RealmClientError::RealmConnectionFail(String::new()).to_string()
-            ))
-        );
+        assert!(realm_manager.start().await.is_err());
         assert_eq!(realm_manager.state, State::Halted);
     }
 
@@ -694,6 +757,7 @@ mod test {
         realm_client_handler
             .expect_read_realm_ifs()
             .returning(|| Ok(vec![]));
+        vm_manager.expect_get_exit_status().returning(|| None);
         vm_manager.expect_get_exit_status().returning(|| None);
 
         let mut app_mock = MockApplication::new();
