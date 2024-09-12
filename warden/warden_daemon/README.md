@@ -27,6 +27,7 @@ To successfully run the daemon you have to install:
 |--cid| CID on which Warden daemon listens | 2 (VMADDR_CID_HOST)|
 |--port| Port on which Warden daemon listens | 80|
 |--realm-connection-wait-time-secs | Timeout for realm's connection to Warden after start | 60 sec|
+|--realm-response-wait-time-secs | Timeout for realm's response to Warden command | 10 sec|
 |--bridge-name| Name of daemon's virtual interface | virtbWarden|
 |--network-address| IP of daemon's virtual interface | 192.168.100.0/24|
 |--dhcp-connections-number| Number of dhcp connections that is used to calculate dhcp range for server| 20|

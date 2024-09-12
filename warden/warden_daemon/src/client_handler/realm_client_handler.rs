@@ -48,12 +48,12 @@ impl RealmClientHandler {
     pub fn new(
         realm_connector: Arc<Mutex<dyn RealmConnector + Send + Sync>>,
         realm_connection_wait_time: Duration,
+        realm_response_timeout: Duration,
     ) -> Self {
-        const RESPONSE_TIMEOUT: Duration = Duration::from_secs(10); // TODO! Read from config.
         Self {
             connector: realm_connector,
             connection_wait_time: realm_connection_wait_time,
-            response_timeout: RESPONSE_TIMEOUT,
+            response_timeout: realm_response_timeout,
             sender: None,
         }
     }
@@ -632,6 +632,7 @@ mod test {
         });
         RealmClientHandler::new(
             Arc::new(Mutex::new(realm_connector)),
+            Duration::from_secs(0),
             Duration::from_secs(0),
         )
     }

@@ -75,6 +75,7 @@ pub fn create_example_cli(unix_sock_path: PathBuf, warden_workdir_path: PathBuf)
     const REALM_QEMU_PATH_ENV: &str = "REALM_QEMU_PATH";
     const WARDEN_VSOCK_PORT_ENV: &str = "WARDEN_VSOCK_PORT";
     const STARTUP_TIMEOUT_ENV: &str = "REALM_STARTUP_TIMEOUT";
+    const RESPONSE_TIMEOUT_ENV: &str = "REALM_RESPONSE_TIMEOUT";
     const NAT_NETWORK_NAME_ENV: &str = "NAT_NETWORK_NAME";
     const NAT_NETWORK_IP_ENV: &str = "NAT_NETWORK_IP";
     const DHCP_BINARY_PATH_ENV: &str = "DHCP_EXEC_PATH";
@@ -93,6 +94,9 @@ pub fn create_example_cli(unix_sock_path: PathBuf, warden_workdir_path: PathBuf)
         realm_connection_wait_time_secs: env::var(STARTUP_TIMEOUT_ENV)
             .map(|timeout_sec| u64::from_str(&timeout_sec).unwrap())
             .unwrap_or(60),
+        realm_response_wait_time_secs: env::var(RESPONSE_TIMEOUT_ENV)
+            .map(|timeout_sec| u64::from_str(&timeout_sec).unwrap())
+            .unwrap_or(10),
         bridge_name: env::var(NAT_NETWORK_NAME_ENV)
             .expect(&format!("Missing env var: {}", NAT_NETWORK_NAME_ENV)),
         network_address: env::var(NAT_NETWORK_IP_ENV)
