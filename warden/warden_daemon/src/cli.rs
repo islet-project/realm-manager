@@ -22,7 +22,7 @@ pub struct Cli {
     #[arg(short = 't', long, default_value_t = 60)]
     pub realm_connection_wait_time_secs: u64,
     #[arg(short, long, default_value_t = String::from("virtbWarden"))]
-    pub bridge_name: String,
+    pub network_address: String,
     #[arg(short='i', long, default_value_t=IpNet::V4(Ipv4Net::new(Ipv4Addr::new(192, 168, 100, 0), 24).expect("This should be valid IP4 addr.")))]
     pub bridge_ip: IpNet,
 }

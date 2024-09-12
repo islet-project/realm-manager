@@ -91,7 +91,7 @@ pub fn create_example_cli(unix_sock_path: PathBuf, warden_workdir_path: PathBuf)
         realm_connection_wait_time_secs: env::var(STARTUP_TIMEOUT_ENV)
             .map(|timeout_sec| u64::from_str(&timeout_sec).unwrap())
             .unwrap_or(60),
-        bridge_name: env::var(NAT_NETWORK_NAME_ENV)
+        network_address: env::var(NAT_NETWORK_NAME_ENV)
             .expect(&format!("Missing env var: {}", NAT_NETWORK_NAME_ENV)),
         bridge_ip: env::var(NAT_NETWORK_IP_ENV)
             .map(|ip_str| IpNet::from_str(&ip_str).unwrap())

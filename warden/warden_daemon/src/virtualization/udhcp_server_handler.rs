@@ -28,7 +28,11 @@ pub struct UDHCPServerHandler {
 
 impl UDHCPServerHandler {
     pub fn new(path_to_exec: &Path) -> Result<Self, UDHCPDServerError> {
-        if !path_to_exec.exists() || !path_to_exec.ends_with("udhcpd") {
+        if !path_to_exec
+                .file_name()
+                .map(|os_str| os_str.to_str().is_some_and(|str| str == "udhcpd"))
+                .unwrap_or(false)
+        {
             return Err(UDHCPDServerError::InvalidPath);
         }
         let mut command = Command::new(path_to_exec);
