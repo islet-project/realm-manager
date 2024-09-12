@@ -61,12 +61,10 @@ impl Manager {
         info!("Connected to warden daemon");
 
         info!("Initializing key sealing");
-        let sealing_factory = match &config.keysealing {
-            KeySealingType::Dummy => Box::new(DummyKeySealingFactory::new(vec![0x11, 0x22, 0x33]))
-                as Box<dyn KeySealingFactory + Send + Sync>,
+        let sealing_factory: Box<dyn KeySealingFactory + Send + Sync> = match &config.keysealing {
+            KeySealingType::Dummy => Box::new(DummyKeySealingFactory::new(vec![0x11, 0x22, 0x33])),
             KeySealingType::HkdfSha256(ikm_source) => {
                 Box::new(HkdfSealingFactory::new(ikm_source)?)
-                    as Box<dyn KeySealingFactory + Send + Sync>
             }
         };
 

@@ -23,7 +23,7 @@ pub enum OsError {
     InsmodReadFail(#[source] std::io::Error),
 
     #[error("Failed to insert module")]
-    InsmodFail(#[source] Errno)
+    InsmodFail(#[source] Errno),
 }
 
 pub enum SystemPowerAction {
@@ -48,9 +48,7 @@ pub fn reboot(action: SystemPowerAction) -> OsError {
 }
 
 pub async fn insmod(path: impl AsRef<Path>, params: impl AsRef<str>) -> Result<()> {
-    let mut file = File::open(path)
-        .await
-        .map_err(OsError::InsmodFileFail)?;
+    let mut file = File::open(path).await.map_err(OsError::InsmodFileFail)?;
 
     let mut image = Vec::new();
     file.read_to_end(&mut image)
@@ -59,9 +57,7 @@ pub async fn insmod(path: impl AsRef<Path>, params: impl AsRef<str>) -> Result<(
 
     let args = cstring_from_str(params)?;
 
-    block_in_place(|| nix::kmod::init_module(&image, &args)
-        .map_err(OsError::InsmodFail)
-    )?;
+    block_in_place(|| nix::kmod::init_module(&image, &args).map_err(OsError::InsmodFail))?;
 
     Ok(())
 }

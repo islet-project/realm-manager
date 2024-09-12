@@ -104,9 +104,18 @@ impl Config {
     }
 
     pub fn requires_rsi(&self) -> bool {
-        match self.keysealing {
-            KeySealingType::HkdfSha256(IkmSource::RsiSealingKey { .. }) => true,
-            _ => false
-        }
+        matches!(
+            (&self.keysealing, &self.launcher),
+            (
+                KeySealingType::HkdfSha256(IkmSource::RsiSealingKey { .. }),
+                _
+            ) | (
+                _,
+                LauncherType::Oci(OciLauncherConfig::RaTLS {
+                    token_resolver: TokenResolver::Rsi,
+                    ..
+                })
+            )
+        )
     }
 }
