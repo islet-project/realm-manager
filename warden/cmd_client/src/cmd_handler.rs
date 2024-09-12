@@ -32,6 +32,8 @@ impl CommandHanlder {
                 mac_address,
                 vsock_cid,
                 kernel,
+                kernel_initramfs,
+                kernel_options
             } => {
                 let cpu = CpuConfig {
                     cpu,
@@ -39,6 +41,8 @@ impl CommandHanlder {
                 };
                 let kernel = KernelConfig {
                     kernel_path: kernel,
+                    kernel_initramfs_path: kernel_initramfs,
+                    kernel_cmd_params: kernel_options
                 };
                 let memory = MemoryConfig { ram_size };
                 let network = NetworkConfig {

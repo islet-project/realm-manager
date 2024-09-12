@@ -4,7 +4,7 @@ use crate::managers::realm::{ApplicationCreator, Realm};
 use crate::managers::realm_client::RealmClient;
 use crate::managers::realm_configuration::RealmConfig;
 use crate::managers::realm_manager::RealmManager;
-use crate::managers::vm_manager::VmManager;
+use crate::managers::vm_manager::{VmManager, VmManagerError};
 use crate::managers::warden::{RealmCreator, WardenError};
 use crate::socket::vsocket_server::VSockServer;
 use crate::storage::{
@@ -12,7 +12,6 @@ use crate::storage::{
 };
 use crate::utils::repository::Repository;
 use crate::virtualization::network::NetworkManager;
-use crate::virtualization::qemu_runner::QemuRunner;
 
 use async_trait::async_trait;
 use std::collections::HashMap;
@@ -24,8 +23,14 @@ use uuid::Uuid;
 
 use super::application_fabric::ApplicationFabric;
 
+type Creator = Box<
+    dyn Fn(PathBuf, &RealmConfig) -> Result<Box<dyn VmManager + Send + Sync>, VmManagerError>
+        + Send
+        + Sync,
+>;
+
 pub struct RealmManagerFabric<N: NetworkManager + Send + Sync> {
-    qemu_path: PathBuf,
+    vm_manager_creator: Creator,
     vsock_server: Arc<Mutex<VSockServer>>,
     network_manager: Arc<Mutex<N>>,
     warden_workdir_path: PathBuf,
@@ -34,14 +39,14 @@ pub struct RealmManagerFabric<N: NetworkManager + Send + Sync> {
 
 impl<N: NetworkManager + Send + Sync + 'static> RealmManagerFabric<N> {
     pub fn new(
-        qemu_path: PathBuf,
+        vm_manager_creator: Creator,
         vsock_server: Arc<Mutex<VSockServer>>,
         warden_workdir_path: PathBuf,
         network_manager: Arc<Mutex<N>>,
         realm_connection_wait_time: Duration,
     ) -> Self {
         RealmManagerFabric::<N> {
-            qemu_path,
+            vm_manager_creator,
             vsock_server,
             network_manager,
             warden_workdir_path,
@@ -72,17 +77,6 @@ impl<N: NetworkManager + Send + Sync + 'static> RealmManagerFabric<N> {
         }
         Ok(loaded_applications)
     }
-
-    async fn create_vm_runner(
-        &self,
-        realm_workdir: PathBuf,
-        config: &RealmConfig,
-    ) -> Result<Box<dyn VmManager + Send + Sync>, WardenError> {
-        Ok(Box::new(
-            QemuRunner::new(self.qemu_path.clone(), realm_workdir.clone(), config)
-                .map_err(|err| WardenError::RealmCreationFail(err.to_string()))?,
-        ))
-    }
 }
 
 #[async_trait]
@@ -103,9 +97,8 @@ impl<N: NetworkManager + Send + Sync + 'static> RealmCreator for RealmManagerFab
             .create_tap_device_for_realm(config.network.tap_device.clone(), realm_id)
             .await
             .map_err(|err| WardenError::RealmCreationFail(err.to_string()))?;
-        let vm_runner = self
-            .create_vm_runner(realm_workdir.clone(), &config)
-            .await?;
+        let vm_manager = self.vm_manager_creator.as_ref()(realm_workdir.clone(), &config)
+            .map_err(|err| WardenError::RealmCreationFail(err.to_string()))?;
         Ok(Box::new(RealmManager::new(
             Box::new(
                 YamlConfigRepository::<RealmConfig>::new(
@@ -116,7 +109,7 @@ impl<N: NetworkManager + Send + Sync + 'static> RealmCreator for RealmManagerFab
                 .map_err(|err| WardenError::RealmCreationFail(err.to_string()))?,
             ),
             HashMap::new(),
-            vm_runner,
+            vm_manager,
             Arc::new(Mutex::new(Box::new(RealmClientHandler::new(
                 self.vsock_server.clone(),
                 self.realm_connection_wait_time,
@@ -155,13 +148,12 @@ impl<N: NetworkManager + Send + Sync + 'static> RealmCreator for RealmManagerFab
             .create_tap_device_for_realm(repository.get().network.tap_device.clone(), *realm_id)
             .await
             .map_err(|err| WardenError::RealmCreationFail(err.to_string()))?;
-        let runner = self
-            .create_vm_runner(realm_workdir_path, repository.get())
-            .await?;
+        let vm_manager = self.vm_manager_creator.as_ref()(realm_workdir_path, repository.get())
+            .map_err(|err| WardenError::RealmCreationFail(err.to_string()))?;
         Ok(Box::new(RealmManager::new(
             Box::new(repository),
             loaded_applications,
-            runner,
+            vm_manager,
             realm_client_handler,
             Box::new(application_fabric),
         )))

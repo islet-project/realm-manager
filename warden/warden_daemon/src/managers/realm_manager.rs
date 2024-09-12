@@ -306,7 +306,7 @@ mod test {
         let mut vm_manager_mock = MockVmManager::new();
         vm_manager_mock
             .expect_launch_vm()
-            .returning(|_| Err(VmManagerError::LaunchFail(Error::other(""))));
+            .returning(|_| Err(VmManagerError::Launch(Error::other(""))));
         let mut realm_manager = create_realm_manager(Some(vm_manager_mock), None);
         assert_eq!(
             realm_manager.start().await,
@@ -533,12 +533,12 @@ mod test {
         let mut vm_manager = MockVmManager::new();
         vm_manager
             .expect_stop_vm()
-            .return_once(|| Err(VmManagerError::StopFail));
+            .return_once(|| Err(VmManagerError::Stop));
         let mut realm_manager = create_realm_manager(Some(vm_manager), None);
         realm_manager.state = state.clone();
         assert_eq!(
             realm_manager.stop().await,
-            Err(RealmError::VmStopFail(VmManagerError::StopFail.to_string()))
+            Err(RealmError::VmStopFail(VmManagerError::Stop.to_string()))
         );
         assert_eq!(realm_manager.state, state);
     }

@@ -10,7 +10,6 @@ pub enum State {
     NeedReboot,
 }
 
-
 #[derive(Debug, Clone, PartialEq, PartialOrd, Serialize, Deserialize)]
 pub struct RealmNetwork {
     pub ip: IpAddr,
@@ -22,7 +21,7 @@ pub struct RealmDescription {
     pub uuid: Uuid,
     pub state: State,
     pub applications: Vec<Uuid>,
-    pub network: Vec<RealmNetwork>
+    pub network: Vec<RealmNetwork>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, PartialOrd)]
@@ -57,4 +56,6 @@ pub struct NetworkConfig {
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, PartialOrd)]
 pub struct KernelConfig {
     pub kernel_path: PathBuf,
+    pub kernel_initramfs_path: Option<PathBuf>,
+    pub kernel_cmd_params: Option<String>,
 }

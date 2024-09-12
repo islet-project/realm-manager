@@ -64,6 +64,8 @@ impl From<warden_client::realm::KernelConfig> for KernelConfig {
     fn from(value: warden_client::realm::KernelConfig) -> Self {
         Self {
             kernel_path: value.kernel_path,
+            kernel_initramfs_path: value.kernel_initramfs_path,
+            kernel_cmd_params: value.kernel_cmd_params,
         }
     }
 }

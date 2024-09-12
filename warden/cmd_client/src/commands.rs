@@ -37,13 +37,21 @@ pub enum Command {
         #[clap(short = 'u', long, default_value = None)]
         remote_terminal_uri: Option<String>,
 
-        /// VSOCK cid for realm
-        #[clap(short = 'v', long)]
-        vsock_cid: u32,
+        /// Path to kernel's initramfs
+        #[clap(short = 'i', long, default_value = None)]
+        kernel_initramfs: Option<PathBuf>,
 
+        /// Additional kernel options
+        #[clap(short = 'o', long, default_value = None)]
+        kernel_options: Option<String>,
+        
         /// Path to kernel image
         #[clap(short = 'k', long)]
         kernel: PathBuf,
+    
+        /// VSOCK cid for realm
+        #[clap(short = 'v', long)]
+        vsock_cid: u32,
     },
 
     ListRealms,
