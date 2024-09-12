@@ -22,7 +22,7 @@ NC          = \\033[0;m
 
 all: dnsmasq
 	@echo "$(GREEN_COLOR)Compile warden_daemon and client for ARM.$(NC)"
-	@RUSTFLAGS='-C target-feature=+crt-static' cargo build --target=aarch64-unknown-linux-gnu --config target.aarch64-unknown-linux-gnu.linker=\"aarch64-linux-gnu-gcc\" -r --out-dir $(BIN_DIR) -Z unstable-options
+	@cargo build --target=aarch64-unknown-linux-gnu -r --out-dir $(BIN_DIR) -Z unstable-options
 
 dnsmasq: fetch-dnsmasq compile-dnsmasq cleanup
 
