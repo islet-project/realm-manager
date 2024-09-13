@@ -3,6 +3,7 @@ ROOT_DIR           	= $(shell git rev-parse --show-toplevel)/warden
 BIN_DIR	           	= $(ROOT_DIR)/bin
 DNSMASQ_UPSTREAM	= https://github.com/imp/dnsmasq
 DNSMASQ_DIR			= $(BIN_DIR)/.dnsmasq
+CC					= $(REALM_DIR)/toolchain/aarch64-none-linux-gnu/bin/aarch64-none-linux-gnu-gcc
 
 export TEST_DIR	     			  		= $(ROOT_DIR)/test
 export TEST_BIN_DIR  			  		= $(TEST_DIR)/debug/deps
@@ -14,15 +15,19 @@ export DHCP_EXEC_PATH					= /usr/sbin/dnsmasq
 export NAT_NETWORK_NAME					= virtbWarden
 export REALM_KERNEL_PATH				= $(REALM_DIR)/linux/arch/arm64/boot/Image
 
-CC	= $(REALM_DIR)/toolchain/aarch64-none-linux-gnu/bin/aarch64-none-linux-gnu-gcc
+
+export RUST_COMPILE_TARGET									= aarch64-unknown-linux-gnu
+export CARGO_TARGET_AARCH64_UNKNOWN_LINUX_GNU_LINKER		= $(CC)
 
 GREEN_COLOR = \\033[0;32m
 RED_COLOR   = \\033[0;31m
 NC          = \\033[0;m
 
-all: dnsmasq
+all: dnsmasq compile-warden
+
+compile-warden:
 	@echo "$(GREEN_COLOR)Compile warden_daemon and client for ARM.$(NC)"
-	@cargo build --target=aarch64-unknown-linux-gnu -r --out-dir $(BIN_DIR) -Z unstable-options
+	@cargo build --target=$(RUST_COMPILE_TARGET) -r --out-dir $(BIN_DIR) -Z unstable-options
 
 dnsmasq: fetch-dnsmasq compile-dnsmasq cleanup
 
