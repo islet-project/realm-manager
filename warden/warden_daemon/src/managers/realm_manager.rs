@@ -87,11 +87,15 @@ impl RealmManager {
             Err(err) => {
                 self.state = State::Halted;
                 Err(RealmError::RealmStartFail(
-                    match self.vm_manager.get_exit_status() {
+                    match self
+                        .vm_manager
+                        .try_get_exit_status()
+                        .map_err(|vm_err| RealmError::RealmLaunchFail(vm_err.to_string()))?
+                    {
                         Some(runner_error) => format!("{}, {}", err, runner_error),
                         None => {
                             self.vm_manager
-                                .delete_vm()
+                                .shutdown()
                                 .map_err(|err| RealmError::VmDestroyFail(err.to_string()))?;
                             err.to_string()
                         }
@@ -105,7 +109,7 @@ impl RealmManager {
 impl Drop for RealmManager {
     fn drop(&mut self) {
         debug!("Called destructor for RealmManager.");
-        if let Err(error) = self.vm_manager.delete_vm() {
+        if let Err(error) = self.vm_manager.shutdown() {
             error!(
                 "Error occured while dropping RealmManager: {}",
                 RealmError::VmDestroyFail(error.to_string())
@@ -159,9 +163,8 @@ impl Realm for RealmManager {
             .await
             .map_err(|err| RealmError::RealmStopFail(err.to_string()))?;
         self.vm_manager
-            .stop_vm()
+            .shutdown()
             .map_err(|err| RealmError::VmStopFail(err.to_string()))?;
-        self.vm_manager.get_exit_status();
         self.state = State::Halted;
         Ok(())
     }
@@ -284,7 +287,7 @@ mod test {
     use std::collections::HashMap;
     use std::net::Ipv4Addr;
     use std::process::ExitStatus;
-    use std::{io::Error, sync::Arc};
+    use std::sync::Arc;
     use tokio::sync::Mutex;
     use uuid::Uuid;
 
@@ -328,8 +331,8 @@ mod test {
     async fn start_response_handle_vm_not_launched() {
         let mut vm_manager_mock = MockVmManager::new();
         vm_manager_mock
-            .expect_get_exit_status()
-            .returning(|| Some(ExitStatus::default()));
+            .expect_try_get_exit_status()
+            .returning(|| Ok(Some(ExitStatus::default())));
         let mut realm_manager = create_realm_manager(Some(vm_manager_mock), None);
         assert!(matches!(
             realm_manager
@@ -342,9 +345,11 @@ mod test {
     #[tokio::test]
     async fn start_response_handle_vm_destroy_error() {
         let mut vm_manager_mock = MockVmManager::new();
-        vm_manager_mock.expect_get_exit_status().returning(|| None);
         vm_manager_mock
-            .expect_delete_vm()
+            .expect_try_get_exit_status()
+            .returning(|| Ok(None));
+        vm_manager_mock
+            .expect_shutdown()
             .returning(|| Err(VmManagerError::VmNotLaunched));
         let mut realm_manager = create_realm_manager(Some(vm_manager_mock), None);
         assert!(matches!(
@@ -358,8 +363,10 @@ mod test {
     #[tokio::test]
     async fn start_response_handle_vm_destroy_success() {
         let mut vm_manager_mock = MockVmManager::new();
-        vm_manager_mock.expect_get_exit_status().returning(|| None);
-        vm_manager_mock.expect_delete_vm().returning(|| Ok(()));
+        vm_manager_mock
+            .expect_try_get_exit_status()
+            .returning(|| Ok(None));
+        vm_manager_mock.expect_shutdown().returning(|| Ok(()));
         let mut realm_manager = create_realm_manager(Some(vm_manager_mock), None);
         assert!(matches!(
             realm_manager
@@ -374,7 +381,7 @@ mod test {
         let mut vm_manager_mock = MockVmManager::new();
         vm_manager_mock
             .expect_launch_vm()
-            .returning(|_| Err(VmManagerError::Launch(Error::other(""))));
+            .returning(|_| Err(VmManagerError::Launch(String::new())));
         let mut realm_manager = create_realm_manager(Some(vm_manager_mock), None);
         assert_eq!(
             realm_manager.start().await,
@@ -595,13 +602,15 @@ mod test {
     async fn stop_realm_vm_error(state: State) {
         let mut vm_manager = MockVmManager::new();
         vm_manager
-            .expect_stop_vm()
-            .return_once(|| Err(VmManagerError::Stop));
+            .expect_shutdown()
+            .returning(|| Err(VmManagerError::Shutdown(String::new())));
         let mut realm_manager = create_realm_manager(Some(vm_manager), None);
         realm_manager.state = state.clone();
         assert_eq!(
             realm_manager.stop().await,
-            Err(RealmError::VmStopFail(VmManagerError::Stop.to_string()))
+            Err(RealmError::VmStopFail(
+                VmManagerError::Shutdown(String::new()).to_string()
+            ))
         );
         assert_eq!(realm_manager.state, state);
     }
@@ -733,8 +742,7 @@ mod test {
     ) -> RealmManager {
         let mut vm_manager = vm_manager.unwrap_or_default();
         vm_manager.expect_launch_vm().returning(|_| Ok(()));
-        vm_manager.expect_stop_vm().returning(|| Ok(()));
-        vm_manager.expect_delete_vm().returning(|| Ok(()));
+        vm_manager.expect_shutdown().returning(|| Ok(()));
         let mut realm_client_handler = realm_client_handler.unwrap_or_default();
         realm_client_handler
             .expect_provision_applications()
@@ -757,8 +765,9 @@ mod test {
         realm_client_handler
             .expect_read_realm_ifs()
             .returning(|| Ok(vec![]));
-        vm_manager.expect_get_exit_status().returning(|| None);
-        vm_manager.expect_get_exit_status().returning(|| None);
+        vm_manager
+            .expect_try_get_exit_status()
+            .returning(|| Ok(None));
 
         let mut app_mock = MockApplication::new();
         app_mock.expect_update_config().returning(|_| Ok(()));

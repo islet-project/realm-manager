@@ -1,12 +1,12 @@
 use std::{
-    io,
     path::PathBuf,
-    process::{Child, Command, ExitStatus},
+    process::{Command, ExitStatus},
 };
 
 use command_runner::CommandRunner;
 use log::trace;
 use uuid::Uuid;
+use vm_handler::VmHandler;
 
 use crate::{
     managers::vm_manager::{VmManager, VmManagerError},
@@ -16,84 +16,66 @@ use crate::{
 mod command_runner;
 pub mod lkvm;
 pub mod qemu;
+mod vm_handler;
 
 pub struct VmRunner<T: CommandRunner + Sized> {
     cmd_runner: T,
+    realm_id: Uuid,
     realm_workdir: PathBuf,
-    vm: Option<Child>,
+    vm: Option<VmHandler>,
 }
 
 impl<T: CommandRunner + Sized> VmRunner<T> {
-    pub fn new(runner: T, realm_workdir: PathBuf) -> Self {
+    pub fn new(runner: T, realm_id: Uuid, realm_workdir: PathBuf) -> Self {
         Self {
             cmd_runner: runner,
+            realm_id,
             realm_workdir,
             vm: None,
         }
     }
 
-    fn get_child(&mut self) -> Result<&mut Child, VmManagerError> {
+    fn get_handler(&mut self) -> Result<&mut VmHandler, VmManagerError> {
         self.vm.as_mut().ok_or(VmManagerError::VmNotLaunched)
     }
 
-    fn kill_and_wait(child: &mut Child) -> Result<(), VmManagerError> {
-        child
-            .kill()
-            .map_err(|err| VmManagerError::Destroy(err.to_string()))?;
-        child
-            .wait()
-            .map(|_| ())
-            .map_err(|err| VmManagerError::Destroy(err.to_string()))
-    }
+    fn prepare_run_command(&self, application_uuids: &[&Uuid]) -> Command {
+        let mut command = Command::new(self.cmd_runner.get_command().get_program());
+        command.args(self.cmd_runner.get_command().get_args());
 
-    fn setup_disk(&self, command: &mut Command, application_uuids: &[&Uuid]) {
         for app_uuid in application_uuids {
             let mut app_disk_path = self.realm_workdir.join(app_uuid.to_string());
             app_disk_path.push(ApplicationDiskManager::DISK_NAME);
-            self.cmd_runner.setup_disk(command, &app_disk_path);
+            self.cmd_runner.setup_disk(&mut command, &app_disk_path);
         }
+        command
     }
 }
 
 impl<T: CommandRunner + Sized> VmManager for VmRunner<T> {
     fn launch_vm(&mut self, application_uuids: &[&Uuid]) -> Result<(), VmManagerError> {
-        let mut command = Command::new(self.cmd_runner.get_command().get_program());
-        command.args(self.cmd_runner.get_command().get_args());
-        self.setup_disk(&mut command, application_uuids);
+        let command = self.prepare_run_command(application_uuids);
         trace!("Spawning realm with command: {:?}", command);
-        command
-            .spawn()
-            .map(|child| {
-                self.vm = Some(child);
-            })
-            .map_err(VmManagerError::Launch)?;
-        match self
-            .get_child()?
-            .try_wait()
-            .map_err(VmManagerError::Launch)?
-        {
-            Some(exit_status) => Err(VmManagerError::Launch(io::Error::other(
-                exit_status.to_string(),
-            ))),
-            None => Ok(()),
+
+        match self.vm.as_mut() {
+            Some(_) => Err(VmManagerError::VmAlreadyLaunched),
+            None => {
+                self.vm = Some(
+                    VmHandler::new(command, self.realm_id)
+                        .map_err(|err| VmManagerError::Launch(err.to_string()))?,
+                );
+                Ok(())
+            }
         }
     }
-    fn stop_vm(&mut self) -> Result<(), VmManagerError> {
-        self.vm
-            .as_mut()
-            .map(|child| child.kill().map_err(|_| VmManagerError::Stop))
-            .unwrap_or(Err(VmManagerError::VmNotLaunched))
+    fn shutdown(&mut self) -> Result<(), VmManagerError> {
+        self.get_handler()?
+            .shutdown()
+            .map_err(|err| VmManagerError::Shutdown(err.to_string()))
     }
-    fn delete_vm(&mut self) -> Result<(), VmManagerError> {
-        self.vm
-            .as_mut()
-            .map(Self::kill_and_wait)
-            .unwrap_or(Err(VmManagerError::VmNotLaunched))
-    }
-    fn get_exit_status(&mut self) -> Option<ExitStatus> {
-        if let Some(vm) = &mut self.vm {
-            return vm.try_wait().ok()?;
-        }
-        None
+    fn try_get_exit_status(&mut self) -> Result<Option<ExitStatus>, VmManagerError> {
+        self.get_handler()?
+            .try_get_exit_status()
+            .map_err(|err| VmManagerError::GetExitCode(err.to_string()))
     }
 }

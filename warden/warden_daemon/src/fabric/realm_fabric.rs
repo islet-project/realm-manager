@@ -24,7 +24,7 @@ use uuid::Uuid;
 use super::application_fabric::ApplicationFabric;
 
 type Creator = Box<
-    dyn Fn(PathBuf, &RealmConfig) -> Result<Box<dyn VmManager + Send + Sync>, VmManagerError>
+    dyn Fn(PathBuf, Uuid, &RealmConfig) -> Result<Box<dyn VmManager + Send + Sync>, VmManagerError>
         + Send
         + Sync,
 >;
@@ -100,7 +100,7 @@ impl<N: NetworkManager + Send + Sync + 'static> RealmCreator for RealmManagerFab
             .create_tap_device_for_realm(config.network.tap_device.clone(), realm_id)
             .await
             .map_err(|err| WardenError::RealmCreationFail(err.to_string()))?;
-        let vm_manager = self.vm_manager_creator.as_ref()(realm_workdir.clone(), &config)
+        let vm_manager = self.vm_manager_creator.as_ref()(realm_workdir.clone(), realm_id, &config)
             .map_err(|err| WardenError::RealmCreationFail(err.to_string()))?;
         Ok(Box::new(RealmManager::new(
             Box::new(
@@ -153,8 +153,9 @@ impl<N: NetworkManager + Send + Sync + 'static> RealmCreator for RealmManagerFab
             .create_tap_device_for_realm(repository.get().network.tap_device.clone(), *realm_id)
             .await
             .map_err(|err| WardenError::RealmCreationFail(err.to_string()))?;
-        let vm_manager = self.vm_manager_creator.as_ref()(realm_workdir_path, repository.get())
-            .map_err(|err| WardenError::RealmCreationFail(err.to_string()))?;
+        let vm_manager =
+            self.vm_manager_creator.as_ref()(realm_workdir_path, *realm_id, repository.get())
+                .map_err(|err| WardenError::RealmCreationFail(err.to_string()))?;
         Ok(Box::new(RealmManager::new(
             Box::new(repository),
             loaded_applications,

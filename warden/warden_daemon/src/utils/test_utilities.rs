@@ -164,10 +164,9 @@ mock! {
     pub VmManager {}
 
     impl VmManager for VmManager {
-        fn delete_vm(&mut self) -> Result<(), VmManagerError>;
-        fn get_exit_status(&mut self) -> Option<ExitStatus>;
+        fn try_get_exit_status(&mut self) -> Result<Option<ExitStatus>, VmManagerError>;
         fn launch_vm<'a>(& mut self, application_uuids:& [&'a Uuid]) -> Result<(), VmManagerError>;
-        fn stop_vm(&mut self) -> Result<(), VmManagerError>;
+        fn shutdown(&mut self) -> Result<(), VmManagerError>;
     }
 }
 
