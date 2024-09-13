@@ -19,6 +19,8 @@ MODULE_LICENSE("GPL");
 MODULE_AUTHOR("Havner");
 MODULE_DESCRIPTION("Linux RSI playground");
 
+/* Non standard RSIs used for sealing and handling realm metadata */
+#define RSI_ISLET_REALM_SEALING_KEY 0xC7000191
 
 #define RSI_TAG   "rsi: "
 #define RSI_INFO  KERN_INFO  RSI_TAG
@@ -306,12 +308,39 @@ unlock:
 	return ret;
 }
 
-static int do_sealing_key(struct rsi_sealing_key *sealing) 
+static int do_sealing_key(struct rsi_sealing_key *sealing)
 {
-	// TODO: Unstub this when sealing is implemented in RMM
-	const char *STUBBED = "abcdefghijklmnopqrstuvwxyzABCDEF";
-	memcpy(sealing->realm_sealing_key, STUBBED, sizeof(sealing->realm_sealing_key));
-	return 0;
+	union {
+		unsigned char key[SHA256_HKDF_OUTPUT_SIZE];
+		struct {
+			uint64_t k0;
+			uint64_t k1;
+			uint64_t k2;
+			uint64_t k3;
+		} dw;
+	} slk;
+
+	struct arm_smccc_1_2_regs input = {
+		.a0 = RSI_ISLET_REALM_SEALING_KEY,
+		.a1 = sealing->flags,
+		.a2 = sealing->svn
+	};
+	struct arm_smccc_1_2_regs output = {0};
+
+	arm_smccc_1_2_smc(&input, &output);
+
+	if (output.a0 == RSI_SUCCESS) {
+		slk.dw.k0 = output.a1;
+		slk.dw.k1 = output.a2;
+		slk.dw.k2 = output.a3;
+		slk.dw.k3 = output.a4;
+
+		(void)memcpy(&sealing->realm_sealing_key, slk.key, sizeof(sealing->realm_sealing_key));
+		memzero_explicit(slk.key, sizeof(slk.key));
+		memzero_explicit(&output, sizeof(output));
+	}
+
+	return -rsi_ret_to_errno(output.a0);
 }
 
 static long device_ioctl(struct file *f, unsigned int cmd, unsigned long arg)
@@ -456,7 +485,7 @@ static long device_ioctl(struct file *f, unsigned int cmd, unsigned long arg)
 end:
 	kfree(attest);
 	kfree(measur);
-	kfree(sealing);
+	kfree_sensitive(sealing);
 
 	// token not taken, inform more space is needed
 	if (retry)
