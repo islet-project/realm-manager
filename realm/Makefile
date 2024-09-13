@@ -159,7 +159,7 @@ compile-rsi-ko: $(RSI_KO_DIR)
 		echo "$(GREEN_COLOR)Precompiling kernel.$(NC)"; \
 		ARCH=arm64 CROSS_COMPILE=aarch64-none-linux-gnu- $(MAKE) -C "$(KERNEL_DIR)" virtconfig; \
 		cd "$(KERNEL_DIR)" && "$(KERNEL_DIR)/scripts/kconfig/merge_config.sh" -m "$(KERNEL_DIR)/.config" "$(CONFIG_DIR)/kernel.config"; \
-		ARCH=arm64 CROSS_COMPILE=aarch64-none-linux-gnu- $(MAKE) -C "$(KERNEL_DIR)" modules -j $(shell nproc); \
+		ARCH=arm64 CROSS_COMPILE=aarch64-none-linux-gnu- $(MAKE) -C "$(KERNEL_DIR)" -j $(shell nproc); \
 	fi;
 	@$(MAKE) -C $(RSI_KO_DIR)
 
