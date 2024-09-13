@@ -44,11 +44,11 @@ pub enum Command {
         /// Additional kernel options
         #[clap(short = 'o', long, default_value = None)]
         kernel_options: Option<String>,
-        
+
         /// Path to kernel image
         #[clap(short = 'k', long)]
         kernel: PathBuf,
-    
+
         /// VSOCK cid for realm
         #[clap(short = 'v', long)]
         vsock_cid: u32,
@@ -94,11 +94,11 @@ pub enum Command {
         /// Application name
         #[clap(short, long)]
         name: String,
-        
+
         /// Application version
         #[clap(short, long)]
         version: String,
-        
+
         /// Application image registry
         #[clap(short, long)]
         image_registry: String,
@@ -144,11 +144,11 @@ pub enum Command {
         /// Application name
         #[clap(short, long)]
         name: String,
-        
+
         /// Application version
         #[clap(short, long)]
         version: String,
-        
+
         /// Application image registry
         #[clap(short, long)]
         image_registry: String,

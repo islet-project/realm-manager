@@ -321,11 +321,13 @@ mod test {
 
         let result = receive_message_and_send_response(response, respondent).await;
 
-        assert!(
-            super::create_application(&mut communicator, realm_uuid, create_example_client_app_config())
-                .await
-                .is_ok()
-        );
+        assert!(super::create_application(
+            &mut communicator,
+            realm_uuid,
+            create_example_client_app_config()
+        )
+        .await
+        .is_ok());
         assert_eq!(result.await.unwrap(), command);
     }
 
@@ -417,7 +419,7 @@ mod test {
                 uuid: realm_uuid,
                 state: State::Halted,
                 applications: vec![],
-                network: vec![]
+                network: vec![],
             },
         };
         let (mut communicator, respondent) = create_communicators();
@@ -566,6 +568,12 @@ mod test {
     }
 
     fn create_example_client_app_config() -> ApplicationConfig {
-        ApplicationConfig { name: Default::default(), version: Default::default(), image_registry: Default::default(), image_storage_size_mb: Default::default(), data_storage_size_mb: Default::default() }
+        ApplicationConfig {
+            name: Default::default(),
+            version: Default::default(),
+            image_registry: Default::default(),
+            image_storage_size_mb: Default::default(),
+            data_storage_size_mb: Default::default(),
+        }
     }
 }
