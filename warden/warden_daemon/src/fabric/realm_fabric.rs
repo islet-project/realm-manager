@@ -19,6 +19,7 @@ use std::path::{Path, PathBuf};
 use std::sync::Arc;
 use std::time::Duration;
 use tokio::sync::Mutex;
+use tokio_util::sync::CancellationToken;
 use uuid::Uuid;
 
 use super::application_fabric::ApplicationFabric;
@@ -36,6 +37,7 @@ pub struct RealmManagerFabric<N: NetworkManager + Send + Sync> {
     warden_workdir_path: PathBuf,
     realm_connection_wait_time: Duration,
     realm_response_wait_time: Duration,
+    cancellation_token: Arc<CancellationToken>,
 }
 
 impl<N: NetworkManager + Send + Sync + 'static> RealmManagerFabric<N> {
@@ -46,6 +48,7 @@ impl<N: NetworkManager + Send + Sync + 'static> RealmManagerFabric<N> {
         network_manager: Arc<Mutex<N>>,
         realm_connection_wait_time: Duration,
         realm_response_wait_time: Duration,
+        cancellation_token: Arc<CancellationToken>,
     ) -> Self {
         RealmManagerFabric::<N> {
             vm_manager_creator,
@@ -54,6 +57,7 @@ impl<N: NetworkManager + Send + Sync + 'static> RealmManagerFabric<N> {
             warden_workdir_path,
             realm_connection_wait_time,
             realm_response_wait_time,
+            cancellation_token,
         }
     }
 
@@ -117,6 +121,7 @@ impl<N: NetworkManager + Send + Sync + 'static> RealmCreator for RealmManagerFab
                 self.vsock_server.clone(),
                 self.realm_connection_wait_time,
                 self.realm_response_wait_time,
+                self.cancellation_token.clone(),
             )))),
             Box::new(ApplicationFabric::new(realm_workdir)),
         )))
@@ -134,6 +139,7 @@ impl<N: NetworkManager + Send + Sync + 'static> RealmCreator for RealmManagerFab
                 self.vsock_server.clone(),
                 self.realm_connection_wait_time,
                 self.realm_response_wait_time,
+                self.cancellation_token.clone(),
             ))));
         let loaded_applications = self
             .load_applications(

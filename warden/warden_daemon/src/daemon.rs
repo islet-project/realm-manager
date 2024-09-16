@@ -51,6 +51,7 @@ impl Daemon {
             )
             .await?,
         ));
+        let cancellation_token = Arc::new(CancellationToken::new());
         let realm_fabric = Box::new(RealmManagerFabric::new(
             Box::new(move |path, realm_id, config| {
                 Ok(if cli.lkvm_runner {
@@ -72,6 +73,7 @@ impl Daemon {
             network_manager.clone(),
             Duration::from_secs(cli.realm_connection_wait_time_secs),
             Duration::from_secs(cli.realm_response_wait_time_secs),
+            cancellation_token.clone(),
         ));
         let warden = WardenFabric::new(cli.warden_workdir_path)
             .await?
@@ -83,7 +85,7 @@ impl Daemon {
             warden,
             usock_server,
             network_manager,
-            cancellation_token: Arc::new(CancellationToken::new()),
+            cancellation_token,
         })
     }
 

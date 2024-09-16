@@ -2,7 +2,7 @@ use super::repository::{Repository, RepositoryError};
 use crate::client_handler::realm_client_handler::{RealmConnector, RealmSender, RealmSenderError};
 use crate::managers::application::{ApplicationData, ApplicationDisk};
 use crate::managers::realm::RealmNetwork;
-use crate::managers::vm_manager::{VmManager, VmManagerError};
+use crate::managers::vm_manager::{VmManager, VmManagerError, VmStatus};
 use crate::managers::{
     application::{Application, ApplicationConfig, ApplicationError},
     realm::{ApplicationCreator, Realm, RealmData, RealmDescription, RealmError, State},
@@ -12,7 +12,6 @@ use crate::managers::{
 };
 use async_trait::async_trait;
 use mockall::mock;
-use std::process::ExitStatus;
 use std::time::Duration;
 use std::{str::FromStr, sync::Arc};
 use tokio::sync::oneshot::Receiver;
@@ -165,7 +164,7 @@ mock! {
 
     #[async_trait]
     impl VmManager for VmManager {
-        fn try_get_exit_status(&mut self) -> Result<Option<ExitStatus>, VmManagerError>;
+        fn get_status(&mut self) -> Result<VmStatus, VmManagerError>;
         async fn launch_vm<'life0, 'life1, 'life2>(&'life0 mut self, application_uuids: &'life1 [&'life2 Uuid]) -> Result<(), VmManagerError>;
         async fn shutdown(&mut self) -> Result<(), VmManagerError>;
     }

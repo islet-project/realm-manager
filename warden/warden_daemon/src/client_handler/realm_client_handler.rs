@@ -7,6 +7,7 @@ use thiserror::Error;
 use tokio::sync::Mutex;
 use tokio::time::{sleep, Duration};
 use tokio::{select, sync::oneshot::Receiver};
+use tokio_util::sync::CancellationToken;
 use utils::serde::json_framed::JsonFramedError;
 use uuid::Uuid;
 use warden_realm::{NetAddr, Request, Response};
@@ -41,6 +42,7 @@ pub struct RealmClientHandler {
     connector: Arc<Mutex<dyn RealmConnector + Send + Sync>>,
     connection_wait_time: Duration,
     response_timeout: Duration,
+    cancellation_token: Arc<CancellationToken>,
     sender: Option<Box<dyn RealmSender + Send + Sync>>,
 }
 
@@ -49,11 +51,13 @@ impl RealmClientHandler {
         realm_connector: Arc<Mutex<dyn RealmConnector + Send + Sync>>,
         realm_connection_wait_time: Duration,
         realm_response_timeout: Duration,
+        cancellation_token: Arc<CancellationToken>,
     ) -> Self {
         Self {
             connector: realm_connector,
             connection_wait_time: realm_connection_wait_time,
             response_timeout: realm_response_timeout,
+            cancellation_token,
             sender: None,
         }
     }
@@ -138,7 +142,10 @@ impl RealmClient for RealmClientHandler {
                 let _ = self.sender.insert(realm_sender.map_err(|err| RealmClientError::RealmConnectionFail(err.to_string()))?);
                 self.send_command(Request::ProvisionInfo(realm_provisioning_config.into())).await?;
                 Self::handle_success_command(self.read_response(self.connection_wait_time).await?)
-            }
+            },
+            _ = self.cancellation_token.cancelled() => {
+                Err(RealmClientError::RealmConnectionFail(String::from("Waiting for realm connection cancelled.")))
+            },
             _ = sleep(self.connection_wait_time) => {
                 Err(RealmClientError::RealmConnectionFail(String::from("Timeout on listening for realm connection.")))
             }
@@ -196,6 +203,7 @@ mod test {
         oneshot::{Receiver, Sender},
         Mutex,
     };
+    use tokio_util::sync::CancellationToken;
     use utils::serde::json_framed::JsonFramedError;
     use uuid::Uuid;
     use warden_realm::{NetAddr, ProtocolError, Request, Response};
@@ -634,6 +642,7 @@ mod test {
             Arc::new(Mutex::new(realm_connector)),
             Duration::from_secs(0),
             Duration::from_secs(0),
+            Arc::new(CancellationToken::new()),
         )
     }
 }

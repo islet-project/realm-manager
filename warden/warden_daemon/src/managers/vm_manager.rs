@@ -18,9 +18,15 @@ pub enum VmManagerError {
     Shutdown(String),
 }
 
+pub enum VmStatus {
+    Launched,
+    NotLaunched,
+    Exited(ExitStatus),
+}
+
 #[async_trait]
 pub trait VmManager {
     async fn launch_vm(&mut self, application_uuids: &[&Uuid]) -> Result<(), VmManagerError>;
     async fn shutdown(&mut self) -> Result<(), VmManagerError>;
-    fn try_get_exit_status(&mut self) -> Result<Option<ExitStatus>, VmManagerError>;
+    fn get_status(&mut self) -> Result<VmStatus, VmManagerError>;
 }

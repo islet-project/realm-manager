@@ -12,7 +12,6 @@ use tokio::{
     select,
     task::JoinHandle,
 };
-use tokio_util::sync::CancellationToken;
 use uuid::Uuid;
 
 #[derive(Debug, Error)]
@@ -61,8 +60,8 @@ impl VmHandler {
     }
 
     pub async fn shutdown(&mut self) -> Result<(), VmHandlerError> {
-        self.vm_process.kill().await.map_err(VmHandlerError::Kill)?;
         self.communication_thread_handle.abort();
+        self.vm_process.kill().await.map_err(VmHandlerError::Kill)?;
         self.vm_process
             .wait()
             .await
@@ -134,31 +133,21 @@ impl VmHandler {
         mut std_err: BufReader<ChildStderr>,
         uuid: Uuid,
     ) {
-        let cancellation_token = CancellationToken::new();
         loop {
             select! {
-                _ = cancellation_token.cancelled() => {
-                    return ;
-                },
                 std_out_log = Self::read_line(&mut std_out) => {
-                    Self::handle_vm_output(std_out_log, &cancellation_token, uuid);
+                    Self::handle_vm_output(std_out_log, uuid);
                 },
                 std_err_log = Self::read_line(&mut std_err) => {
-                    Self::handle_vm_output(std_err_log, &cancellation_token, uuid);
+                    Self::handle_vm_output(std_err_log, uuid);
                 }
             }
         }
     }
 
-    fn handle_vm_output(
-        output: Result<String, VmHandlerError>,
-        cancellation_token: &CancellationToken,
-        uuid: Uuid,
-    ) {
+    fn handle_vm_output(output: Result<String, VmHandlerError>, uuid: Uuid) {
         if let Ok(message) = output {
-            if message.is_empty() {
-                cancellation_token.cancel()
-            } else {
+            if !message.is_empty() {
                 trace!("Realm: {}: {}", uuid, message);
             }
         }

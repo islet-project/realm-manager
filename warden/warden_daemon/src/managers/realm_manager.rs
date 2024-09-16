@@ -4,7 +4,7 @@ use super::application::{Application, ApplicationConfig};
 use super::realm::{ApplicationCreator, Realm, RealmData, RealmError, State};
 use super::realm_client::{RealmClient, RealmClientError, RealmProvisioningConfig};
 use super::realm_configuration::*;
-use super::vm_manager::VmManager;
+use super::vm_manager::{VmManager, VmStatus};
 
 use async_trait::async_trait;
 use log::debug;
@@ -89,16 +89,19 @@ impl RealmManager {
                 Err(RealmError::RealmStartFail(
                     match self
                         .vm_manager
-                        .try_get_exit_status()
+                        .get_status()
                         .map_err(|vm_err| RealmError::RealmLaunchFail(vm_err.to_string()))?
                     {
-                        Some(runner_error) => format!("{}, {}", err, runner_error),
-                        None => {
+                        VmStatus::Exited(runner_error) => format!("{}, {}", err, runner_error),
+                        VmStatus::Launched => {
                             self.vm_manager
                                 .shutdown()
                                 .await
                                 .map_err(|err| RealmError::VmDestroyFail(err.to_string()))?;
                             err.to_string()
+                        }
+                        VmStatus::NotLaunched => {
+                            "Vm hasn't been launched successfully!".to_string()
                         }
                     },
                 ))
@@ -280,7 +283,7 @@ mod test {
     use super::{RealmError, RealmManager};
     use crate::managers::application::ApplicationError;
     use crate::managers::realm::RealmNetwork;
-    use crate::managers::vm_manager::VmManagerError;
+    use crate::managers::vm_manager::{VmManagerError, VmStatus};
     use crate::managers::{realm::Realm, realm_client::RealmClientError, realm_manager::State};
     use crate::utils::test_utilities::{
         create_example_app_config, create_example_application_data, create_example_realm_config,
@@ -335,8 +338,8 @@ mod test {
     async fn start_response_handle_vm_not_launched() {
         let mut vm_manager_mock = MockVmManager::new();
         vm_manager_mock
-            .expect_try_get_exit_status()
-            .returning(|| Ok(Some(ExitStatus::default())));
+            .expect_get_status()
+            .returning(|| Ok(VmStatus::Exited(ExitStatus::default())));
         let mut realm_manager = create_realm_manager(Some(vm_manager_mock), None);
         assert!(matches!(
             realm_manager
@@ -350,8 +353,8 @@ mod test {
     async fn start_response_handle_vm_destroy_error() {
         let mut vm_manager_mock = MockVmManager::new();
         vm_manager_mock
-            .expect_try_get_exit_status()
-            .returning(|| Ok(None));
+            .expect_get_status()
+            .returning(|| Ok(VmStatus::Launched));
         vm_manager_mock
             .expect_shutdown()
             .returning(|| Err(VmManagerError::VmNotLaunched));
@@ -368,8 +371,8 @@ mod test {
     async fn start_response_handle_vm_destroy_success() {
         let mut vm_manager_mock = MockVmManager::new();
         vm_manager_mock
-            .expect_try_get_exit_status()
-            .returning(|| Ok(None));
+            .expect_get_status()
+            .returning(|| Ok(VmStatus::Launched));
         vm_manager_mock.expect_shutdown().returning(|| Ok(()));
         let mut realm_manager = create_realm_manager(Some(vm_manager_mock), None);
         assert!(matches!(
@@ -770,8 +773,8 @@ mod test {
             .expect_read_realm_ifs()
             .returning(|| Ok(vec![]));
         vm_manager
-            .expect_try_get_exit_status()
-            .returning(|| Ok(None));
+            .expect_get_status()
+            .returning(|| Ok(VmStatus::Launched));
 
         let mut app_mock = MockApplication::new();
         app_mock.expect_update_config().returning(|_| Ok(()));
