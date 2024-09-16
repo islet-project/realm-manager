@@ -2,7 +2,6 @@ use std::{
     ffi::OsStr,
     io,
     process::{CommandArgs, ExitStatus, Stdio},
-    sync::Arc,
 };
 
 use log::{error, trace};
@@ -11,7 +10,6 @@ use tokio::{
     io::{AsyncBufReadExt, BufReader},
     process::{Child, ChildStderr, ChildStdout, Command},
     select,
-    sync::Mutex,
     task::JoinHandle,
 };
 use tokio_util::sync::CancellationToken;
@@ -36,7 +34,7 @@ pub enum VmHandlerError {
 }
 
 pub struct VmHandler {
-    vm_process: Arc<Mutex<Child>>,
+    vm_process: Child,
     communication_thread_handle: JoinHandle<()>,
 }
 
@@ -47,8 +45,8 @@ impl VmHandler {
         vm_id: Uuid,
     ) -> Result<VmHandler, VmHandlerError> {
         let command = Self::prepare_command(program, args);
-        let (vm_process, status) = Self::spawn_vm_process(command)?;
-        let (std_out, std_err) = Self::create_output_readers(&vm_process, vm_id).await?;
+        let (mut vm_process, status) = Self::spawn_vm_process(command)?;
+        let (std_out, std_err) = Self::create_output_readers(&mut vm_process, vm_id)?;
 
         match status {
             Some(exit_status) => Err(VmHandlerError::Launch(exit_status)),
@@ -63,42 +61,31 @@ impl VmHandler {
     }
 
     pub async fn shutdown(&mut self) -> Result<(), VmHandlerError> {
-        self.vm_process
-            .lock()
-            .await
-            .kill()
-            .await
-            .map_err(VmHandlerError::Kill)?;
+        self.vm_process.kill().await.map_err(VmHandlerError::Kill)?;
         self.communication_thread_handle.abort();
         self.vm_process
-            .lock()
-            .await
             .wait()
             .await
             .map(|_| ())
             .map_err(VmHandlerError::Wait)
     }
 
-    pub async fn try_get_exit_status(&mut self) -> Result<Option<ExitStatus>, io::Error> {
-        self.vm_process.lock().await.try_wait()
+    pub fn try_get_exit_status(&mut self) -> Result<Option<ExitStatus>, io::Error> {
+        self.vm_process.try_wait()
     }
 
-    async fn create_output_readers(
-        vm_process: &Arc<Mutex<Child>>,
+    fn create_output_readers(
+        vm_process: &mut Child,
         vm_id: Uuid,
     ) -> Result<(BufReader<ChildStdout>, BufReader<ChildStderr>), VmHandlerError> {
         let std_out = BufReader::new(
             vm_process
-                .lock()
-                .await
                 .stdout
                 .take()
                 .ok_or(VmHandlerError::StdOutTake(vm_id))?,
         );
         let std_err = BufReader::new(
             vm_process
-                .lock()
-                .await
                 .stderr
                 .take()
                 .ok_or(VmHandlerError::StdErrTake(vm_id))?,
@@ -117,10 +104,10 @@ impl VmHandler {
 
     fn spawn_vm_process(
         mut command: Command,
-    ) -> Result<(Arc<Mutex<Child>>, Option<ExitStatus>), VmHandlerError> {
+    ) -> Result<(Child, Option<ExitStatus>), VmHandlerError> {
         let mut vm_process = command.spawn().map_err(VmHandlerError::Spawn)?;
         let status = vm_process.try_wait().map_err(VmHandlerError::Wait)?;
-        Ok((Arc::new(Mutex::new(vm_process)), status))
+        Ok((vm_process, status))
     }
 
     fn spawn_log_thread(

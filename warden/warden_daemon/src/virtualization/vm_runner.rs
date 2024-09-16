@@ -77,10 +77,9 @@ impl<T: CommandRunner + Sized + Send + Sync> VmManager for VmRunner<T> {
             .await
             .map_err(|err| VmManagerError::Shutdown(err.to_string()))
     }
-    async fn try_get_exit_status(&mut self) -> Result<Option<ExitStatus>, VmManagerError> {
+    fn try_get_exit_status(&mut self) -> Result<Option<ExitStatus>, VmManagerError> {
         self.get_handler()?
             .try_get_exit_status()
-            .await
             .map_err(|err| VmManagerError::GetExitCode(err.to_string()))
     }
 }

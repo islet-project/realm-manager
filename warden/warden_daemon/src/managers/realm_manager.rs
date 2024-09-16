@@ -90,7 +90,6 @@ impl RealmManager {
                     match self
                         .vm_manager
                         .try_get_exit_status()
-                        .await
                         .map_err(|vm_err| RealmError::RealmLaunchFail(vm_err.to_string()))?
                     {
                         Some(runner_error) => format!("{}, {}", err, runner_error),

@@ -22,5 +22,5 @@ pub enum VmManagerError {
 pub trait VmManager {
     async fn launch_vm(&mut self, application_uuids: &[&Uuid]) -> Result<(), VmManagerError>;
     async fn shutdown(&mut self) -> Result<(), VmManagerError>;
-    async fn try_get_exit_status(&mut self) -> Result<Option<ExitStatus>, VmManagerError>;
+    fn try_get_exit_status(&mut self) -> Result<Option<ExitStatus>, VmManagerError>;
 }
