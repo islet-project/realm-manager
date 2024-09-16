@@ -9,7 +9,7 @@ use log::{error, trace};
 use thiserror::Error;
 use tokio::{
     io::{AsyncBufReadExt, BufReader},
-    process::{Child, Command},
+    process::{Child, ChildStderr, ChildStdout, Command},
     select,
     sync::Mutex,
     task::JoinHandle,
@@ -29,11 +29,14 @@ pub enum VmHandlerError {
     Wait(#[source] std::io::Error),
     #[error("Unable to read realm's output: {0}")]
     Read(#[source] std::io::Error),
+    #[error("Unable to take stdout from realm: {0}")]
+    StdOutTake(Uuid),
+    #[error("Unable to take stderr from realm: {0}")]
+    StdErrTake(Uuid),
 }
 
 pub struct VmHandler {
     vm_process: Arc<Mutex<Child>>,
-    cancellation_token: Arc<CancellationToken>,
     communication_thread_handle: JoinHandle<()>,
 }
 
@@ -43,27 +46,16 @@ impl VmHandler {
         args: CommandArgs<'_>,
         vm_id: Uuid,
     ) -> Result<VmHandler, VmHandlerError> {
-        let mut command = Command::new(program);
-        command.args(args);
-        command.stdin(Stdio::null());
-        command.stdout(Stdio::piped());
-        command.stderr(Stdio::piped());
+        let command = Self::prepare_command(program, args);
+        let (vm_process, status) = Self::spawn_vm_process(command)?;
+        let (std_out, std_err) = Self::create_output_readers(&vm_process, vm_id).await?;
 
-        let vm_process = Arc::new(Mutex::new(command.spawn().map_err(VmHandlerError::Spawn)?));
-        let status = vm_process
-            .lock()
-            .await
-            .try_wait()
-            .map_err(VmHandlerError::Wait)?;
         match status {
             Some(exit_status) => Err(VmHandlerError::Launch(exit_status)),
             None => Ok({
-                let cancellation_token = Arc::new(CancellationToken::new());
-                let communication_thread_handle =
-                    Self::spawn_log_thread(vm_process.clone(), cancellation_token.clone(), vm_id);
+                let communication_thread_handle = Self::spawn_log_thread(std_out, std_err, vm_id);
                 VmHandler {
                     vm_process,
-                    cancellation_token,
                     communication_thread_handle,
                 }
             }),
@@ -77,7 +69,6 @@ impl VmHandler {
             .kill()
             .await
             .map_err(VmHandlerError::Kill)?;
-        self.cancellation_token.cancel();
         self.communication_thread_handle.abort();
         self.vm_process
             .lock()
@@ -92,13 +83,53 @@ impl VmHandler {
         self.vm_process.lock().await.try_wait()
     }
 
+    async fn create_output_readers(
+        vm_process: &Arc<Mutex<Child>>,
+        vm_id: Uuid,
+    ) -> Result<(BufReader<ChildStdout>, BufReader<ChildStderr>), VmHandlerError> {
+        let std_out = BufReader::new(
+            vm_process
+                .lock()
+                .await
+                .stdout
+                .take()
+                .ok_or(VmHandlerError::StdOutTake(vm_id))?,
+        );
+        let std_err = BufReader::new(
+            vm_process
+                .lock()
+                .await
+                .stderr
+                .take()
+                .ok_or(VmHandlerError::StdErrTake(vm_id))?,
+        );
+        Ok((std_out, std_err))
+    }
+
+    fn prepare_command(program: &OsStr, args: CommandArgs<'_>) -> Command {
+        let mut command = Command::new(program);
+        command.args(args);
+        command.stdin(Stdio::null());
+        command.stdout(Stdio::piped());
+        command.stderr(Stdio::piped());
+        command
+    }
+
+    fn spawn_vm_process(
+        mut command: Command,
+    ) -> Result<(Arc<Mutex<Child>>, Option<ExitStatus>), VmHandlerError> {
+        let mut vm_process = command.spawn().map_err(VmHandlerError::Spawn)?;
+        let status = vm_process.try_wait().map_err(VmHandlerError::Wait)?;
+        Ok((Arc::new(Mutex::new(vm_process)), status))
+    }
+
     fn spawn_log_thread(
-        process: Arc<Mutex<Child>>,
-        cancellation_token: Arc<CancellationToken>,
+        std_out: BufReader<ChildStdout>,
+        std_err: BufReader<ChildStderr>,
         uuid: Uuid,
     ) -> JoinHandle<()> {
         tokio::spawn(async move {
-            Self::gather_output(process, cancellation_token, uuid).await;
+            Self::gather_output(std_out, std_err, uuid).await;
         })
     }
 
@@ -112,49 +143,36 @@ impl VmHandler {
     }
 
     async fn gather_output(
-        process: Arc<Mutex<Child>>,
-        cancellation_token: Arc<CancellationToken>,
+        mut std_out: BufReader<ChildStdout>,
+        mut std_err: BufReader<ChildStderr>,
         uuid: Uuid,
     ) {
-        let (mut std_out, mut std_out_open) = {
-            if let Some(std_out) = process.lock().await.stdout.take() {
-                (BufReader::new(std_out), true)
-            } else {
-                error!("Unable to read std_out from realm with id: {}", uuid);
-                return;
-            }
-        };
-        let (mut std_err, mut std_err_open) = {
-            if let Some(std_err) = process.lock().await.stderr.take() {
-                (BufReader::new(std_err), true)
-            } else {
-                error!("Unable to read std_err from realm with id: {}", uuid);
-                return;
-            }
-        };
+        let cancellation_token = CancellationToken::new();
         loop {
             select! {
                 _ = cancellation_token.cancelled() => {
                     return ;
                 },
-                std_out_log = Self::read_line(&mut std_out), if std_out_open => {
-                    if let Ok(message) = std_out_log {
-                        if message.is_empty() {
-                            std_out_open = false;
-                        } else {
-                            trace!("Realm: {}: {}", uuid, message);
-                        }
-                    }
+                std_out_log = Self::read_line(&mut std_out) => {
+                    Self::handle_vm_output(std_out_log, &cancellation_token, uuid);
                 },
-                std_err_log = Self::read_line(&mut std_err), if std_err_open => {
-                    if let Ok(message) = std_err_log {
-                        if message.is_empty() {
-                            std_err_open = false;
-                        } else {
-                            trace!("Realm: {} std_err: {}", uuid, message);
-                        }
-                    }
+                std_err_log = Self::read_line(&mut std_err) => {
+                    Self::handle_vm_output(std_err_log, &cancellation_token, uuid);
                 }
+            }
+        }
+    }
+
+    fn handle_vm_output(
+        output: Result<String, VmHandlerError>,
+        cancellation_token: &CancellationToken,
+        uuid: Uuid,
+    ) {
+        if let Ok(message) = output {
+            if message.is_empty() {
+                cancellation_token.cancel()
+            } else {
+                trace!("Realm: {}: {}", uuid, message);
             }
         }
     }
