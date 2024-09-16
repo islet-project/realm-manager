@@ -163,10 +163,11 @@ mock! {
 mock! {
     pub VmManager {}
 
+    #[async_trait]
     impl VmManager for VmManager {
-        fn try_get_exit_status(&mut self) -> Result<Option<ExitStatus>, VmManagerError>;
-        fn launch_vm<'a>(& mut self, application_uuids:& [&'a Uuid]) -> Result<(), VmManagerError>;
-        fn shutdown(&mut self) -> Result<(), VmManagerError>;
+        async fn try_get_exit_status(&mut self) -> Result<Option<ExitStatus>, VmManagerError>;
+        async fn launch_vm<'life0, 'life1, 'life2>(&'life0 mut self, application_uuids: &'life1 [&'life2 Uuid]) -> Result<(), VmManagerError>;
+        async fn shutdown(&mut self) -> Result<(), VmManagerError>;
     }
 }
 

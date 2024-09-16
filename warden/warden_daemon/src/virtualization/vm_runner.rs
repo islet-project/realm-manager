@@ -3,6 +3,7 @@ use std::{
     process::{Command, ExitStatus},
 };
 
+use async_trait::async_trait;
 use command_runner::CommandRunner;
 use log::trace;
 use uuid::Uuid;
@@ -18,14 +19,14 @@ pub mod lkvm;
 pub mod qemu;
 mod vm_handler;
 
-pub struct VmRunner<T: CommandRunner + Sized> {
+pub struct VmRunner<T: CommandRunner + Sized + Send + Sync> {
     cmd_runner: T,
     realm_id: Uuid,
     realm_workdir: PathBuf,
     vm: Option<VmHandler>,
 }
 
-impl<T: CommandRunner + Sized> VmRunner<T> {
+impl<T: CommandRunner + Sized + Send + Sync> VmRunner<T> {
     pub fn new(runner: T, realm_id: Uuid, realm_workdir: PathBuf) -> Self {
         Self {
             cmd_runner: runner,
@@ -52,8 +53,9 @@ impl<T: CommandRunner + Sized> VmRunner<T> {
     }
 }
 
-impl<T: CommandRunner + Sized> VmManager for VmRunner<T> {
-    fn launch_vm(&mut self, application_uuids: &[&Uuid]) -> Result<(), VmManagerError> {
+#[async_trait]
+impl<T: CommandRunner + Sized + Send + Sync> VmManager for VmRunner<T> {
+    async fn launch_vm(&mut self, application_uuids: &[&Uuid]) -> Result<(), VmManagerError> {
         let command = self.prepare_run_command(application_uuids);
         trace!("Spawning realm with command: {:?}", command);
 
@@ -61,21 +63,24 @@ impl<T: CommandRunner + Sized> VmManager for VmRunner<T> {
             Some(_) => Err(VmManagerError::VmAlreadyLaunched),
             None => {
                 self.vm = Some(
-                    VmHandler::new(command, self.realm_id)
+                    VmHandler::new(command.get_program(), command.get_args(), self.realm_id)
+                        .await
                         .map_err(|err| VmManagerError::Launch(err.to_string()))?,
                 );
                 Ok(())
             }
         }
     }
-    fn shutdown(&mut self) -> Result<(), VmManagerError> {
+    async fn shutdown(&mut self) -> Result<(), VmManagerError> {
         self.get_handler()?
             .shutdown()
+            .await
             .map_err(|err| VmManagerError::Shutdown(err.to_string()))
     }
-    fn try_get_exit_status(&mut self) -> Result<Option<ExitStatus>, VmManagerError> {
+    async fn try_get_exit_status(&mut self) -> Result<Option<ExitStatus>, VmManagerError> {
         self.get_handler()?
             .try_get_exit_status()
+            .await
             .map_err(|err| VmManagerError::GetExitCode(err.to_string()))
     }
 }

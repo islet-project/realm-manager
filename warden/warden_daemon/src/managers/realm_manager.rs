@@ -7,7 +7,7 @@ use super::realm_configuration::*;
 use super::vm_manager::VmManager;
 
 use async_trait::async_trait;
-use log::{debug, error};
+use log::debug;
 use std::collections::HashMap;
 use std::sync::Arc;
 use tokio::sync::Mutex;
@@ -90,12 +90,14 @@ impl RealmManager {
                     match self
                         .vm_manager
                         .try_get_exit_status()
+                        .await
                         .map_err(|vm_err| RealmError::RealmLaunchFail(vm_err.to_string()))?
                     {
                         Some(runner_error) => format!("{}, {}", err, runner_error),
                         None => {
                             self.vm_manager
                                 .shutdown()
+                                .await
                                 .map_err(|err| RealmError::VmDestroyFail(err.to_string()))?;
                             err.to_string()
                         }
@@ -109,12 +111,13 @@ impl RealmManager {
 impl Drop for RealmManager {
     fn drop(&mut self) {
         debug!("Called destructor for RealmManager.");
-        if let Err(error) = self.vm_manager.shutdown() {
-            error!(
-                "Error occured while dropping RealmManager: {}",
-                RealmError::VmDestroyFail(error.to_string())
-            );
-        }
+        self.vm_manager.shutdown();
+        // if let Err(error) = self.vm_manager.shutdown() {
+        //     error!(
+        //         "Error occured while dropping RealmManager: {}",
+        //         RealmError::VmDestroyFail(error.to_string())
+        //     );
+        // }
     }
 }
 
@@ -132,6 +135,7 @@ impl Realm for RealmManager {
         let apps_uuids: Vec<&Uuid> = self.applications.keys().collect();
         self.vm_manager
             .launch_vm(&apps_uuids)
+            .await
             .map_err(|err| RealmError::RealmLaunchFail(err.to_string()))?;
 
         self.state = State::Provisioning;
@@ -164,6 +168,7 @@ impl Realm for RealmManager {
             .map_err(|err| RealmError::RealmStopFail(err.to_string()))?;
         self.vm_manager
             .shutdown()
+            .await
             .map_err(|err| RealmError::VmStopFail(err.to_string()))?;
         self.state = State::Halted;
         Ok(())

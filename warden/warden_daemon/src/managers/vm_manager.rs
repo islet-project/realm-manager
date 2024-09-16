@@ -1,5 +1,6 @@
 use std::process::ExitStatus;
 
+use async_trait::async_trait;
 use thiserror::Error;
 use uuid::Uuid;
 
@@ -17,8 +18,9 @@ pub enum VmManagerError {
     Shutdown(String),
 }
 
+#[async_trait]
 pub trait VmManager {
-    fn launch_vm(&mut self, application_uuids: &[&Uuid]) -> Result<(), VmManagerError>;
-    fn shutdown(&mut self) -> Result<(), VmManagerError>;
-    fn try_get_exit_status(&mut self) -> Result<Option<ExitStatus>, VmManagerError>;
+    async fn launch_vm(&mut self, application_uuids: &[&Uuid]) -> Result<(), VmManagerError>;
+    async fn shutdown(&mut self) -> Result<(), VmManagerError>;
+    async fn try_get_exit_status(&mut self) -> Result<Option<ExitStatus>, VmManagerError>;
 }
