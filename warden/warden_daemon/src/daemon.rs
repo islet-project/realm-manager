@@ -24,16 +24,13 @@ use tokio::sync::Mutex;
 use tokio::task::JoinHandle;
 use tokio_util::sync::CancellationToken;
 
-pub struct Daemon {
-    vsock_server: Arc<Mutex<VSockServer>>,
-    usock_server: UnixSocketServer,
-    warden: Box<dyn Warden + Send + Sync>,
-    network_manager: Arc<Mutex<NetworkManagerHandler<DnsmasqServerHandler>>>,
-    cancellation_token: Arc<CancellationToken>,
+#[derive(Default)]
+pub struct DaemonBuilder {
+    network_manager: Option<Arc<Mutex<NetworkManagerHandler<DnsmasqServerHandler>>>>,
 }
 
-impl Daemon {
-    pub async fn new(cli: Cli) -> anyhow::Result<Self, Error> {
+impl DaemonBuilder {
+    pub async fn build_daemon(&mut self, cli: Cli) -> anyhow::Result<Daemon, Error> {
         let vsock_server = Arc::new(Mutex::new(VSockServer::new(VSockServerConfig {
             cid: cli.cid,
             port: cli.port,
@@ -41,7 +38,7 @@ impl Daemon {
         let mut udhcp_server =
             DnsmasqServerHandler::new(&cli.dhcp_exec_path, cli.dhcp_total_clients)?;
         udhcp_server.add_dns_args(cli.dns_records);
-        let network_manager = Arc::new(Mutex::new(
+        self.network_manager = Some(Arc::new(Mutex::new(
             NetworkManagerHandler::create_nat(
                 NetworkConfig {
                     net_if_name: cli.bridge_name,
@@ -50,7 +47,12 @@ impl Daemon {
                 udhcp_server,
             )
             .await?,
-        ));
+        )));
+        let network_manager = self
+            .network_manager
+            .as_ref()
+            .expect("Network manager hasn't been created!")
+            .clone();
         let cancellation_token = Arc::new(CancellationToken::new());
         let realm_fabric = Box::new(RealmManagerFabric::new(
             Box::new(move |path, realm_id, config| {
@@ -80,7 +82,7 @@ impl Daemon {
             .create_warden(realm_fabric)
             .await?;
         let usock_server = UnixSocketServer::new(&cli.unix_sock_path)?;
-        Ok(Self {
+        Ok(Daemon {
             vsock_server,
             warden,
             usock_server,
@@ -88,7 +90,23 @@ impl Daemon {
             cancellation_token,
         })
     }
+    pub async fn cleanup(&mut self) -> anyhow::Result<(), Error> {
+        if let Some(network_manager) = self.network_manager.as_mut() {
+            network_manager.lock().await.shutdown_nat().await?;
+        }
+        Ok(())
+    }
+}
 
+pub struct Daemon {
+    vsock_server: Arc<Mutex<VSockServer>>,
+    usock_server: UnixSocketServer,
+    warden: Box<dyn Warden + Send + Sync>,
+    network_manager: Arc<Mutex<NetworkManagerHandler<DnsmasqServerHandler>>>,
+    cancellation_token: Arc<CancellationToken>,
+}
+
+impl Daemon {
     pub async fn run(self) -> anyhow::Result<JoinHandle<Result<(), Error>>, Error> {
         info!("Starting application.");
         let mut vsock_thread = Self::spawn_vsock_server_thread(

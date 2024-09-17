@@ -10,7 +10,7 @@ use nix::{
     unistd::Pid,
 };
 use uuid::Uuid;
-use warden_daemon::daemon::Daemon;
+use warden_daemon::daemon::DaemonBuilder;
 
 mod common;
 
@@ -22,7 +22,7 @@ async fn sig_term_shutdown() {
         .get_path()
         .join(format!("usock-{}", Uuid::new_v4()));
     let cli = common::create_example_cli(usock_path, workdir_path_manager.get_path().to_path_buf());
-    let app = Daemon::new(cli).await.unwrap();
+    let app = DaemonBuilder::default().build_daemon(cli).await.unwrap();
     let handle = app.run().await.unwrap();
     signal::kill(Pid::this(), SIGTERM).unwrap();
     assert!(handle.await.unwrap().is_ok());
@@ -39,7 +39,7 @@ async fn sig_int_shutdown() {
         common::create_example_cli(usock_path, workdir_path_manager.get_path().to_path_buf());
     cli.network_address = IpNet::V4(Ipv4Net::new(Ipv4Addr::new(192, 168, 100, 0), 24).unwrap());
     cli.bridge_name = String::from("BrigeTest2");
-    let app = Daemon::new(cli).await.unwrap();
+    let app = DaemonBuilder::default().build_daemon(cli).await.unwrap();
     let handle = app.run().await.unwrap();
     signal::kill(Pid::this(), SIGINT).unwrap();
     assert!(handle.await.unwrap().is_ok());
