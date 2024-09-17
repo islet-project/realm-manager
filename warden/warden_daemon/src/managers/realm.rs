@@ -51,6 +51,7 @@ pub trait Realm {
         uuid: &Uuid,
         new_config: ApplicationConfig,
     ) -> Result<(), RealmError>;
+    async fn destroy(&mut self) -> Result<(), RealmError>;
 }
 
 #[async_trait]
