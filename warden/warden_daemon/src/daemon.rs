@@ -1,7 +1,9 @@
+use crate::virtualization::dnsmasq_server_handler::DnsmasqServerError;
 use crate::virtualization::dnsmasq_server_handler::DnsmasqServerHandler;
 use crate::virtualization::nat_manager::NetworkManagerHandler;
 use crate::virtualization::network::NetworkConfig;
 use crate::virtualization::network::NetworkManager;
+use crate::virtualization::network::NetworkManagerError;
 use crate::virtualization::vm_runner::lkvm::LkvmRunner;
 use crate::virtualization::vm_runner::qemu::QemuRunner;
 use crate::virtualization::vm_runner::VmRunner;
@@ -14,7 +16,9 @@ use super::managers::warden::Warden;
 use super::socket::unix_socket_server::{UnixSocketServer, UnixSocketServerError};
 use super::socket::vsocket_server::{VSockServer, VSockServerConfig, VSockServerError};
 use anyhow::Error;
+use ipnet::IpNet;
 use log::{debug, error, info};
+use std::path::PathBuf;
 use std::sync::Arc;
 use std::time::Duration;
 use tokio::select;
@@ -47,29 +51,53 @@ impl DaemonBuilder {
         }
     }
 
-    async fn build_daemon(&mut self, cli: Cli) -> anyhow::Result<Daemon, Error> {
-        let vsock_server = Arc::new(Mutex::new(VSockServer::new(VSockServerConfig {
-            cid: cli.cid,
-            port: cli.port,
-        })));
-        let mut udhcp_server =
-            DnsmasqServerHandler::new(&cli.dhcp_exec_path, cli.dhcp_total_clients)?;
-        udhcp_server.add_dns_args(cli.dns_records);
-        self.network_manager = Some(Arc::new(Mutex::new(
+    fn create_vsock_server(cid: u32, port: u32) -> Arc<Mutex<VSockServer>> {
+        Arc::new(Mutex::new(VSockServer::new(VSockServerConfig {
+            cid,
+            port,
+        })))
+    }
+
+    fn create_dhcp_and_dns_server(
+        exec_path: PathBuf,
+        total_clients: u8,
+        dns_records: Vec<String>,
+    ) -> Result<DnsmasqServerHandler, DnsmasqServerError> {
+        let mut server = DnsmasqServerHandler::new(&exec_path, total_clients)?;
+        server.add_dns_args(dns_records);
+        Ok(server)
+    }
+
+    async fn create_network_manager(
+        &mut self,
+        net_if_name: String,
+        net_if_ip: IpNet,
+        server: DnsmasqServerHandler,
+    ) -> Result<Arc<Mutex<NetworkManagerHandler<DnsmasqServerHandler>>>, NetworkManagerError> {
+        let network_manager = Arc::new(Mutex::new(
             NetworkManagerHandler::create_nat(
                 NetworkConfig {
-                    net_if_name: cli.bridge_name,
-                    net_if_ip: cli.network_address,
+                    net_if_name,
+                    net_if_ip,
                 },
-                udhcp_server,
+                server,
             )
             .await?,
-        )));
+        ));
+        self.network_manager = Some(network_manager.clone());
+        Ok(network_manager)
+    }
+
+    async fn build_daemon(&mut self, cli: Cli) -> anyhow::Result<Daemon, Error> {
+        let vsock_server = Self::create_vsock_server(cli.cid, cli.port);
+        let dhcp_dns_server = Self::create_dhcp_and_dns_server(
+            cli.dhcp_exec_path,
+            cli.dhcp_total_clients,
+            cli.dns_records,
+        )?;
         let network_manager = self
-            .network_manager
-            .as_ref()
-            .expect("Network manager hasn't been created!")
-            .clone();
+            .create_network_manager(cli.bridge_name, cli.network_address, dhcp_dns_server)
+            .await?;
         let cancellation_token = Arc::new(CancellationToken::new());
         let realm_fabric = Box::new(RealmManagerFabric::new(
             Box::new(move |path, realm_id, config| {
