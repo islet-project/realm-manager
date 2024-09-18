@@ -148,7 +148,7 @@ impl VmHandler {
     fn handle_vm_output(output: Result<String, VmHandlerError>, uuid: Uuid) {
         if let Ok(message) = output {
             if !message.is_empty() {
-                trace!("Realm: {}: {}", uuid, message);
+                trace!("Realm: {}: {}", uuid, message.trim_ascii());
             }
         }
     }

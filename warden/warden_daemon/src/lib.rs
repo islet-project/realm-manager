@@ -1,3 +1,4 @@
+#![feature(byte_slice_trim_ascii)]
 mod client_handler;
 mod fabric;
 mod managers;
