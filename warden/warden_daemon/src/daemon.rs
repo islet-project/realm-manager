@@ -138,9 +138,9 @@ impl DaemonBuilder {
 
     async fn cleanup(&mut self) {
         if let Some(network_manager) = self.network_manager.as_mut() {
-            if let Err(err) = network_manager.lock().await.shutdown_nat().await {
-                error!("Cleaining up error: {}", err)
-            }
+            info!("Started cleaning up Network Manager!");
+            network_manager.lock().await.shutdown_nat().await;
+            info!("Finished cleaning up Network Manager!");
         }
     }
 }
@@ -189,9 +189,9 @@ impl Daemon {
             info!("Shutting down application.");
             self.cancellation_token.cancel();
 
-            if let Err(err) = self.network_manager.lock().await.shutdown_nat().await {
-                error!("Failed to shutdown network manager: {err}");
-            }
+            info!("Shutting down network manager!");
+            self.network_manager.lock().await.shutdown_nat().await;
+            info!("Network manager cleaned up succesfully!");
 
             if !vsock_thread.is_finished() {
                 debug!("VSockServer result: {:#?}", vsock_thread.await);

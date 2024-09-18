@@ -4,7 +4,7 @@ use std::sync::Arc;
 use std::time::Duration;
 
 use async_trait::async_trait;
-use log::{info, trace};
+use log::{debug, info, trace};
 use thiserror::Error;
 use tokio::select;
 use tokio::sync::oneshot::{Receiver, Sender};
@@ -102,6 +102,7 @@ impl VSockClient {
 #[async_trait]
 impl RealmSender for VSockClient {
     async fn send(&mut self, request: Request) -> Result<(), RealmSenderError> {
+        debug!("Sending request to realm: {:#?}", request);
         self.stream
             .send(request)
             .await
@@ -110,6 +111,7 @@ impl RealmSender for VSockClient {
     async fn receive_response(&mut self, timeout: Duration) -> Result<Response, RealmSenderError> {
         select! {
             response = self.stream.recv() => {
+                debug!("Received realm's response: {:#?}", response);
                 response.map_err(|err| {
                     match err {
                         JsonFramedError::SerdeReadError(err) if err.kind() == ErrorKind::ConnectionReset => RealmSenderError::Disconnection,

@@ -6,6 +6,7 @@ use std::{
 
 use async_trait::async_trait;
 use gpt::{mbr::ProtectiveMBR, partition::Partition, DiskDevice, GptConfig, GptDisk};
+use log::info;
 use serde::{Deserialize, Serialize};
 use thiserror::Error;
 use tokio::{
@@ -61,11 +62,13 @@ pub struct ApplicationDiskManager {
 #[async_trait]
 impl ApplicationDisk for ApplicationDiskManager {
     async fn create_disk_with_partitions(&self) -> Result<(), ApplicationError> {
+        info!("Creating disk: {:#?}", self.file_path);
         if self.ensure_partitions_correctness().await.is_err() {
             self.create_application_disk()
                 .await
                 .map_err(|err| ApplicationError::DiskOpertaion(err.to_string()))?
         }
+        info!("Created disk: {:#?}", self.file_path);
         Ok(())
     }
     async fn update_disk_with_partitions(
