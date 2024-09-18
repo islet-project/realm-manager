@@ -24,13 +24,30 @@ use tokio::sync::Mutex;
 use tokio::task::JoinHandle;
 use tokio_util::sync::CancellationToken;
 
-#[derive(Default)]
 pub struct DaemonBuilder {
     network_manager: Option<Arc<Mutex<NetworkManagerHandler<DnsmasqServerHandler>>>>,
 }
 
 impl DaemonBuilder {
-    pub async fn build_daemon(&mut self, cli: Cli) -> anyhow::Result<Daemon, Error> {
+    fn new() -> Self {
+        DaemonBuilder {
+            network_manager: None,
+        }
+    }
+
+    pub async fn build(cli: Cli) -> anyhow::Result<Daemon, Error> {
+        let mut daemon_builder = Self::new();
+
+        match daemon_builder.build_daemon(cli).await {
+            Err(error) => {
+                daemon_builder.cleanup().await;
+                Err(error)
+            }
+            daemon => daemon,
+        }
+    }
+
+    async fn build_daemon(&mut self, cli: Cli) -> anyhow::Result<Daemon, Error> {
         let vsock_server = Arc::new(Mutex::new(VSockServer::new(VSockServerConfig {
             cid: cli.cid,
             port: cli.port,
@@ -90,11 +107,13 @@ impl DaemonBuilder {
             cancellation_token,
         })
     }
-    pub async fn cleanup(&mut self) -> anyhow::Result<(), Error> {
+
+    async fn cleanup(&mut self) {
         if let Some(network_manager) = self.network_manager.as_mut() {
-            network_manager.lock().await.shutdown_nat().await?;
+            if let Err(err) = network_manager.lock().await.shutdown_nat().await {
+                error!("Cleaining up error: {}", err)
+            }
         }
-        Ok(())
     }
 }
 

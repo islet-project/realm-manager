@@ -19,7 +19,7 @@ async fn check_realms_network() {
         workdir_path_manager.get_path().to_path_buf(),
     );
     let bridge_ip = cli.network_address.clone();
-    let app = DaemonBuilder::default().build_daemon(cli).await.unwrap();
+    let app = DaemonBuilder::build(cli).await.unwrap();
     let handle = app.run().await.unwrap();
 
     let mut connection = WardenConnection::connect(usock_path)
