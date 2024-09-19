@@ -33,14 +33,10 @@ pub struct DaemonBuilder {
 }
 
 impl DaemonBuilder {
-    fn new() -> Self {
-        DaemonBuilder {
-            network_manager: None,
-        }
-    }
-
     pub async fn build(cli: Cli) -> anyhow::Result<Daemon, Error> {
-        let mut daemon_builder = Self::new();
+        let mut daemon_builder = Self {
+            network_manager: None,
+        };
 
         match daemon_builder.build_daemon(cli).await {
             Err(error) => {
