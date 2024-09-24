@@ -1,5 +1,5 @@
 use std::path::{Path, PathBuf};
-use std::process::{Command, Stdio};
+use std::process::Command;
 
 use crate::managers::realm_configuration::{
     CpuConfig, KernelConfig, MemoryConfig, NetworkConfig, RealmConfig,
@@ -64,10 +64,6 @@ impl QemuRunner {
     fn control_output(&mut self) {
         self.command.arg("-nographic");
         self.command.arg("-append").arg("console=ttyAMA0");
-
-        self.command.stdin(Stdio::null());
-        self.command.stdout(Stdio::piped());
-        self.command.stderr(Stdio::piped());
     }
 }
 

@@ -19,12 +19,13 @@ use std::path::{Path, PathBuf};
 use std::sync::Arc;
 use std::time::Duration;
 use tokio::sync::Mutex;
+use tokio_util::sync::CancellationToken;
 use uuid::Uuid;
 
 use super::application_fabric::ApplicationFabric;
 
 type Creator = Box<
-    dyn Fn(PathBuf, &RealmConfig) -> Result<Box<dyn VmManager + Send + Sync>, VmManagerError>
+    dyn Fn(PathBuf, Uuid, &RealmConfig) -> Result<Box<dyn VmManager + Send + Sync>, VmManagerError>
         + Send
         + Sync,
 >;
@@ -36,6 +37,7 @@ pub struct RealmManagerFabric<N: NetworkManager + Send + Sync> {
     warden_workdir_path: PathBuf,
     realm_connection_wait_time: Duration,
     realm_response_wait_time: Duration,
+    cancellation_token: Arc<CancellationToken>,
 }
 
 impl<N: NetworkManager + Send + Sync + 'static> RealmManagerFabric<N> {
@@ -46,6 +48,7 @@ impl<N: NetworkManager + Send + Sync + 'static> RealmManagerFabric<N> {
         network_manager: Arc<Mutex<N>>,
         realm_connection_wait_time: Duration,
         realm_response_wait_time: Duration,
+        cancellation_token: Arc<CancellationToken>,
     ) -> Self {
         RealmManagerFabric::<N> {
             vm_manager_creator,
@@ -54,6 +57,7 @@ impl<N: NetworkManager + Send + Sync + 'static> RealmManagerFabric<N> {
             warden_workdir_path,
             realm_connection_wait_time,
             realm_response_wait_time,
+            cancellation_token,
         }
     }
 
@@ -100,7 +104,7 @@ impl<N: NetworkManager + Send + Sync + 'static> RealmCreator for RealmManagerFab
             .create_tap_device_for_realm(config.network.tap_device.clone(), realm_id)
             .await
             .map_err(|err| WardenError::RealmCreationFail(err.to_string()))?;
-        let vm_manager = self.vm_manager_creator.as_ref()(realm_workdir.clone(), &config)
+        let vm_manager = self.vm_manager_creator.as_ref()(realm_workdir.clone(), realm_id, &config)
             .map_err(|err| WardenError::RealmCreationFail(err.to_string()))?;
         Ok(Box::new(RealmManager::new(
             Box::new(
@@ -117,6 +121,7 @@ impl<N: NetworkManager + Send + Sync + 'static> RealmCreator for RealmManagerFab
                 self.vsock_server.clone(),
                 self.realm_connection_wait_time,
                 self.realm_response_wait_time,
+                self.cancellation_token.clone(),
             )))),
             Box::new(ApplicationFabric::new(realm_workdir)),
         )))
@@ -134,6 +139,7 @@ impl<N: NetworkManager + Send + Sync + 'static> RealmCreator for RealmManagerFab
                 self.vsock_server.clone(),
                 self.realm_connection_wait_time,
                 self.realm_response_wait_time,
+                self.cancellation_token.clone(),
             ))));
         let loaded_applications = self
             .load_applications(
@@ -153,8 +159,9 @@ impl<N: NetworkManager + Send + Sync + 'static> RealmCreator for RealmManagerFab
             .create_tap_device_for_realm(repository.get().network.tap_device.clone(), *realm_id)
             .await
             .map_err(|err| WardenError::RealmCreationFail(err.to_string()))?;
-        let vm_manager = self.vm_manager_creator.as_ref()(realm_workdir_path, repository.get())
-            .map_err(|err| WardenError::RealmCreationFail(err.to_string()))?;
+        let vm_manager =
+            self.vm_manager_creator.as_ref()(realm_workdir_path, *realm_id, repository.get())
+                .map_err(|err| WardenError::RealmCreationFail(err.to_string()))?;
         Ok(Box::new(RealmManager::new(
             Box::new(repository),
             loaded_applications,
