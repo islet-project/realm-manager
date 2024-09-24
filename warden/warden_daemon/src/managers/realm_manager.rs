@@ -7,7 +7,6 @@ use super::realm_configuration::*;
 use super::vm_manager::{VmManager, VmStatus};
 
 use async_trait::async_trait;
-use log::debug;
 use std::collections::HashMap;
 use std::sync::Arc;
 use tokio::sync::Mutex;
@@ -107,19 +106,6 @@ impl RealmManager {
                 ))
             }
         }
-    }
-}
-
-impl Drop for RealmManager {
-    fn drop(&mut self) {
-        debug!("Called destructor for RealmManager.");
-        self.vm_manager.shutdown();
-        // if let Err(error) = self.vm_manager.shutdown() {
-        //     error!(
-        //         "Error occured while dropping RealmManager: {}",
-        //         RealmError::VmDestroyFail(error.to_string())
-        //     );
-        // }
     }
 }
 
@@ -275,6 +261,14 @@ impl Realm for RealmManager {
             applications: self.applications.keys().copied().collect(),
             ips: ifs_ip,
         })
+    }
+
+    async fn destroy(&mut self) -> Result<(), RealmError> {
+        self.vm_manager
+            .shutdown()
+            .await
+            .map_err(|err| RealmError::VmDestroyFail(err.to_string()))?;
+        Ok(())
     }
 }
 

@@ -44,5 +44,5 @@ pub trait NetworkManager {
         realm_id: Uuid,
     ) -> Result<(), NetworkManagerError>;
 
-    async fn shutdown_nat(&mut self) -> Result<(), NetworkManagerError>;
+    async fn shutdown_nat(&mut self);
 }

@@ -17,6 +17,8 @@ pub enum WardenError {
     DestroyFail(String),
     #[error("Failed to create realm: {0}")]
     RealmCreationFail(String),
+    #[error("Realm is under another operation")]
+    RealmIsBusy(),
 }
 
 #[async_trait]

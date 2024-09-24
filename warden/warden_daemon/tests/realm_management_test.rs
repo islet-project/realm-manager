@@ -3,7 +3,7 @@ use client_lib::WardenConnection;
 use common::{create_example_realm_config, request_shutdown, WorkdirManager};
 use uuid::Uuid;
 use warden_client::realm::State;
-use warden_daemon::daemon::Daemon;
+use warden_daemon::daemon::DaemonBuilder;
 
 #[tokio::test(flavor = "multi_thread")]
 #[ignore]
@@ -17,7 +17,7 @@ async fn manage_realm() {
         usock_path.clone(),
         workdir_path_manager.get_path().to_path_buf(),
     );
-    let app = Daemon::new(cli).await.unwrap();
+    let app = DaemonBuilder::build(cli).await.unwrap();
     let handle = app.run().await.unwrap();
 
     let mut connection = WardenConnection::connect(usock_path)

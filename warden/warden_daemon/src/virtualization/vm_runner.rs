@@ -2,7 +2,7 @@ use std::{path::PathBuf, process::Command};
 
 use async_trait::async_trait;
 use command_runner::CommandRunner;
-use log::trace;
+use log::debug;
 use uuid::Uuid;
 use vm_handler::VmHandler;
 
@@ -64,7 +64,10 @@ impl<T: CommandRunner + Sized + Send + Sync> VmRunner<T> {
 impl<T: CommandRunner + Sized + Send + Sync> VmManager for VmRunner<T> {
     async fn launch_vm(&mut self, application_uuids: &[&Uuid]) -> Result<(), VmManagerError> {
         let command = self.prepare_run_command(application_uuids);
-        trace!("Spawning realm with command: {:?}", command);
+        debug!(
+            "Spawning realm's vm: {} with command: {:?}",
+            self.realm_id, command
+        );
 
         if self.vm.is_some() {
             return Err(VmManagerError::VmAlreadyLaunched);
@@ -74,20 +77,26 @@ impl<T: CommandRunner + Sized + Send + Sync> VmManager for VmRunner<T> {
             .await
             .map_err(|err| VmManagerError::Launch(err.to_string()))?;
         self.vm = Some(vm_handler);
+
+        debug!("Realm's vm: {} spawned succesfully!", self.realm_id);
         Ok(())
     }
     async fn shutdown(&mut self) -> Result<(), VmManagerError> {
+        debug!("Shutting down realm's vm: {}", self.realm_id);
         self.get_handler()?
             .shutdown()
             .await
             .map_err(|err| VmManagerError::Shutdown(err.to_string()))?;
         self.vm = None;
+        debug!("Realm's vm: {} shutdown succesfully!", self.realm_id);
         Ok(())
     }
     fn get_status(&mut self) -> Result<VmStatus, VmManagerError> {
-        match self.vm.as_mut() {
+        let status = match self.vm.as_mut() {
             Some(vm_handler) => Self::handle_get_status(vm_handler),
             None => Ok(VmStatus::NotLaunched),
-        }
+        };
+        debug!("Realm's vm: {} status: {:#?}", self.realm_id, status);
+        status
     }
 }

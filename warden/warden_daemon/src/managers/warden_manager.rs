@@ -22,6 +22,29 @@ impl WardenDaemon {
             realms_managers: realms,
         }
     }
+
+    async fn ensure_realm_can_be_deleted(&mut self, realm_uuid: &Uuid) -> Result<(), WardenError> {
+        let realm = self
+            .realms_managers
+            .get(realm_uuid)
+            .ok_or(WardenError::NoSuchRealm(*realm_uuid))?;
+        if Arc::strong_count(realm) != 1 {
+            return Err(WardenError::RealmIsBusy());
+        }
+        let realm_state = realm
+            .lock()
+            .await
+            .get_realm_data()
+            .await
+            .map_err(|err| WardenError::RealmInspect(err.to_string()))?;
+        if realm_state.state != State::Halted {
+            Err(WardenError::DestroyFail(String::from(
+                "Can't destroy realm that isn't stopped.",
+            )))
+        } else {
+            Ok(())
+        }
+    }
 }
 
 #[async_trait]
@@ -38,25 +61,14 @@ impl Warden for WardenDaemon {
     }
 
     async fn destroy_realm(&mut self, realm_uuid: &Uuid) -> Result<(), WardenError> {
+        self.ensure_realm_can_be_deleted(realm_uuid).await?;
+
         let realm = self
             .realms_managers
-            .get(realm_uuid)
-            .ok_or(WardenError::NoSuchRealm(*realm_uuid))?;
-        let realm_state = realm
-            .lock()
-            .await
-            .get_realm_data()
-            .await
-            .map_err(|err| WardenError::RealmInspect(err.to_string()))?;
-        if realm_state.state != State::Halted {
-            return Err(WardenError::DestroyFail(String::from(
-                "Can't destroy realm that isn't stopped.",
-            )));
-        }
-        self.realms_managers
             .remove(realm_uuid)
-            .ok_or(WardenError::NoSuchRealm(*realm_uuid))
-            .map(|_| ())?;
+            .ok_or(WardenError::NoSuchRealm(*realm_uuid))?;
+        let realm = Arc::into_inner(realm).expect("At this point Arc must be owned!");
+        let _ = realm.into_inner().destroy().await;
         self.realm_fabric.clean_up_realm(realm_uuid).await
     }
 
@@ -255,6 +267,7 @@ mod test {
             realm_mock
                 .expect_get_realm_data()
                 .returning(|| Ok(create_example_realm_data()));
+            realm_mock.expect_destroy().returning(|| Ok(()));
             realm_mock
         }));
         let mut creator_mock = MockRealmManagerCreator::new();

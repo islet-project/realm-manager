@@ -90,6 +90,7 @@ mock! {
         async fn get_realm_data(& self) -> Result<RealmData, RealmError>;
         fn get_application(&self, uuid:& Uuid) -> Result<Arc<tokio::sync::Mutex<Box<dyn Application + Send + Sync>>>, RealmError>;
         async fn update_application(&mut self, uuid:& Uuid, new_config: ApplicationConfig) -> Result<(), RealmError>;
+        async fn destroy(&mut self) -> Result<(), RealmError>;
     }
 }
 

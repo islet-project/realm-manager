@@ -18,6 +18,7 @@ pub enum VmManagerError {
     Shutdown(String),
 }
 
+#[derive(Debug, Clone)]
 pub enum VmStatus {
     Launched,
     NotLaunched,
