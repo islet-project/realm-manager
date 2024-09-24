@@ -17,3 +17,7 @@ pub fn json_dump(obj: impl Serialize + Sized) -> Result<String> {
 pub fn json_load<T: DeserializeOwned>(content: impl AsRef<str>) -> Result<T> {
     Ok(serde_json::from_str(content.as_ref()).map_err(JsonError::SerializationError)?)
 }
+
+pub fn json_load_bytes<T: DeserializeOwned>(content: impl AsRef<[u8]>) -> Result<T> {
+    Ok(serde_json::from_slice(content.as_ref()).map_err(JsonError::SerializationError)?)
+}

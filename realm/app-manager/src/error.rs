@@ -14,6 +14,7 @@ use crate::launcher::dummy::DummyLauncherError;
 use crate::launcher::handler::ApplicationHandlerError;
 use crate::launcher::oci::OciLauncherError;
 use crate::manager::ManagerError;
+use crate::util::crypto;
 use crate::util::disk::DiskError;
 use crate::util::fs;
 use crate::util::net::NetError;
@@ -91,6 +92,9 @@ pub enum Error {
 
     #[error("Rsi token resolver error")]
     RsiTokenResolver(#[from] RsiTokenResolverError),
+
+    #[error("Crypto error")]
+    Crypto(#[from] crypto::CryptoError)
 }
 
 pub type Result<T> = std::result::Result<T, Error>;

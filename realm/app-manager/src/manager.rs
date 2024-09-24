@@ -20,6 +20,8 @@ use crate::launcher::handler::ApplicationHandlerError;
 use crate::launcher::oci::OciLauncher;
 use crate::launcher::ApplicationHandler;
 use crate::launcher::{dummy::DummyLauncher, Launcher};
+use crate::util::crypto::EcdsaKey;
+use crate::util::fs::read_to_vec;
 use crate::util::net::read_if_addrs;
 use crate::util::os::{insmod, reboot, SystemPowerAction};
 
@@ -76,10 +78,15 @@ impl Manager {
         })
     }
 
-    fn make_launcher(&self) -> Result<Box<dyn Launcher + Send + Sync>> {
+    async fn make_launcher(&self) -> Result<Box<dyn Launcher + Send + Sync>> {
         match &self.config.launcher {
             LauncherType::Dummy => Ok(Box::new(DummyLauncher::new())),
-            LauncherType::Oci(cfg) => Ok(Box::new(OciLauncher::from_oci_config(cfg.clone()))),
+            LauncherType::Oci(cfg) => {
+                let ca = read_to_vec(&self.config.ca_pub).await?;
+                let ca_key = EcdsaKey::import(ca)?;
+
+                Ok(Box::new(OciLauncher::from_oci_config(cfg.clone(), ca_key)))
+            },
         }
     }
 
@@ -140,7 +147,7 @@ impl Manager {
 
         for app_info in apps_info.into_iter() {
             let app_dir = self.config.workdir.join(app_info.id.to_string());
-            let launcher = self.make_launcher()?;
+            let launcher = self.make_launcher().await?;
             let keyseal = self.make_keyseal()?;
             let params = self.config.crypto.clone();
 

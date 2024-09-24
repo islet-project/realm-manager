@@ -33,6 +33,7 @@ oci-spec = "*"
 hkdf = "*"
 hex-literal = "*"
 rust-rsi = { git = "https://github.com/islet-project/remote-attestation", branch = "dev/m.szaknis/key_sealing" }
+p384 = { version = "*", features = [ "ecdsa" ] }
 
 [profile.release]
 strip = true

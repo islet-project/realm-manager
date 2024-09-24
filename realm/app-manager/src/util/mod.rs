@@ -3,6 +3,7 @@ use std::path::Path;
 
 use crate::error::Result;
 
+pub mod crypto;
 pub mod disk;
 pub mod fs;
 pub mod net;

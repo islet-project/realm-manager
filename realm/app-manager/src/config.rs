@@ -90,6 +90,8 @@ pub struct Config {
     #[serde(with = "serde_yaml::with::singleton_map_recursive")]
     pub launcher: LauncherType,
 
+    pub ca_pub: PathBuf,
+
     #[serde(with = "serde_yaml::with::singleton_map_recursive")]
     pub keysealing: KeySealingType,
 
