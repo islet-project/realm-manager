@@ -4,7 +4,7 @@ use std::{
     process::{CommandArgs, ExitStatus, Stdio},
 };
 
-use log::{error, trace};
+use log::error;
 use thiserror::Error;
 use tokio::{
     io::{AsyncBufReadExt, BufReader},
@@ -148,7 +148,7 @@ impl VmHandler {
     fn handle_vm_output(output: Result<String, VmHandlerError>, uuid: Uuid) {
         if let Ok(message) = output {
             if !message.is_empty() {
-                trace!("Realm: {}: {}", uuid, message.trim_ascii());
+                println!("Realm: {}: {}", uuid, message.trim_ascii());
             }
         }
     }
