@@ -79,6 +79,21 @@ pub enum KeySealingType {
     HkdfSha256(IkmSource),
 }
 
+#[derive(Debug, Serialize, Deserialize, Clone, Copy)]
+pub enum ExtendREM {
+    #[serde(rename = "rem0")]
+    Rem0 = 1,
+
+    #[serde(rename = "rem1")]
+    Rem1 = 2,
+
+    #[serde(rename = "rem2")]
+    Rem2 = 3,
+
+    #[serde(rename = "rem3")]
+    Rem3 = 4
+}
+
 #[allow(dead_code)]
 #[non_exhaustive]
 #[derive(Debug, Serialize, Deserialize)]
@@ -96,6 +111,7 @@ pub struct Config {
     pub keysealing: KeySealingType,
 
     pub autostartall: bool,
+    pub extend: Option<ExtendREM>
 }
 
 impl Config {
@@ -107,16 +123,22 @@ impl Config {
 
     pub fn requires_rsi(&self) -> bool {
         matches!(
-            (&self.keysealing, &self.launcher),
+            (&self.keysealing, &self.launcher, &self.extend),
             (
                 KeySealingType::HkdfSha256(IkmSource::RsiSealingKey { .. }),
+                _,
                 _
             ) | (
                 _,
                 LauncherType::Oci(OciLauncherConfig::RaTLS {
                     token_resolver: TokenResolver::Rsi,
                     ..
-                })
+                }),
+                _
+            ) | (
+                _,
+                _,
+                Some(_)
             )
         )
     }

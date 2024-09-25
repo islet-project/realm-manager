@@ -127,15 +127,15 @@ impl OciLauncher {
         Self { launcher_config, ca_pub }
     }
 
-    fn verify_signature(&self, annotations: &RequiredAnnotations, config_hash: &[u8]) -> Result<()> {
-        debug!("Verifying vendor public key: {:#?}", annotations.vendor_pubkey);
+    fn verify_signature(&self, annotations: &RequiredAnnotations, config: &[u8]) -> Result<()> {
+        debug!("Verifying vendor public key: {:?}", annotations.vendor_pubkey);
         self.ca_pub.verify(&annotations.vendor_pubkey, &annotations.vendor_pubkey_signature)?;
 
         trace!("Importing vendor public key");
         let vendor_key = EcdsaKey::import(&annotations.vendor_pubkey)?;
 
-        debug!("Verifying application signature");
-        vendor_key.verify(config_hash, &annotations.signature)?;
+        debug!("Verifying application signature {:?}", annotations.signature);
+        vendor_key.verify(config, &annotations.signature)?;
 
         Ok(())
     }
@@ -332,7 +332,7 @@ impl Launcher for OciLauncher {
         match validated_metadata {
             None => {
                 info!("Verifying application {}:{} signature", name, version);
-                self.verify_signature(&annotations, &new_config_hash)?;
+                self.verify_signature(&annotations, image_info.config_bytes())?;
                 info!("Signature validated successfully");
 
                 let img_dir = path.join("img");

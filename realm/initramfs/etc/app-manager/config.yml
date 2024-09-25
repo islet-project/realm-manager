@@ -16,3 +16,4 @@ keysealing:
     StubbedHex: AABB
 autostartall: true
 ca_pub: /usr/share/app-manager/ca/root-ca.pub
+extend: rem0
