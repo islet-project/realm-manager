@@ -40,7 +40,7 @@ pub enum ManagerError {
     FramedJsonError(#[from] JsonFramedError),
 
     #[error("Rem extension error")]
-    RemExtensionError(#[source] nix::Error),
+    RemExtensionError(#[source] nix::errno::Errno),
 
     #[error("Application yield no measurements")]
     AppHasNoMeasurements(),

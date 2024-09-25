@@ -126,8 +126,8 @@ dependencies = [
  "nix 0.29.0",
  "oci-spec 0.7.0",
  "p384",
- "ratls 0.1.0 (git+https://github.com/islet-project/remote-attestation?branch=dev/z.abramowska/temp)",
- "rust-rsi 0.1.0 (git+https://github.com/islet-project/remote-attestation?branch=dev/m.szaknis/key_sealing)",
+ "ratls 0.1.0 (git+https://github.com/islet-project/remote-attestation?branch=disable-challenge-veraison)",
+ "rust-rsi 0.1.0 (git+https://github.com/islet-project/remote-attestation?branch=disable-challenge-veraison)",
  "serde",
  "serde_json",
  "serde_yaml",
@@ -160,9 +160,9 @@ dependencies = [
 
 [[package]]
 name = "async-trait"
-version = "0.1.82"
+version = "0.1.83"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "a27b8a3a6e1a44fa4c8baf1f653e4172e81486d4941f2237e20dc2d0cf4ddff1"
+checksum = "721cae7de5c34fbb2acd27e21e6d2cf7b886dce0c27388d46c4e6c47ea4318dd"
 dependencies = [
  "proc-macro2",
  "quote",
@@ -1121,9 +1121,9 @@ dependencies = [
 
 [[package]]
 name = "hyper-util"
-version = "0.1.8"
+version = "0.1.9"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "da62f120a8a37763efb0cf8fdf264b884c7b8b9ac8660b900c8661030c00e6ba"
+checksum = "41296eb09f183ac68eec06e03cdbea2e759633d4067b2f6552fc2e009bcad08b"
 dependencies = [
  "bytes",
  "futures-channel",
@@ -1134,7 +1134,6 @@ dependencies = [
  "pin-project-lite",
  "socket2",
  "tokio",
- "tower",
  "tower-service",
  "tracing",
 ]
@@ -1207,7 +1206,7 @@ checksum = "187674a687eed5fe42285b40c6291f9a01517d415fad1c3cbc6a9f778af7fcd4"
 [[package]]
 name = "ir-client"
 version = "0.3.0"
-source = "git+https://github.com/islet-project/image-registry#8cf1379c20892c96d45d68d2fbdb102675dcab5c"
+source = "git+https://github.com/islet-project/image-registry#e09d8a4297d3a760af6fbce62bc8e880c4bb0bb4"
 dependencies = [
  "async-compression",
  "clap",
@@ -1352,7 +1351,7 @@ checksum = "c0ff37bd590ca25063e35af745c343cb7a0271906fb7b37e4813e8f79f00268d"
 dependencies = [
  "bitflags 2.6.0",
  "libc",
- "redox_syscall 0.5.4",
+ "redox_syscall 0.5.6",
 ]
 
 [[package]]
@@ -1622,7 +1621,7 @@ checksum = "1e401f977ab385c9e4e3ab30627d6f26d00e2c73eef317493c4ec6d468726cf8"
 dependencies = [
  "cfg-if",
  "libc",
- "redox_syscall 0.5.4",
+ "redox_syscall 0.5.6",
  "smallvec",
  "windows-targets 0.52.6",
 ]
@@ -1918,29 +1917,6 @@ dependencies = [
 [[package]]
 name = "ratls"
 version = "0.1.0"
-source = "git+https://github.com/islet-project/remote-attestation?branch=dev/z.abramowska/temp#0fe0b0209401508f680d3275c67262cf884ec80b"
-dependencies = [
- "base64",
- "bcder",
- "env_logger",
- "lazy_static",
- "log",
- "pkcs8",
- "rand",
- "rcgen",
- "rsa",
- "rust-rsi 0.1.0 (git+https://github.com/islet-project/remote-attestation?branch=dev/z.abramowska/temp)",
- "rustls",
- "rustls-pemfile",
- "rustls-webpki",
- "sha2",
- "simple_asn1",
- "x509-certificate",
-]
-
-[[package]]
-name = "ratls"
-version = "0.1.0"
 source = "git+https://github.com/islet-project/remote-attestation?branch=dev/z.abramowska/temp-2#2f3872b2e77a96b77a0e3e8bf12d6168352fb6b4"
 dependencies = [
  "base64",
@@ -1953,6 +1929,29 @@ dependencies = [
  "rcgen",
  "rsa",
  "rust-rsi 0.1.0 (git+https://github.com/islet-project/remote-attestation?branch=dev/z.abramowska/temp-2)",
+ "rustls",
+ "rustls-pemfile",
+ "rustls-webpki",
+ "sha2",
+ "simple_asn1",
+ "x509-certificate",
+]
+
+[[package]]
+name = "ratls"
+version = "0.1.0"
+source = "git+https://github.com/islet-project/remote-attestation?branch=disable-challenge-veraison#604a7ddaced2fc98b6ddf7bc36cdeee7a1f40ad0"
+dependencies = [
+ "base64",
+ "bcder",
+ "env_logger",
+ "lazy_static",
+ "log",
+ "pkcs8",
+ "rand",
+ "rcgen",
+ "rsa",
+ "rust-rsi 0.1.0 (git+https://github.com/islet-project/remote-attestation?branch=disable-challenge-veraison)",
  "rustls",
  "rustls-pemfile",
  "rustls-webpki",
@@ -1985,9 +1984,9 @@ dependencies = [
 
 [[package]]
 name = "redox_syscall"
-version = "0.5.4"
+version = "0.5.6"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "0884ad60e090bf1345b93da0a5de8923c93884cd03f40dfcfddd3b4bee661853"
+checksum = "355ae415ccd3a04315d3f8246e86d67689ea74d88d915576e1589a351062a13b"
 dependencies = [
  "bitflags 2.6.0",
 ]
@@ -2120,41 +2119,24 @@ dependencies = [
 [[package]]
 name = "rust-rsi"
 version = "0.1.0"
-source = "git+https://github.com/islet-project/remote-attestation?branch=dev/m.szaknis/key_sealing#fc93e6806fdce605c02ebf5008ac633ba7ef5a8a"
-dependencies = [
- "bindgen 0.70.1",
- "cc",
- "ciborium",
- "coset",
- "ecdsa",
- "hex",
- "nix 0.29.0",
- "p256",
- "p384",
- "sha2",
-]
-
-[[package]]
-name = "rust-rsi"
-version = "0.1.0"
-source = "git+https://github.com/islet-project/remote-attestation?branch=dev/z.abramowska/temp#0fe0b0209401508f680d3275c67262cf884ec80b"
-dependencies = [
- "bindgen 0.70.1",
- "cc",
- "ciborium",
- "coset",
- "ecdsa",
- "hex",
- "nix 0.29.0",
- "p256",
- "p384",
- "sha2",
-]
-
-[[package]]
-name = "rust-rsi"
-version = "0.1.0"
 source = "git+https://github.com/islet-project/remote-attestation?branch=dev/z.abramowska/temp-2#2f3872b2e77a96b77a0e3e8bf12d6168352fb6b4"
+dependencies = [
+ "bindgen 0.70.1",
+ "cc",
+ "ciborium",
+ "coset",
+ "ecdsa",
+ "hex",
+ "nix 0.29.0",
+ "p256",
+ "p384",
+ "sha2",
+]
+
+[[package]]
+name = "rust-rsi"
+version = "0.1.0"
+source = "git+https://github.com/islet-project/remote-attestation?branch=disable-challenge-veraison#604a7ddaced2fc98b6ddf7bc36cdeee7a1f40ad0"
 dependencies = [
  "bindgen 0.70.1",
  "cc",
@@ -2682,27 +2664,6 @@ dependencies = [
  "tokio",
  "vsock",
 ]
-
-[[package]]
-name = "tower"
-version = "0.4.13"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "b8fa9be0de6cf49e536ce1851f987bd21a43b771b09473c3549a6c853db37c1c"
-dependencies = [
- "futures-core",
- "futures-util",
- "pin-project",
- "pin-project-lite",
- "tokio",
- "tower-layer",
- "tower-service",
-]
-
-[[package]]
-name = "tower-layer"
-version = "0.3.3"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "121c2a6cda46980bb0fcd1647ffaf6cd3fc79a013de288782836f6df9c48780e"
 
 [[package]]
 name = "tower-service"
