@@ -13,6 +13,7 @@ KERNEL_REV           = cca-full/rmm-v1.0-eac5
 
 BUSYBOX_UPSTREAM     = https://github.com/mirror/busybox.git
 BUSYBOX_DIR          = $(TOOLS_DIR)/busybox
+BUSYBOX_REV          = 1_36_stable
 
 STRACE_UPSTREAM      = https://github.com/strace/strace.git
 STRACE_DIR           = $(TOOLS_DIR)/strace
@@ -73,7 +74,7 @@ fetch-linux-kernel:
 
 fetch-busybox:
 	@echo "$(GREEN_COLOR)Fetching busybox source.$(NC)"
-	@[ -d "$(BUSYBOX_DIR)" ] || git clone --depth=1 $(BUSYBOX_UPSTREAM) $(BUSYBOX_DIR)
+	@[ -d "$(BUSYBOX_DIR)" ] || git clone -b $(BUSYBOX_REV) --depth=1 $(BUSYBOX_UPSTREAM) $(BUSYBOX_DIR)
 
 fetch-strace:
 	@echo "$(GREEN_COLOR)Fetching strace source.$(NC)"
@@ -168,10 +169,10 @@ compile-rsictl: $(RSICTL_DIR)
 	@cd "$(RSICTL_DIR)/tools/rsictl" && cargo build --target=aarch64-unknown-linux-gnu
 
 
-compile-app-manager: 
+compile-app-manager:
 	@echo "$(GREEN_COLOR)Building app-manager.$(NC)"
 ifdef RELEASE
-	@cd "$(APP_MANAGER_DIR)" && cargo build --target=aarch64-unknown-linux-gnu --release 
+	@cd "$(APP_MANAGER_DIR)" && cargo build --target=aarch64-unknown-linux-gnu --release
 else
 	@cd "$(APP_MANAGER_DIR)" && cargo build --target=aarch64-unknown-linux-gnu
 endif
@@ -179,7 +180,7 @@ endif
 ifdef RELEASE
 prepare-initramfs: compile-busybox  compile-util-linux compile-rsi-ko compile-app-manager
 else
-prepare-initramfs: compile-busybox  compile-util-linux compile-rsi-ko compile-app-manager compile-strace compile-gdbserver compile-rsictl 
+prepare-initramfs: compile-busybox  compile-util-linux compile-rsi-ko compile-app-manager compile-strace compile-gdbserver compile-rsictl
 endif
 	@echo "$(GREEN_COLOR)Preparing initramfs.$(NC)"
 	@mkdir -p "$(INITRAMFS_DIR)/usr/bin"
@@ -233,4 +234,3 @@ run-only:
 		-kernel $(KERNEL_DIR)/arch/arm64/boot/Image \
 		-append "console=ttyAMA0" \
 		-m 2048
-
