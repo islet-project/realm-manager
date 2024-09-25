@@ -1,4 +1,4 @@
-FROM rust:slim-bookworm as build
+FROM rust:slim-bookworm AS build
 
 WORKDIR /app
 
@@ -20,4 +20,3 @@ USER root:root
 COPY --from=build /bin/exampleapp /bin/
 
 ENTRYPOINT ["/bin/exampleapp"]
-
