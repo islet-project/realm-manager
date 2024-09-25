@@ -34,6 +34,7 @@ impl CommandHanlder {
                 kernel,
                 kernel_initramfs,
                 kernel_options,
+                metadata
             } => {
                 let cpu = CpuConfig {
                     cpu,
@@ -58,6 +59,7 @@ impl CommandHanlder {
                     memory,
                     network,
                     kernel,
+                    metadata
                 };
 
                 let realm_uuid = self.connection.create_realm(realm_config).await?;

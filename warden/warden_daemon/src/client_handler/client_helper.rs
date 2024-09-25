@@ -15,6 +15,7 @@ impl From<warden_client::realm::RealmConfig> for RealmConfig {
             memory: realm_config.memory.into(),
             network: realm_config.network.into(),
             kernel: realm_config.kernel.into(),
+            metadata: realm_config.metadata
         }
     }
 }

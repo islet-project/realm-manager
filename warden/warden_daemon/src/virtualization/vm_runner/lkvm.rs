@@ -22,12 +22,18 @@ impl LkvmRunner {
         runner.setup_network(&config.network);
         runner.control_output();
         runner.configure_optional_lkvm_args();
+        runner.configure_metadata(&config.metadata);
         runner
     }
     pub fn configure_cca_settings(&mut self) {
         self.command.arg("--debug");
         self.command.arg("--realm");
         self.command.arg("--measurement-algo=sha256");
+    }
+    fn configure_metadata(&mut self, metadata: &Option<PathBuf>) {
+        if let Some(path) = metadata.as_ref() {
+            self.command.arg("--metadata").arg(path);
+        }
     }
     fn configure_optional_lkvm_args(&mut self) {
         self.command.arg("--irqchip=gicv3");

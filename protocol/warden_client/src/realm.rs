@@ -31,6 +31,7 @@ pub struct RealmConfig {
     pub memory: MemoryConfig,
     pub network: NetworkConfig,
     pub kernel: KernelConfig,
+    pub metadata: Option<PathBuf>
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, PartialOrd)]

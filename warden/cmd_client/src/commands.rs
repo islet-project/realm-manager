@@ -52,6 +52,10 @@ pub enum Command {
         /// VSOCK cid for realm
         #[clap(short = 'v', long)]
         vsock_cid: u32,
+
+        /// Path to realms metadata
+        #[clap(short = 'd', long)]
+        metadata: Option<PathBuf>
     },
 
     ListRealms,
