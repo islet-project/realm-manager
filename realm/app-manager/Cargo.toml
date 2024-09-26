@@ -28,11 +28,12 @@ utils = { path = "../../utils" }
 clap = { version = "*", features = ["derive"] }
 simple_logger = "*"
 ir-client = { git = "https://github.com/islet-project/image-registry" }
-ratls = { git = "https://github.com/islet-project/remote-attestation", branch = "dev/z.abramowska/temp" }
+ratls = { git = "https://github.com/islet-project/remote-attestation" }
 oci-spec = "*"
 hkdf = "*"
 hex-literal = "*"
-rust-rsi = { git = "https://github.com/islet-project/remote-attestation", branch = "dev/m.szaknis/key_sealing" }
+rust-rsi = { git = "https://github.com/islet-project/remote-attestation", branch = "disable-challenge-veraison" }
+p384 = { version = "*", features = [ "ecdsa" ] }
 
 [profile.release]
 strip = true

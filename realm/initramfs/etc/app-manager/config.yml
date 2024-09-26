@@ -9,9 +9,11 @@ launcher:
   Oci:
     RaTLS:
       root_ca: /usr/share/app-manager/ratls/root-ca.crt
-      token_resolver: 
-        file: /usr/share/app-manager/ratls/token.bin
+      token_resolver: rsi
 keysealing: 
   HkdfSha256:
-    StubbedHex: AABB
+    RsiSealingKey:
+      flags:
 autostartall: true
+ca_pub: /usr/share/app-manager/ca/root-ca.pub
+extend: rem0

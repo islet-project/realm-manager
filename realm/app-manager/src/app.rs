@@ -4,7 +4,6 @@ use std::sync::Arc;
 
 use log::info;
 use nix::libc::{major, makedev, minor, S_IFBLK};
-use serde::{Deserialize, Serialize};
 use thiserror::Error;
 use uuid::Uuid;
 use warden_realm::ApplicationInfo;
@@ -27,17 +26,13 @@ pub enum ApplicationError {
     PartitionNotFound(Uuid),
 }
 
-#[derive(Serialize, Deserialize)]
-pub struct ApplicationMetadata {
-    salt: Vec<u8>,
-}
-
 pub struct Application {
     info: ApplicationInfo,
     workdir: PathBuf,
     devicemapper: Arc<DeviceMapper>,
     keyring: KernelKeyring,
     devices: Vec<CryptDevice>,
+    measurements: Vec<u8>
 }
 
 impl Application {
@@ -48,7 +43,12 @@ impl Application {
             devicemapper: Arc::new(DeviceMapper::init()?),
             keyring: KernelKeyring::new(keyutils::SpecialKeyring::User)?,
             devices: Vec::new(),
+            measurements: Vec::new()
         })
+    }
+
+    pub fn measurements(&self) -> &[u8] {
+        self.measurements.as_slice()
     }
 
     async fn decrypt_partition(
@@ -177,6 +177,11 @@ impl Application {
                 &self.info.version,
             )
             .await?;
+
+        for i in application_metadata.vendor_data.iter() {
+            self.measurements.extend(i.iter());
+        }
+        self.measurements.extend(application_metadata.image_hash.iter());
 
         let infos: Vec<_> = application_metadata
             .vendor_data

@@ -27,7 +27,7 @@ all: dnsmasq compile-warden
 
 compile-warden:
 	@echo "$(GREEN_COLOR)Compile warden_daemon and client for ARM.$(NC)"
-	@cargo build --target=$(RUST_COMPILE_TARGET) -r --out-dir $(BIN_DIR) -Z unstable-options
+	@cargo +nightly build --target=$(RUST_COMPILE_TARGET) -r --artifact-dir $(BIN_DIR) -Z unstable-options
 
 dnsmasq: fetch-dnsmasq compile-dnsmasq cleanup
 

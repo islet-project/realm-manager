@@ -5,7 +5,7 @@ PID_FILE=/var/run/app-manager.pid
 
 case "$1" in 
     start)
-        "$APP_MANAGER" --config /etc/app-manager/config.yml --log-level Trace &
+        "$APP_MANAGER" --config /etc/app-manager/config.yml --log-level Debug &
         echo $!>"$PID_FILE"
         ;;
 

@@ -20,6 +20,8 @@ use crate::launcher::handler::ApplicationHandlerError;
 use crate::launcher::oci::OciLauncher;
 use crate::launcher::ApplicationHandler;
 use crate::launcher::{dummy::DummyLauncher, Launcher};
+use crate::util::crypto::EcdsaKey;
+use crate::util::fs::read_to_vec;
 use crate::util::net::read_if_addrs;
 use crate::util::os::{insmod, reboot, SystemPowerAction};
 
@@ -36,6 +38,15 @@ pub enum ManagerError {
 
     #[error("Framed json error")]
     FramedJsonError(#[from] JsonFramedError),
+
+    #[error("Rem extension error")]
+    RemExtensionError(#[source] nix::errno::Errno),
+
+    #[error("Application yield no measurements")]
+    AppHasNoMeasurements(),
+
+    #[error("Application {0} not found")]
+    AppNotFound(Uuid),
 
     #[error("Invalid message received")]
     InvalidMessage(),
@@ -76,10 +87,15 @@ impl Manager {
         })
     }
 
-    fn make_launcher(&self) -> Result<Box<dyn Launcher + Send + Sync>> {
+    async fn make_launcher(&self) -> Result<Box<dyn Launcher + Send + Sync>> {
         match &self.config.launcher {
             LauncherType::Dummy => Ok(Box::new(DummyLauncher::new())),
-            LauncherType::Oci(cfg) => Ok(Box::new(OciLauncher::from_oci_config(cfg.clone()))),
+            LauncherType::Oci(cfg) => {
+                let ca = read_to_vec(&self.config.ca_pub).await?;
+                let ca_key = EcdsaKey::import(ca)?;
+
+                Ok(Box::new(OciLauncher::from_oci_config(cfg.clone(), ca_key)))
+            },
         }
     }
 
@@ -136,21 +152,18 @@ impl Manager {
 
         let mut set =
             JoinSet::<Result<(Application, Box<dyn ApplicationHandler + Send + Sync>)>>::new();
-        let autostart = self.config.autostartall;
 
-        for app_info in apps_info.into_iter() {
+        for app_info in apps_info.iter() {
             let app_dir = self.config.workdir.join(app_info.id.to_string());
-            let launcher = self.make_launcher()?;
+            let launcher = self.make_launcher().await?;
             let keyseal = self.make_keyseal()?;
             let params = self.config.crypto.clone();
+            let info = app_info.clone();
 
             set.spawn(async move {
-                let mut app = Application::new(app_info, app_dir)?;
-                let mut handler = app.setup(params, launcher, keyseal).await?;
-
-                if autostart {
-                    handler.start().await?;
-                }
+                let mut app = Application::new(info, app_dir)?;
+                let handler = app.setup(params, launcher, keyseal).await
+                    .map_err(|e| {error!("Application installation error: {:?}", e); e})?;
 
                 Ok((app, handler))
             });
@@ -163,8 +176,38 @@ impl Manager {
             info!("Finished installing {}", id);
         }
 
+        for info in apps_info.iter() {
+            let (app, _) = self.apps.get(&info.id)
+                .ok_or(ManagerError::AppNotFound(info.id.clone()))?;
+            info!("Measuring app {}", info.id);
+            self.extend_rem(app.measurements())?;
+        }
+
+        if self.config.autostartall {
+            for (id, (_, handler)) in self.apps.iter_mut() {
+                info!("Starting app {}", id);
+                handler.start().await?;
+            }
+        }
+
         info!("Provisioning finished");
         self.report_provision_success().await?;
+
+        Ok(())
+    }
+
+    fn extend_rem(&self, data: &[u8]) -> Result<()> {
+        if let Some(rem) = self.config.extend.as_ref() {
+            if data.is_empty() {
+                return Err(ManagerError::AppHasNoMeasurements().into());
+            }
+
+            for chunk in data.chunks(rust_rsi::MAX_MEASUR_LEN as usize) {
+                debug!("Extending {:?} with {:?}", rem, chunk);
+                rust_rsi::measurement_extend(*rem as u32, chunk)
+                    .map_err(ManagerError::RemExtensionError)?;
+            }
+        }
 
         Ok(())
     }
