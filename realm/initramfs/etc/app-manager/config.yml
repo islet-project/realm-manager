@@ -13,7 +13,8 @@ launcher:
         file: /usr/share/app-manager/ratls/token.bin
 keysealing: 
   HkdfSha256:
-    StubbedHex: AABB
+    RsiSealingKey:
+      flags:
 autostartall: true
 ca_pub: /usr/share/app-manager/ca/root-ca.pub
 extend: rem0
