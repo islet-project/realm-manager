@@ -126,7 +126,7 @@ dependencies = [
  "nix 0.29.0",
  "oci-spec 0.7.0",
  "p384",
- "ratls 0.1.0 (git+https://github.com/islet-project/remote-attestation?branch=disable-challenge-veraison)",
+ "ratls 0.1.0 (git+https://github.com/islet-project/remote-attestation)",
  "rust-rsi 0.1.0 (git+https://github.com/islet-project/remote-attestation?branch=disable-challenge-veraison)",
  "serde",
  "serde_json",
@@ -230,12 +230,15 @@ dependencies = [
  "itertools 0.12.1",
  "lazy_static",
  "lazycell",
+ "log",
+ "prettyplease",
  "proc-macro2",
  "quote",
  "regex",
  "rustc-hash 1.1.0",
  "shlex",
  "syn",
+ "which",
 ]
 
 [[package]]
@@ -1034,6 +1037,15 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "6c49c37c09c17a53d937dfbb742eb3a961d65a994e6bcdcf37e7399d0cc8ab5e"
 dependencies = [
  "digest",
+]
+
+[[package]]
+name = "home"
+version = "0.5.9"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "e3d1354bf6b7235cb4a0576c2619fd4ed18183f689b12b006a0ee7329eeff9a5"
+dependencies = [
+ "windows-sys 0.52.0",
 ]
 
 [[package]]
@@ -1940,7 +1952,7 @@ dependencies = [
 [[package]]
 name = "ratls"
 version = "0.1.0"
-source = "git+https://github.com/islet-project/remote-attestation?branch=disable-challenge-veraison#604a7ddaced2fc98b6ddf7bc36cdeee7a1f40ad0"
+source = "git+https://github.com/islet-project/remote-attestation#2a103211466175e9bd98fde5c90b009d0aa33865"
 dependencies = [
  "base64",
  "bcder",
@@ -1951,7 +1963,7 @@ dependencies = [
  "rand",
  "rcgen",
  "rsa",
- "rust-rsi 0.1.0 (git+https://github.com/islet-project/remote-attestation?branch=disable-challenge-veraison)",
+ "rust-rsi 0.1.0 (git+https://github.com/islet-project/remote-attestation)",
  "rustls",
  "rustls-pemfile",
  "rustls-webpki",
@@ -2145,6 +2157,23 @@ dependencies = [
  "ecdsa",
  "hex",
  "nix 0.29.0",
+ "p256",
+ "p384",
+ "sha2",
+]
+
+[[package]]
+name = "rust-rsi"
+version = "0.1.0"
+source = "git+https://github.com/islet-project/remote-attestation#2a103211466175e9bd98fde5c90b009d0aa33865"
+dependencies = [
+ "bindgen 0.69.4",
+ "cc",
+ "ciborium",
+ "coset",
+ "ecdsa",
+ "hex",
+ "nix 0.27.1",
  "p256",
  "p384",
  "sha2",
@@ -2925,6 +2954,18 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "841c67bff177718f1d4dfefde8d8f0e78f9b6589319ba88312f567fc5841a958"
 dependencies = [
  "rustls-pki-types",
+]
+
+[[package]]
+name = "which"
+version = "4.4.2"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "87ba24419a2078cd2b0f2ede2691b6c66d8e47836da3b6db8265ebad47afbfc7"
+dependencies = [
+ "either",
+ "home",
+ "once_cell",
+ "rustix",
 ]
 
 [[package]]
