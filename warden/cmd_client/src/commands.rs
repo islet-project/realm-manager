@@ -1,10 +1,15 @@
 use std::path::PathBuf;
 
 use clap::Subcommand;
+use uuid::Uuid;
 
 #[derive(Subcommand, Debug, Clone, PartialEq, PartialOrd)]
 pub enum Command {
     CreateRealm {
+        /// Realm id, if not provided it will be generated
+        #[clap(short = 'z', long)]
+        id: Option<Uuid>,
+
         /// CPU type
         #[clap(short = 'c', long, default_value = "cortex-a57")]
         cpu: String,

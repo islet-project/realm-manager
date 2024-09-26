@@ -22,6 +22,7 @@ impl CommandHanlder {
     pub async fn handle_command(&mut self, command: Command) -> Result<(), anyhow::Error> {
         match command {
             Command::CreateRealm {
+                id,
                 cpu,
                 machine,
                 core_count,
@@ -54,6 +55,7 @@ impl CommandHanlder {
                     remote_terminal_uri,
                 };
                 let realm_config = RealmConfig {
+                    id,
                     machine,
                     cpu,
                     memory,

@@ -26,6 +26,7 @@ pub struct RealmDescription {
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, PartialOrd)]
 pub struct RealmConfig {
+    pub id: Option<Uuid>,
     pub machine: String,
     pub cpu: CpuConfig,
     pub memory: MemoryConfig,

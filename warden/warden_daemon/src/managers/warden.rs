@@ -19,11 +19,13 @@ pub enum WardenError {
     RealmCreationFail(String),
     #[error("Realm is under another operation")]
     RealmIsBusy(),
+    #[error("Realm of shuch uuid: {0} already exists")]
+    RealmExists(Uuid)
 }
 
 #[async_trait]
 pub trait Warden {
-    async fn create_realm(&mut self, config: RealmConfig) -> Result<Uuid, WardenError>;
+    async fn create_realm(&mut self, id: Option<Uuid>, config: RealmConfig) -> Result<Uuid, WardenError>;
     async fn destroy_realm(&mut self, realm_uuid: &Uuid) -> Result<(), WardenError>;
     fn get_realm(
         &mut self,
