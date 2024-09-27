@@ -5,10 +5,10 @@ use std::str::FromStr;
 use std::sync::Arc;
 
 use async_trait::async_trait;
-use ir_client::client::Client;
+use ir_client::client::{Client, ImageInfo};
 use ir_client::config::Config;
 use ir_client::oci::reference::Reference;
-use log::{debug, error, info, trace};
+use log::{debug, error, info, trace, warn};
 use nix::errno::Errno;
 use nix::unistd::{getgid, getuid, Gid, Group, Uid, User};
 use oci_spec::image::Config as RuntimeConfig;
@@ -297,6 +297,11 @@ fn hash_config(config: &[u8]) -> Vec<u8> {
     hash.finalize().to_vec()
 }
 
+enum Action {
+    Install(ImageInfo, Vec<Vec<u8>>, Vec<u8>),
+    LaunchInstalled(Box<Metadata>)
+}
+
 #[async_trait]
 impl Launcher for OciLauncher {
     async fn install(
@@ -313,28 +318,53 @@ impl Launcher for OciLauncher {
             .map_err(|e| OciLauncherError::InvalidVersion(e, version.to_owned()))?;
 
         info!("Fetching image info for {}:{}", name, version);
-        let image_info = oci_client
+        let try_image_info = oci_client
             .get_image_info(name, reference)
-            .await
-            .map_err(OciLauncherError::ImageInfoFetching)?;
+            .await;
 
-        let current_metadata = self.try_read_metadata(path).await;
-        let annotations = RequiredAnnotations::try_from(
-            image_info
-                .annotations()
-                .ok_or(OciLauncherError::AppImageLacksAnnotations())?
-        )?;
-        let new_vendor_cert = vec![annotations.vendor_pubkey.clone(), annotations.vendor_pubkey_signature.clone()];
-        let new_config_hash = hash_config(image_info.config_bytes());
+        let try_current_metadata = self.try_read_metadata(path).await;
 
-        let validated_metadata = current_metadata.as_ref().filter(|&metadata| metadata.config_hash == new_config_hash && metadata.vendor_cert == new_vendor_cert);
+        let action = match (try_image_info, try_current_metadata) {
+            (Ok(image_info), try_metadata) => {
+                let annotations = RequiredAnnotations::try_from(
+                    image_info
+                        .annotations()
+                        .ok_or(OciLauncherError::AppImageLacksAnnotations())?
+                )?;
+                let new_vendor_cert = vec![annotations.vendor_pubkey.clone(), annotations.vendor_pubkey_signature.clone()];
+                let new_config_hash = hash_config(image_info.config_bytes());
 
-        match validated_metadata {
-            None => {
-                info!("Verifying application {}:{} signature", name, version);
-                self.verify_signature(&annotations, image_info.config_bytes())?;
-                info!("Signature validated successfully");
+                let is_installed_newest = try_metadata.filter(|metadata| metadata.config_hash == new_config_hash && metadata.vendor_cert == new_vendor_cert);
 
+                match is_installed_newest {
+                    None => {
+                        info!("Verifying application {}:{} signature", name, version);
+                        self.verify_signature(&annotations, image_info.config_bytes())?;
+                        info!("Signature validated successfully");
+
+                        Action::Install(image_info, new_vendor_cert, new_config_hash)
+                    },
+                    Some(metadata) => {
+                        Action::LaunchInstalled(Box::new(metadata))
+                    }
+                }
+
+            }
+
+            (Err(e), Some(metadata)) => {
+                warn!("Failed to reach image registry server: {:?}", e);
+
+                Action::LaunchInstalled(Box::new(metadata))
+            }
+
+            (Err(e), None) => {
+                error!("Failed to reach image registry server: {:?}", e);
+                return Err(OciLauncherError::ImageInfoFetching(e).into());
+            }
+        };
+
+        match action {
+            Action::Install(image_info, new_vendor_cert, new_config_hash) => {
                 let img_dir = path.join("img");
                 let temp_dir = path.join("temp");
                 let unpack_dir = path.join("unpack");
@@ -397,7 +427,9 @@ impl Launcher for OciLauncher {
 
             },
 
-            Some(metadata) => {
+            Action::LaunchInstalled(metadata) => {
+                info!("Launching already installed application from disk");
+
                 Ok(ApplicationMetadata {
                     vendor_data: metadata.vendor_cert.clone(),
                     image_hash: metadata.config_hash.clone()
