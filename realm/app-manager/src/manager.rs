@@ -178,7 +178,7 @@ impl Manager {
 
         for info in apps_info.iter() {
             let (app, _) = self.apps.get(&info.id)
-                .ok_or(ManagerError::AppNotFound(info.id.clone()))?;
+                .ok_or(ManagerError::AppNotFound(info.id))?;
             info!("Measuring app {}", info.id);
             self.extend_rem(app.measurements())?;
         }
