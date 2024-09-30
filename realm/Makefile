@@ -37,7 +37,8 @@ APP_MANAGER_DIR      = $(ROOT_DIR)/app-manager
 DEVICE_MAPPER_RS_DIR = $(ROOT_DIR)/thirdparty/devicemapper-rs
 DEVICE_MAPPER_RS_URL = "https://github.com/stratis-storage/devicemapper-rs.git"
 
-INITRAMFS_DIR      = $(ROOT_DIR)/initramfs
+INITRAMFS_DIR        = $(ROOT_DIR)/initramfs
+OUT_DIR              = $(ROOT_DIR)/out
 
 QEMU_TAP_DEVICE    ?= tap100
 QEMU_VSOCK_CID     ?= 100
@@ -154,7 +155,15 @@ compile-util-linux: $(UTIL_LINUX_DIR)
 	@$(MAKE) -C "$(UTIL_LINUX_DIR)" blkid CC=aarch64-none-linux-gnu-gcc LDFLAGS="--static" -j $(shell nproc) && \
 		aarch64-none-linux-gnu-strip "$(UTIL_LINUX_DIR)/blkid"
 
-compile-rsi-ko: $(RSI_KO_DIR)
+compile-kernel:
+	@echo "$(GREEN_COLOR)Building kernel image.$(NC)"
+	@if [ ! -f "$(KERNEL_DIR)/.config" ]; then \
+		ARCH=arm64 CROSS_COMPILE=aarch64-none-linux-gnu- $(MAKE) -C "$(KERNEL_DIR)" virtconfig; \
+		cd "$(KERNEL_DIR)" && "$(KERNEL_DIR)/scripts/kconfig/merge_config.sh" -m "$(KERNEL_DIR)/.config" "$(CONFIG_DIR)/kernel.config"; \
+	fi;
+	@ARCH=arm64 CROSS_COMPILE=aarch64-none-linux-gnu- $(MAKE) -C "$(KERNEL_DIR)" -j $(shell nproc)
+
+compile-rsi-ko: compile-kernel $(RSI_KO_DIR)
 	@echo "$(GREEN_COLOR)Building rsi kernel module.$(NC)"
 	@if [ ! -f "$(KERNEL_DIR)/.config" ]; then \
 		echo "$(GREEN_COLOR)Precompiling kernel.$(NC)"; \
@@ -199,12 +208,13 @@ else
 endif
 
 compile-image: prepare-initramfs $(KERNEL_DIR)
-	@echo "$(GREEN_COLOR)Building kernel image.$(NC)"
-	@if [ ! -f "$(KERNEL_DIR)/.config" ]; then \
-		ARCH=arm64 CROSS_COMPILE=aarch64-none-linux-gnu- $(MAKE) -C "$(KERNEL_DIR)" virtconfig; \
-		cd "$(KERNEL_DIR)" && "$(KERNEL_DIR)/scripts/kconfig/merge_config.sh" -m "$(KERNEL_DIR)/.config" "$(CONFIG_DIR)/kernel.config"; \
-	fi;
-	@ARCH=arm64 CROSS_COMPILE=aarch64-none-linux-gnu- $(MAKE) -C "$(KERNEL_DIR)" -j $(shell nproc)
+	@echo "$(GREEN_COLOR)Building image.$(NC)"
+	@mkdir -p $(OUT_DIR)
+	@cp -v $(KERNEL_DIR)/arch/arm64/boot/Image $(OUT_DIR)/Image
+	@cd $(INITRAMFS_DIR) && find . -print0 | \
+        cpio --null --create --verbose --format=newc | \
+        gzip --best > "$(OUT_DIR)/initramfs.cpio.gz"
+	
 
 compile-qemu: $(QEMU_DIR)
 	@echo "$(GREEN_COLOR)Building QEMU.$(NC)"
