@@ -541,7 +541,7 @@ static long device_ioctl(struct file *f, unsigned int cmd, unsigned long arg)
 			return -ENOMEM;
 		}
 
-		printk(RSI_INFO "ioctl: sealing_key\n");
+		printk(RSI_INFO "ioctl: realm_metadata\n");
 		ret = do_realm_metadata(metadata);
 		if (ret != 0) {
 			printk(RSI_ALERT "ioctl: realm_metadata failed: %d\n", ret);
