@@ -70,8 +70,7 @@ toolchains: makedir
 fetch-linux-kernel:
 	@echo "$(GREEN_COLOR)Fetching Linux kernel source.$(NC)"
 	@[ -d "$(KERNEL_DIR)" ] || (\
-		git clone --depth=1 --branch $(KERNEL_REV) $(KERNEL_UPSTREAM) $(KERNEL_DIR) && \
-		(cd "$(KERNEL_DIR)" && patch -p1 < "$(ROOT_DIR)/config/linux-rsi-pages.patch"))
+		git clone --depth=1 --branch $(KERNEL_REV) $(KERNEL_UPSTREAM) $(KERNEL_DIR))
 
 fetch-busybox:
 	@echo "$(GREEN_COLOR)Fetching busybox source.$(NC)"
@@ -214,7 +213,7 @@ compile-image: prepare-initramfs $(KERNEL_DIR)
 	@cd $(INITRAMFS_DIR) && find . -print0 | \
         cpio --null --create --verbose --format=newc | \
         gzip --best > "$(OUT_DIR)/initramfs.cpio.gz"
-	
+
 
 compile-qemu: $(QEMU_DIR)
 	@echo "$(GREEN_COLOR)Building QEMU.$(NC)"
