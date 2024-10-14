@@ -642,7 +642,7 @@ dependencies = [
 [[package]]
 name = "devicemapper"
 version = "0.34.3"
-source = "git+https://github.com/L0czek/devicemapper-rs.git#430aa9afba713649d3b514d31c7497a2508f3a41"
+source = "git+https://github.com/islet-project/devicemapper-rs#430aa9afba713649d3b514d31c7497a2508f3a41"
 dependencies = [
  "bitflags 2.6.0",
  "devicemapper-sys",
@@ -659,7 +659,7 @@ dependencies = [
 [[package]]
 name = "devicemapper-sys"
 version = "0.3.0"
-source = "git+https://github.com/L0czek/devicemapper-rs.git#430aa9afba713649d3b514d31c7497a2508f3a41"
+source = "git+https://github.com/islet-project/devicemapper-rs#430aa9afba713649d3b514d31c7497a2508f3a41"
 dependencies = [
  "bindgen 0.69.4",
 ]
