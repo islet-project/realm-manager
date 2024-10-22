@@ -1,5 +1,7 @@
 # Warden command-line client
 
+This crate provide a simple cli interface to the warden daemon.
+
 ## Building
 
     cargo build

@@ -1,5 +1,12 @@
 # Realm image
 
+This folder contains the realm image supporting application provisioning. It consists of:
+* the realm daemon, called [app-manager](./app-manager),
+* [initramfs](./initramfs) of the realm image,
+* root CA for checking the signatures of applications in [keys](./keys),
+* [linux-rsi](./linux-rsi) implements the RSI calls and exposes them to userland applications,
+* [mocked_host](./mocked_host) is a python script that allows to run this setup without entire stack, it simulates the warden daemon.
+
 ## Installing build dependencies
 
     sudo apt-get install autoconf autopoint libtool libsqlite3-dev python3-tomli python3-sphinx ninja-build libglib2.0-dev texinfo libclang-dev libdevmapper-dev
