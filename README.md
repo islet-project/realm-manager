@@ -1,6 +1,6 @@
 # Realm manager
 
-This repository contains a special realm image with a comptibile host daemon used for application provisioning.
+This repository contains a special realm image with a compatibile host daemon used for application provisioning.
 
 ![](./doc/arch.png)
 
