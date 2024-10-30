@@ -1,5 +1,6 @@
 # Warden Daemon
 
+This is the host side of the provisioning setup. It conststs of services and utilities that run in the normal world and provide resources to the realm world.
 
 Warden workspace, contains crates (more info about crates in their folders):
 
