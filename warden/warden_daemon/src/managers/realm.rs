@@ -33,6 +33,8 @@ pub enum RealmError {
     ApplicationCreationFail(String),
     #[error("Failed to prepare applications to start: {0}")]
     PrepareApplications(String),
+    #[error("Failed to fetch attestation token: {0}")]
+    AttestationTokenFetch(String),
 }
 
 #[async_trait]
@@ -42,6 +44,7 @@ pub trait Realm {
         &self,
         uuid: &Uuid,
     ) -> Result<Arc<Mutex<Box<dyn Application + Send + Sync>>>, RealmError>;
+    async fn fetch_attestation_token(&mut self, challenge: Vec<u8>) -> Result<Vec<u8>, RealmError>;
     async fn get_realm_data(&self) -> Result<RealmData, RealmError>;
     async fn reboot(&mut self) -> Result<(), RealmError>;
     async fn start(&mut self) -> Result<(), RealmError>;

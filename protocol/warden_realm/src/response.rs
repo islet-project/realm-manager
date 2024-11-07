@@ -12,6 +12,7 @@ pub struct NetAddr {
 
 #[derive(Debug, Serialize, Deserialize)]
 pub enum Response {
+    AttestationToken(Vec<u8>),
     ApplicationExited(i32),
     ApplicationIsRunning(),
     ApplicationNotStarted(),

@@ -32,7 +32,7 @@ pub struct Application {
     devicemapper: Arc<DeviceMapper>,
     keyring: KernelKeyring,
     devices: Vec<CryptDevice>,
-    measurements: Vec<u8>
+    measurements: Vec<u8>,
 }
 
 impl Application {
@@ -43,7 +43,7 @@ impl Application {
             devicemapper: Arc::new(DeviceMapper::init()?),
             keyring: KernelKeyring::new(keyutils::SpecialKeyring::User)?,
             devices: Vec::new(),
-            measurements: Vec::new()
+            measurements: Vec::new(),
         })
     }
 
@@ -181,7 +181,8 @@ impl Application {
         for i in application_metadata.vendor_data.iter() {
             self.measurements.extend(i.iter());
         }
-        self.measurements.extend(application_metadata.image_hash.iter());
+        self.measurements
+            .extend(application_metadata.image_hash.iter());
 
         let infos: Vec<_> = application_metadata
             .vendor_data

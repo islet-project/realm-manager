@@ -85,22 +85,26 @@ pub enum OciLauncherError {
 
 pub struct OciLauncher {
     launcher_config: OciLauncherConfig,
-    ca_pub: EcdsaKey
+    ca_pub: EcdsaKey,
 }
 
 #[derive(Debug)]
 struct RequiredAnnotations {
     pub signature: Vec<u8>,
     pub vendor_pubkey: Vec<u8>,
-    pub vendor_pubkey_signature: Vec<u8>
+    pub vendor_pubkey_signature: Vec<u8>,
 }
 
 fn parse_annotation(annotations: &HashMap<String, String>, id: &str) -> Result<Vec<u8>> {
     Ok(annotations
         .get(id)
         .map(const_hex::decode)
-        .ok_or(OciLauncherError::FailedToFindRequiredAnnotations(ANNOTATION_SIGNATURE.to_string()))?
-        .map_err(|e| OciLauncherError::FailedToHexDecodeAnnotation(e, ANNOTATION_SIGNATURE.to_string()))?)
+        .ok_or(OciLauncherError::FailedToFindRequiredAnnotations(
+            ANNOTATION_SIGNATURE.to_string(),
+        ))?
+        .map_err(|e| {
+            OciLauncherError::FailedToHexDecodeAnnotation(e, ANNOTATION_SIGNATURE.to_string())
+        })?)
 }
 
 impl TryFrom<&HashMap<String, String>> for RequiredAnnotations {
@@ -110,7 +114,7 @@ impl TryFrom<&HashMap<String, String>> for RequiredAnnotations {
         Ok(Self {
             signature: parse_annotation(annotations, ANNOTATION_SIGNATURE)?,
             vendor_pubkey: parse_annotation(annotations, ANNOTATION_VENDORPUB)?,
-            vendor_pubkey_signature: parse_annotation(annotations, ANNOTATION_VENDORPUB_SIGNATURE)?
+            vendor_pubkey_signature: parse_annotation(annotations, ANNOTATION_VENDORPUB_SIGNATURE)?,
         })
     }
 }
@@ -124,17 +128,29 @@ struct Metadata {
 
 impl OciLauncher {
     pub fn from_oci_config(launcher_config: OciLauncherConfig, ca_pub: EcdsaKey) -> Self {
-        Self { launcher_config, ca_pub }
+        Self {
+            launcher_config,
+            ca_pub,
+        }
     }
 
     fn verify_signature(&self, annotations: &RequiredAnnotations, config: &[u8]) -> Result<()> {
-        debug!("Verifying vendor public key: {:?}", annotations.vendor_pubkey);
-        self.ca_pub.verify(&annotations.vendor_pubkey, &annotations.vendor_pubkey_signature)?;
+        debug!(
+            "Verifying vendor public key: {:?}",
+            annotations.vendor_pubkey
+        );
+        self.ca_pub.verify(
+            &annotations.vendor_pubkey,
+            &annotations.vendor_pubkey_signature,
+        )?;
 
         trace!("Importing vendor public key");
         let vendor_key = EcdsaKey::import(&annotations.vendor_pubkey)?;
 
-        debug!("Verifying application signature {:?}", annotations.signature);
+        debug!(
+            "Verifying application signature {:?}",
+            annotations.signature
+        );
         vendor_key.verify(config, &annotations.signature)?;
 
         Ok(())
@@ -154,13 +170,14 @@ impl OciLauncher {
                 root_ca,
                 token_resolver,
             } => {
-                let token_resolver: Arc<dyn InternalTokenResolver + Send + Sync> = match token_resolver {
-                    TokenResolver::File(path) => Arc::new(
-                        TokenFromFile::from_path(path)
-                            .map_err(OciLauncherError::TokenReadingError)?,
-                    ),
-                    TokenResolver::Rsi => Arc::new(RsiTokenResolver::new())
-                };
+                let token_resolver: Arc<dyn InternalTokenResolver + Send + Sync> =
+                    match token_resolver {
+                        TokenResolver::File(path) => Arc::new(
+                            TokenFromFile::from_path(path)
+                                .map_err(OciLauncherError::TokenReadingError)?,
+                        ),
+                        TokenResolver::Rsi => Arc::new(RsiTokenResolver::new()),
+                    };
 
                 let cert_resolver = RaTlsCertResolver::from_token_resolver(token_resolver)
                     .map_err(OciLauncherError::RaTlsCertResolverCreation)?;
@@ -299,7 +316,7 @@ fn hash_config(config: &[u8]) -> Vec<u8> {
 
 enum Action {
     Install(ImageInfo, Vec<Vec<u8>>, Vec<u8>),
-    LaunchInstalled(Box<Metadata>)
+    LaunchInstalled(Box<Metadata>),
 }
 
 #[async_trait]
@@ -318,9 +335,7 @@ impl Launcher for OciLauncher {
             .map_err(|e| OciLauncherError::InvalidVersion(e, version.to_owned()))?;
 
         info!("Fetching image info for {}:{}", name, version);
-        let try_image_info = oci_client
-            .get_image_info(name, reference)
-            .await;
+        let try_image_info = oci_client.get_image_info(name, reference).await;
 
         let try_current_metadata = self.try_read_metadata(path).await;
 
@@ -329,12 +344,18 @@ impl Launcher for OciLauncher {
                 let annotations = RequiredAnnotations::try_from(
                     image_info
                         .annotations()
-                        .ok_or(OciLauncherError::AppImageLacksAnnotations())?
+                        .ok_or(OciLauncherError::AppImageLacksAnnotations())?,
                 )?;
-                let new_vendor_cert = vec![annotations.vendor_pubkey.clone(), annotations.vendor_pubkey_signature.clone()];
+                let new_vendor_cert = vec![
+                    annotations.vendor_pubkey.clone(),
+                    annotations.vendor_pubkey_signature.clone(),
+                ];
                 let new_config_hash = hash_config(image_info.config_bytes());
 
-                let is_installed_newest = try_metadata.filter(|metadata| metadata.config_hash == new_config_hash && metadata.vendor_cert == new_vendor_cert);
+                let is_installed_newest = try_metadata.filter(|metadata| {
+                    metadata.config_hash == new_config_hash
+                        && metadata.vendor_cert == new_vendor_cert
+                });
 
                 match is_installed_newest {
                     None => {
@@ -343,12 +364,9 @@ impl Launcher for OciLauncher {
                         info!("Signature validated successfully");
 
                         Action::Install(image_info, new_vendor_cert, new_config_hash)
-                    },
-                    Some(metadata) => {
-                        Action::LaunchInstalled(Box::new(metadata))
                     }
+                    Some(metadata) => Action::LaunchInstalled(Box::new(metadata)),
                 }
-
             }
 
             (Err(e), Some(metadata)) => {
@@ -415,24 +433,23 @@ impl Launcher for OciLauncher {
                     Metadata {
                         vendor_cert: new_vendor_cert.clone(),
                         config_hash: new_config_hash.clone(),
-                        image_config
+                        image_config,
                     },
                 )
                 .await?;
 
                 Ok(ApplicationMetadata {
                     vendor_data: new_vendor_cert,
-                    image_hash: new_config_hash
+                    image_hash: new_config_hash,
                 })
-
-            },
+            }
 
             Action::LaunchInstalled(metadata) => {
                 info!("Launching already installed application from disk");
 
                 Ok(ApplicationMetadata {
                     vendor_data: metadata.vendor_cert.clone(),
-                    image_hash: metadata.config_hash.clone()
+                    image_hash: metadata.config_hash.clone(),
                 })
             }
         }

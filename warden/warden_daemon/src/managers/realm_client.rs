@@ -26,10 +26,24 @@ pub struct RealmProvisioningConfig {
 
 #[async_trait]
 pub trait RealmClient {
+    async fn try_connect_and_provision_apps(
+        &mut self,
+        cid: u32,
+        realm_provisioning_config: RealmProvisioningConfig,
+    ) -> Result<(), RealmClientError>;
+    async fn try_connect_and_fetch_attestation_token(
+        &mut self,
+        cid: u32,
+        challenge: Vec<u8>,
+    ) -> Result<Vec<u8>, RealmClientError>;
+    async fn try_connect(&mut self, cid: u32) -> Result<(), RealmClientError>;
+    async fn fetch_attestation_token(
+        &mut self,
+        challenge: Vec<u8>,
+    ) -> Result<Vec<u8>, RealmClientError>;
     async fn provision_applications(
         &mut self,
         realm_provisioning_config: RealmProvisioningConfig,
-        cid: u32,
     ) -> Result<(), RealmClientError>;
     async fn start_application(&mut self, application_uuid: &Uuid) -> Result<(), RealmClientError>;
     async fn stop_application(&mut self, application_uuid: &Uuid) -> Result<(), RealmClientError>;

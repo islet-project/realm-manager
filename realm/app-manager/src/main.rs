@@ -26,9 +26,6 @@ async fn main() -> anyhow::Result<(), Error> {
     let config = Config::read_from_file(args.config).await?;
     let mut manager = Manager::new(config).await?;
 
-    info!("Provishioning...");
-    manager.setup().await?;
-
     info!("Applications started entering event loop");
     manager.handle_events().await?;
 

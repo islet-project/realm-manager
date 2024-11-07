@@ -1,7 +1,7 @@
 use request_handlers::{
-    connect_to_warden_socket, create_application, create_realm, destroy_realm, inspect_realm,
-    list_realms, reboot_realm, start_application, start_realm, stop_application, stop_realm,
-    update_application,
+    connect_to_warden_socket, create_application, create_realm, destroy_realm,
+    fetch_attestation_token, inspect_realm, list_realms, reboot_realm, start_application,
+    start_realm, stop_application, stop_realm, update_application,
 };
 use std::path::PathBuf;
 use tokio::net::UnixStream;
@@ -36,6 +36,14 @@ impl WardenConnection {
 
     pub async fn start_realm(&mut self, uuid: Uuid) -> Result<(), WardenClientError> {
         start_realm(&mut self.communicator, uuid).await
+    }
+
+    pub async fn fetch_attestation_token(
+        &mut self,
+        uuid: Uuid,
+        challenge: Vec<u8>,
+    ) -> Result<Vec<u8>, WardenClientError> {
+        fetch_attestation_token(&mut self.communicator, uuid, challenge).await
     }
 
     pub async fn stop_realm(&mut self, uuid: Uuid) -> Result<(), WardenClientError> {

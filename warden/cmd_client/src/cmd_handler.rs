@@ -2,6 +2,7 @@ use std::str::FromStr;
 
 use client_lib::WardenConnection;
 use log::info;
+use tokio::fs;
 use uuid::Uuid;
 use warden_client::{
     application::ApplicationConfig,
@@ -35,7 +36,7 @@ impl CommandHanlder {
                 kernel,
                 kernel_initramfs,
                 kernel_options,
-                metadata
+                metadata,
             } => {
                 let cpu = CpuConfig {
                     cpu,
@@ -61,7 +62,7 @@ impl CommandHanlder {
                     memory,
                     network,
                     kernel,
-                    metadata
+                    metadata,
                 };
 
                 let realm_uuid = self.connection.create_realm(realm_config).await?;
@@ -70,6 +71,32 @@ impl CommandHanlder {
             }
             Command::StartRealm { id } => {
                 Ok(self.connection.start_realm(Uuid::from_str(&id)?).await?)
+            }
+            Command::FetchAttestationToken {
+                id,
+                challenge,
+                output,
+            } => {
+                let raw_chall = hex::decode(challenge)?;
+                let token = self
+                    .connection
+                    .fetch_attestation_token(Uuid::from_str(&id)?, raw_chall)
+                    .await?;
+                info!("Fetched attestation token");
+
+                match output.as_ref() {
+                    Some(path) => {
+                        fs::write(path, token).await?;
+                        info!("Token written to {:?}", path);
+                    }
+                    None => {
+                        info!("Attestiation token:");
+                        let claims = rust_rsi::verify_token(&token, None)?;
+                        rust_rsi::print_token(&claims);
+                    }
+                }
+
+                Ok(())
             }
             Command::StopRealm { id } => {
                 Ok(self.connection.stop_realm(Uuid::from_str(&id)?).await?)
