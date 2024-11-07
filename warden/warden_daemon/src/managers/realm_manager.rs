@@ -74,11 +74,11 @@ impl RealmManager {
         Ok(())
     }
 
-    async fn handle_provisioning_response(
+    async fn handle_start_response(
         &mut self,
-        provisioning_result: Result<(), RealmClientError>,
+        starting_result: Result<(), RealmClientError>,
     ) -> Result<(), RealmError> {
-        match provisioning_result {
+        match starting_result {
             Ok(_) => {
                 self.state = State::Running;
                 Ok(())
@@ -111,6 +111,59 @@ impl RealmManager {
 
 #[async_trait]
 impl Realm for RealmManager {
+    async fn fetch_attestation_token(&mut self, challenge: Vec<u8>) -> Result<Vec<u8>, RealmError> {
+        let resp = match self.state {
+            State::Halted => {
+                self.prepare_applications().await?;
+
+                let apps_uuids: Vec<&Uuid> = self.applications.keys().collect();
+                self.vm_manager
+                    .launch_vm(&apps_uuids)
+                    .await
+                    .map_err(|err| RealmError::RealmLaunchFail(err.to_string()))?;
+
+                let resp = self
+                    .realm_client_handler
+                    .lock()
+                    .await
+                    .try_connect_and_fetch_attestation_token(
+                        self.config.get().network.vsock_cid,
+                        challenge,
+                    )
+                    .await;
+
+                self.realm_client_handler
+                    .lock()
+                    .await
+                    .shutdown_realm()
+                    .await
+                    .map_err(|err| RealmError::RealmStopFail(err.to_string()))?;
+                self.vm_manager
+                    .shutdown()
+                    .await
+                    .map_err(|err| RealmError::VmStopFail(err.to_string()))?;
+
+                resp
+            }
+
+            State::Running | State::NeedReboot => {
+                self.realm_client_handler
+                    .lock()
+                    .await
+                    .fetch_attestation_token(challenge)
+                    .await
+            }
+
+            _ => {
+                return Err(RealmError::UnsupportedAction(String::from(
+                    "Can't fetch real token that is being provisioned",
+                )))
+            }
+        };
+
+        resp.map_err(|err| RealmError::AttestationTokenFetch(err.to_string()))
+    }
+
     async fn start(&mut self) -> Result<(), RealmError> {
         if self.state != State::Halted {
             return Err(RealmError::UnsupportedAction(String::from(
@@ -132,12 +185,13 @@ impl Realm for RealmManager {
             .realm_client_handler
             .lock()
             .await
-            .provision_applications(
-                self.create_provisioning_config().await?,
+            .try_connect_and_provision_apps(
                 self.config.get().network.vsock_cid,
+                self.create_provisioning_config().await?,
             )
             .await;
-        self.handle_provisioning_response(resp).await
+
+        self.handle_start_response(resp).await
     }
 
     async fn stop(&mut self) -> Result<(), RealmError> {
@@ -322,10 +376,7 @@ mod test {
     #[tokio::test]
     async fn start_respnse_handle() {
         let mut realm_manager = create_realm_manager(None, None);
-        assert!(realm_manager
-            .handle_provisioning_response(Ok(()))
-            .await
-            .is_ok());
+        assert!(realm_manager.handle_start_response(Ok(())).await.is_ok());
     }
 
     #[tokio::test]
@@ -337,7 +388,7 @@ mod test {
         let mut realm_manager = create_realm_manager(Some(vm_manager_mock), None);
         assert!(matches!(
             realm_manager
-                .handle_provisioning_response(Err(RealmClientError::RealmDisconnection()))
+                .handle_start_response(Err(RealmClientError::RealmDisconnection()))
                 .await,
             Err(RealmError::RealmStartFail(_))
         ));
@@ -355,7 +406,7 @@ mod test {
         let mut realm_manager = create_realm_manager(Some(vm_manager_mock), None);
         assert!(matches!(
             realm_manager
-                .handle_provisioning_response(Err(RealmClientError::RealmDisconnection()))
+                .handle_start_response(Err(RealmClientError::RealmDisconnection()))
                 .await,
             Err(RealmError::VmDestroyFail(_))
         ));
@@ -371,7 +422,7 @@ mod test {
         let mut realm_manager = create_realm_manager(Some(vm_manager_mock), None);
         assert!(matches!(
             realm_manager
-                .handle_provisioning_response(Err(RealmClientError::RealmDisconnection()))
+                .handle_start_response(Err(RealmClientError::RealmDisconnection()))
                 .await,
             Err(RealmError::RealmStartFail(_))
         ));

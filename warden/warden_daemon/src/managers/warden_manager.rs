@@ -49,7 +49,11 @@ impl WardenDaemon {
 
 #[async_trait]
 impl Warden for WardenDaemon {
-    async fn create_realm(&mut self, id: Option<Uuid>, config: RealmConfig) -> Result<Uuid, WardenError> {
+    async fn create_realm(
+        &mut self,
+        id: Option<Uuid>,
+        config: RealmConfig,
+    ) -> Result<Uuid, WardenError> {
         let uuid = id.unwrap_or(Uuid::new_v4());
 
         if self.realms_managers.contains_key(&uuid) {

@@ -3,8 +3,6 @@ use serde::{Serialize, Deserialize};
 #[derive(Debug, Serialize, Deserialize)]
 pub enum ProtocolError {
     InvalidRequest(String),
-    ProvisionInfoNotReceived(),
-    ApplicationsAlreadyProvisioned(),
     ApplicationNotFound(),
     ApplicationLaunchFailed(String),
     ApplicationStopFailed(String),
@@ -12,4 +10,6 @@ pub enum ProtocolError {
     ApplicationCheckStatusFailed(String),
     SystemPowerActionFailed(String),
     GetIfAddrsError(String),
+    ProvisioningError(String),
+    AttestationTokenReadingError(String)
 }

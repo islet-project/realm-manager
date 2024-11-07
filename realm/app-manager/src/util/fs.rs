@@ -199,9 +199,7 @@ pub async fn read_to_string(path: impl AsRef<Path>) -> Result<String> {
 }
 
 pub async fn read_to_vec(path: impl AsRef<Path>) -> Result<Vec<u8>> {
-    Ok(fs::read(path)
-        .await
-        .map_err(FsError::FileReadError)?)
+    Ok(fs::read(path).await.map_err(FsError::FileReadError)?)
 }
 
 pub async fn write_to_file(path: impl AsRef<Path>, content: impl AsRef<[u8]>) -> Result<()> {

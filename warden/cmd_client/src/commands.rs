@@ -60,7 +60,25 @@ pub enum Command {
 
         /// Path to realms metadata
         #[clap(short = 'd', long)]
-        metadata: Option<PathBuf>
+        metadata: Option<PathBuf>,
+    },
+
+    FetchAttestationToken {
+        /// Realm Id
+        #[clap(short = 'r', long)]
+        id: String,
+
+        /// Realm challenge in hex, zeros if not provided
+        #[clap(
+            short = 'c',
+            long,
+            default_value = "00000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000"
+        )]
+        challenge: String,
+
+        /// Output token to file
+        #[clap(short = 'o', long)]
+        output: Option<PathBuf>,
     },
 
     ListRealms,

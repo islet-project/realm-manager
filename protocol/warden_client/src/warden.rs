@@ -10,6 +10,10 @@ pub enum WardenCommand {
     CreateRealm {
         config: RealmConfig,
     },
+    FetchToken {
+        uuid: Uuid,
+        challenge: Vec<u8>
+    },
     StartRealm {
         uuid: Uuid,
     },
@@ -48,6 +52,9 @@ pub enum WardenCommand {
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, PartialOrd)]
 pub enum WardenResponse {
     Ok,
+    AttestationToken {
+        token: Vec<u8>
+    },
     CreatedRealm {
         uuid: Uuid,
     },

@@ -9,7 +9,7 @@ use uuid::Uuid;
 use warden_realm::{ApplicationInfo, ProtocolError, Request, Response};
 
 use crate::app::Application;
-use crate::config::{Config, KeySealingType, LauncherType};
+use crate::config::{Config, KeySealingType, LauncherType, OciLauncherConfig, TokenResolver};
 use crate::consts::RSI_KO;
 use crate::error::Error;
 use crate::key::dummy::DummyKeySealingFactory;
@@ -48,8 +48,17 @@ pub enum ManagerError {
     #[error("Application {0} not found")]
     AppNotFound(Uuid),
 
-    #[error("Invalid message received")]
-    InvalidMessage(),
+    #[error("Appplications already provisioned")]
+    AlreadyProvisioned(),
+
+    #[error("App-manager is not configured for remote attestation")]
+    RaTlsIsNotSelected(),
+
+    #[error("Failed to fetch attestation token from RSI")]
+    RsiTokenFetch(#[source] rust_rsi::NixError),
+
+    #[error("Invalid challenge size expected 64 bytes")]
+    InvalidChallengeSize(),
 }
 
 pub struct Manager {
@@ -95,7 +104,7 @@ impl Manager {
                 let ca_key = EcdsaKey::import(ca)?;
 
                 Ok(Box::new(OciLauncher::from_oci_config(cfg.clone(), ca_key)))
-            },
+            }
         }
     }
 
@@ -122,31 +131,10 @@ impl Manager {
         Ok(())
     }
 
-    async fn recv_provision_info(&mut self) -> Result<Vec<ApplicationInfo>> {
-        let msg = self.recv_msg().await?;
-
-        if let Request::ProvisionInfo(infos) = msg {
-            Ok(infos)
-        } else {
-            error!("Provision info not received, got: {:?}", msg);
-
-            Err(ManagerError::InvalidMessage().into())
+    async fn provision(&mut self, apps_info: &[ApplicationInfo]) -> Result<()> {
+        if !self.apps.is_empty() {
+            return Err(ManagerError::AlreadyProvisioned().into());
         }
-    }
-
-    async fn report_provision_success(&mut self) -> Result<()> {
-        self.conn
-            .send(Response::Success())
-            .await
-            .map_err(ManagerError::FramedJsonError)?;
-
-        Ok(())
-    }
-
-    pub async fn setup(&mut self) -> Result<()> {
-        info!("Waiting for provision info");
-        let apps_info = self.recv_provision_info().await?;
-        debug!("Received provision info: {:?}", apps_info);
 
         info!("Starting installation");
 
@@ -162,8 +150,10 @@ impl Manager {
 
             set.spawn(async move {
                 let mut app = Application::new(info, app_dir)?;
-                let handler = app.setup(params, launcher, keyseal).await
-                    .map_err(|e| {error!("Application installation error: {:?}", e); e})?;
+                let handler = app.setup(params, launcher, keyseal).await.map_err(|e| {
+                    error!("Application installation error: {:?}", e);
+                    e
+                })?;
 
                 Ok((app, handler))
             });
@@ -177,7 +167,9 @@ impl Manager {
         }
 
         for info in apps_info.iter() {
-            let (app, _) = self.apps.get(&info.id)
+            let (app, _) = self
+                .apps
+                .get(&info.id)
                 .ok_or(ManagerError::AppNotFound(info.id))?;
             info!("Measuring app {}", info.id);
             self.extend_rem(app.measurements())?;
@@ -191,9 +183,40 @@ impl Manager {
         }
 
         info!("Provisioning finished");
-        self.report_provision_success().await?;
 
         Ok(())
+    }
+
+    async fn read_attestation_token(&mut self, challenge: &[u8]) -> Result<Vec<u8>> {
+        info!("Reading attestation token");
+
+        match &self.config.launcher {
+            LauncherType::Oci(crate::config::OciLauncherConfig::RaTLS {
+                token_resolver: TokenResolver::Rsi,
+                ..
+            }) => {
+                info!("Fetching token from RSI");
+                let chall: &[u8; 64] = challenge
+                    .try_into()
+                    .map_err(|_| ManagerError::InvalidChallengeSize())?;
+
+                Ok(
+                    tokio::task::block_in_place(|| rust_rsi::attestation_token(chall))
+                        .map_err(ManagerError::RsiTokenFetch)?,
+                )
+            }
+
+            LauncherType::Oci(OciLauncherConfig::RaTLS {
+                token_resolver: TokenResolver::File(path),
+                ..
+            }) => {
+                info!("Using attestation token from file");
+
+                Ok(read_to_vec(path).await?)
+            }
+
+            _ => Err(ManagerError::RaTlsIsNotSelected().into()),
+        }
     }
 
     fn extend_rem(&self, data: &[u8]) -> Result<()> {
@@ -246,11 +269,25 @@ impl Manager {
 
     async fn handle_request(&mut self, request: Request) -> ProtocolResult<Response> {
         match request {
-            Request::ProvisionInfo(_) => {
-                error!("Application already provisioned!");
-                Ok(Response::Error(
-                    ProtocolError::ApplicationsAlreadyProvisioned(),
-                ))
+            Request::ProvisionInfo(apps_info) => {
+                info!("Received provisioning request");
+
+                match self.provision(apps_info.as_slice()).await {
+                    Ok(()) => Ok(Response::Success()),
+                    Err(e) => Err(ProtocolError::ProvisioningError(format!("{:?}", e))),
+                }
+            }
+
+            Request::GetAttestationToken(challenge) => {
+                info!("Fetching attestation token");
+
+                match self.read_attestation_token(challenge.as_slice()).await {
+                    Ok(token) => Ok(Response::AttestationToken(token)),
+                    Err(e) => Err(ProtocolError::AttestationTokenReadingError(format!(
+                        "{:?}",
+                        e
+                    ))),
+                }
             }
 
             Request::GetIfAddrs() => {

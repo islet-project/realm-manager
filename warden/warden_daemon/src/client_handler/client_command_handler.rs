@@ -96,6 +96,17 @@ impl ClientHandler {
         client_command: WardenCommand,
     ) -> Result<WardenResponse, ClientError> {
         match client_command {
+            WardenCommand::FetchToken { uuid, challenge } => {
+                info!("Fetching attestation token");
+                let realm: Arc<Mutex<Box<dyn Realm + Send + Sync>>> = self.get_realm(&uuid).await?;
+                let token = realm
+                    .lock()
+                    .await
+                    .fetch_attestation_token(challenge)
+                    .await
+                    .map_err(ClientError::RealmManagerError)?;
+                Ok(WardenResponse::AttestationToken { token })
+            }
             WardenCommand::StartRealm { uuid } => {
                 info!("Starting realm: {uuid}.");
                 let realm: Arc<Mutex<Box<dyn Realm + Send + Sync>>> = self.get_realm(&uuid).await?;

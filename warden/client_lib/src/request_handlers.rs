@@ -33,6 +33,17 @@ pub async fn start_realm(
     }
 }
 
+pub async fn fetch_attestation_token(
+    communicator: &mut Communicator,
+    uuid: Uuid,
+    challenge: Vec<u8>,
+) -> Result<Vec<u8>, WardenClientError> {
+    match communicate(communicator, WardenCommand::FetchToken { uuid, challenge }).await? {
+        WardenResponse::AttestationToken { token } => Ok(token),
+        response => Err(handle_error_response(response)),
+    }
+}
+
 pub async fn stop_realm(
     communicator: &mut Communicator,
     uuid: Uuid,

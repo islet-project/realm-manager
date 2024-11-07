@@ -94,7 +94,7 @@ pub enum Error {
     RsiTokenResolver(#[from] RsiTokenResolverError),
 
     #[error("Crypto error")]
-    Crypto(#[from] crypto::CryptoError)
+    Crypto(#[from] crypto::CryptoError),
 }
 
 pub type Result<T> = std::result::Result<T, Error>;

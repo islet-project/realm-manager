@@ -91,7 +91,7 @@ pub enum ExtendREM {
     Rem2 = 3,
 
     #[serde(rename = "rem3")]
-    Rem3 = 4
+    Rem3 = 4,
 }
 
 #[allow(dead_code)]
@@ -111,7 +111,7 @@ pub struct Config {
     pub keysealing: KeySealingType,
 
     pub autostartall: bool,
-    pub extend: Option<ExtendREM>
+    pub extend: Option<ExtendREM>,
 }
 
 impl Config {
@@ -135,11 +135,7 @@ impl Config {
                     ..
                 }),
                 _
-            ) | (
-                _,
-                _,
-                Some(_)
-            )
+            ) | (_, _, Some(_))
         )
     }
 }

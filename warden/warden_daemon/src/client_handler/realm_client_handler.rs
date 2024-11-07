@@ -130,18 +130,32 @@ impl RealmClientHandler {
 
 #[async_trait]
 impl RealmClient for RealmClientHandler {
-    async fn provision_applications(
+    async fn try_connect_and_provision_apps(
         &mut self,
-        realm_provisioning_config: RealmProvisioningConfig,
         cid: u32,
+        realm_provisioning_config: RealmProvisioningConfig,
     ) -> Result<(), RealmClientError> {
+        self.try_connect(cid).await?;
+        self.provision_applications(realm_provisioning_config)
+            .await?;
+
+        Ok(())
+    }
+    async fn try_connect_and_fetch_attestation_token(
+        &mut self,
+        cid: u32,
+        challenge: Vec<u8>,
+    ) -> Result<Vec<u8>, RealmClientError> {
+        self.try_connect(cid).await?;
+        self.fetch_attestation_token(challenge).await
+    }
+    async fn try_connect(&mut self, cid: u32) -> Result<(), RealmClientError> {
         let realm_sender_receiver = self.connector.lock().await.acquire_realm_sender(cid).await;
 
         select! {
             realm_sender = realm_sender_receiver => {
                 let _ = self.sender.insert(realm_sender.map_err(|err| RealmClientError::RealmConnectionFail(err.to_string()))?);
-                self.send_command(Request::ProvisionInfo(realm_provisioning_config.into())).await?;
-                Self::handle_success_command(self.read_response(self.connection_wait_time).await?)
+                Ok(())
             },
             _ = self.cancellation_token.cancelled() => {
                 Err(RealmClientError::RealmConnectionFail(String::from("Waiting for realm connection cancelled.")))
@@ -150,6 +164,26 @@ impl RealmClient for RealmClientHandler {
                 Err(RealmClientError::RealmConnectionFail(String::from("Timeout on listening for realm connection.")))
             }
         }
+    }
+    async fn fetch_attestation_token(
+        &mut self,
+        challenge: Vec<u8>,
+    ) -> Result<Vec<u8>, RealmClientError> {
+        self.send_command(Request::GetAttestationToken(challenge))
+            .await?;
+
+        match self.read_response(self.response_timeout).await? {
+            Response::AttestationToken(token) => Ok(token),
+            other_response => Err(Self::handle_invalid_response(other_response)),
+        }
+    }
+    async fn provision_applications(
+        &mut self,
+        realm_provisioning_config: RealmProvisioningConfig,
+    ) -> Result<(), RealmClientError> {
+        self.send_command(Request::ProvisionInfo(realm_provisioning_config.into()))
+            .await?;
+        Self::handle_success_command(self.read_response(self.connection_wait_time).await?)
     }
     async fn start_application(&mut self, application_uuid: &Uuid) -> Result<(), RealmClientError> {
         self.send_command(Request::StartApp(*application_uuid))
@@ -179,8 +213,8 @@ impl RealmClient for RealmClientHandler {
         cid: u32,
     ) -> Result<(), RealmClientError> {
         self.send_command(Request::Reboot()).await?;
-        self.provision_applications(realm_provisioning_config, cid)
-            .await
+        self.try_connect(cid).await?;
+        self.provision_applications(realm_provisioning_config).await
     }
     async fn read_realm_ifs(&mut self) -> Result<Vec<RealmNetwork>, RealmClientError> {
         self.send_command(Request::GetIfAddrs()).await?;
