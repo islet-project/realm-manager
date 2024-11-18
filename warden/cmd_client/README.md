@@ -26,4 +26,5 @@ This crate provide a simple cli interface to the warden daemon.
 |Update application| update-application -r {REALM_ID} -a {APPLICATION_ID} -n {NAME} -v {VERSION} -i {IMAGE} -o {IMAGE_PARTITION_SIZE} -d {DATA_PARTITION_SIZE}|
 |Start application| start-application -r {REALM_ID} -a {APPLICATION_ID}|
 |Stop application| stop-application -r {REALM_ID} -a {APPLICATION_ID}|
+|Fetch attestation token| fetch-attestation-token -r {REALM_ID} [ -o token.bin ]|
     
