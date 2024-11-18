@@ -142,7 +142,7 @@ mod test {
     async fn create_realm() {
         let mut daemon = create_host_daemon(None);
         let uuid = daemon
-            .create_realm(create_example_realm_config())
+            .create_realm(None, create_example_realm_config())
             .await
             .unwrap();
         assert!(daemon.realms_managers.contains_key(&uuid));
@@ -152,7 +152,7 @@ mod test {
     async fn get_realm() {
         let mut daemon = create_host_daemon(None);
         let uuid = daemon
-            .create_realm(create_example_realm_config())
+            .create_realm(None, create_example_realm_config())
             .await
             .unwrap();
         assert!(daemon.realms_managers.contains_key(&uuid));
@@ -171,7 +171,7 @@ mod test {
     async fn destroy_created_realm() {
         let mut daemon = create_host_daemon(None);
         let uuid = daemon
-            .create_realm(create_example_realm_config())
+            .create_realm(None, create_example_realm_config())
             .await
             .unwrap();
         assert!(daemon.realms_managers.contains_key(&uuid));
@@ -200,7 +200,7 @@ mod test {
         });
         let mut daemon = create_host_daemon(Some(mock_realm));
         let uuid = daemon
-            .create_realm(create_example_realm_config())
+            .create_realm(None, create_example_realm_config())
             .await
             .unwrap();
         assert_eq!(
@@ -219,7 +219,7 @@ mod test {
             .returning(|| Ok(create_example_realm_data()));
         let mut daemon = create_host_daemon(Some(realm));
         let uuid = daemon
-            .create_realm(create_example_realm_config())
+            .create_realm(None, create_example_realm_config())
             .await
             .unwrap();
         assert_eq!(
@@ -256,7 +256,7 @@ mod test {
             .returning(|| Ok(create_example_realm_data()));
         let mut daemon = create_host_daemon(Some(realm));
         let uuid = daemon
-            .create_realm(create_example_realm_config())
+            .create_realm(None, create_example_realm_config())
             .await
             .unwrap();
         let listed_realm = daemon

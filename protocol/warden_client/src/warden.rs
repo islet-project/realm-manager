@@ -12,7 +12,7 @@ pub enum WardenCommand {
     },
     FetchToken {
         uuid: Uuid,
-        challenge: Vec<u8>
+        challenge: Vec<u8>,
     },
     StartRealm {
         uuid: Uuid,
@@ -53,7 +53,7 @@ pub enum WardenCommand {
 pub enum WardenResponse {
     Ok,
     AttestationToken {
-        token: Vec<u8>
+        token: Vec<u8>,
     },
     CreatedRealm {
         uuid: Uuid,

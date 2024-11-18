@@ -1,5 +1,5 @@
+use serde::{Deserialize, Serialize};
 use uuid::Uuid;
-use serde::{Serialize, Deserialize};
 
 #[derive(Debug, Serialize, Deserialize, Clone)]
 pub struct ApplicationInfo {
@@ -8,7 +8,7 @@ pub struct ApplicationInfo {
     pub version: String,
     pub image_registry: String,
     pub image_part_uuid: Uuid,
-    pub data_part_uuid: Uuid
+    pub data_part_uuid: Uuid,
 }
 
 #[derive(Debug, Serialize, Deserialize)]
@@ -21,5 +21,5 @@ pub enum Request {
     StopApp(Uuid),
     KillApp(Uuid),
     Reboot(),
-    Shutdown()
+    Shutdown(),
 }

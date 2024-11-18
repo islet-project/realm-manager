@@ -501,7 +501,7 @@ mod test {
             let mut warden_daemon = MockWardenDaemon::new();
             warden_daemon
                 .expect_create_realm()
-                .returning(|_| Ok(create_example_uuid()));
+                .returning(|_, _| Ok(create_example_uuid()));
             warden_daemon.expect_destroy_realm().returning(|_| Ok(()));
             warden_daemon
                 .expect_list_realms()
@@ -529,6 +529,7 @@ mod test {
 
     fn create_example_client_realm_config() -> RealmConfig {
         RealmConfig {
+            id: None,
             machine: String::new(),
             cpu: CpuConfig {
                 cpu: String::new(),
@@ -547,6 +548,7 @@ mod test {
                 kernel_cmd_params: None,
                 kernel_initramfs_path: None,
             },
+            metadata: None,
         }
     }
 }

@@ -1,7 +1,7 @@
 use std::{collections::HashMap, net::IpAddr};
 
-use serde::{Serialize, Deserialize};
 use crate::error::ProtocolError;
+use serde::{Deserialize, Serialize};
 
 #[derive(Debug, Serialize, Deserialize)]
 pub struct NetAddr {
@@ -18,6 +18,5 @@ pub enum Response {
     ApplicationNotStarted(),
     IfAddrs(HashMap<String, NetAddr>),
     Success(),
-    Error(ProtocolError)
+    Error(ProtocolError),
 }
-
