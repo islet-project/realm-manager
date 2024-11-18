@@ -68,7 +68,7 @@ mock! {
 
     #[async_trait]
     impl Warden for WardenDaemon {
-        async fn create_realm(&mut self, config: RealmConfig) -> Result<Uuid, WardenError>;
+        async fn create_realm(&mut self, id: Option<Uuid>, config: RealmConfig) -> Result<Uuid, WardenError>;
         async fn destroy_realm(&mut self, realm_uuid:& Uuid) -> Result<(), WardenError>;
         async fn list_realms(&self) -> Result<Vec<RealmDescription>, WardenError>;
         async fn inspect_realm(&self, realm_uuid:& Uuid) -> Result<RealmDescription, WardenError>;
@@ -83,6 +83,7 @@ mock! {
     pub Realm{}
     #[async_trait]
     impl Realm for Realm {
+        async fn fetch_attestation_token(&mut self, challenge: Vec<u8>) -> Result<Vec<u8>, RealmError>;
         async fn start(&mut self) -> Result<(), RealmError>;
         async fn stop(&mut self) -> Result<(), RealmError>;
         async fn reboot(&mut self) -> Result<(), RealmError>;
@@ -144,11 +145,25 @@ mock! {
 
     #[async_trait]
     impl RealmClient for RealmClient {
+        async fn try_connect(&mut self, cid: u32) -> Result<(), RealmClientError>;
         async fn provision_applications(
             &mut self,
-            realm_provisioning_config: RealmProvisioningConfig,
-            cid: u32,
+            realm_provisioning_config: RealmProvisioningConfig
         ) -> Result<(), RealmClientError>;
+        async fn try_connect_and_provision_apps(
+            &mut self,
+            cid: u32,
+            realm_provisioning_config: RealmProvisioningConfig,
+        ) -> Result<(), RealmClientError>;
+        async fn try_connect_and_fetch_attestation_token(
+            &mut self,
+            cid: u32,
+            challenge: Vec<u8>,
+        ) -> Result<Vec<u8>, RealmClientError>;
+        async fn fetch_attestation_token(
+            &mut self,
+            challenge: Vec<u8>,
+        ) -> Result<Vec<u8>, RealmClientError>;
         async fn start_application(&mut self, application_uuid: &Uuid) -> Result<(), RealmClientError>;
         async fn stop_application(&mut self, application_uuid: &Uuid) -> Result<(), RealmClientError>;
         async fn kill_application(&mut self, application_uuid: &Uuid) -> Result<(), RealmClientError>;

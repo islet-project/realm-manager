@@ -50,6 +50,7 @@ pub fn get_kernel_path() -> PathBuf {
 pub fn create_example_realm_config() -> RealmConfig {
     const TAP_DEVICE_ENV: &str = "TAP_DEVICE";
     RealmConfig {
+        id: None,
         machine: "virt".to_string(),
         cpu: CpuConfig {
             cpu: "cortex-a57".to_string(),
@@ -68,6 +69,7 @@ pub fn create_example_realm_config() -> RealmConfig {
             kernel_cmd_params: None,
             kernel_initramfs_path: None,
         },
+        metadata: None,
     }
 }
 

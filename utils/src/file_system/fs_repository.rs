@@ -24,7 +24,10 @@ pub struct FileRepository<Struct: Serialize + DeserializeOwned> {
 
 impl<Struct: Serialize + DeserializeOwned> FileRepository<Struct> {
     pub async fn new(data: Struct, path: &Path) -> Result<Self, FileRepositoryError> {
-        let mut repository = Self { data, path: path.to_path_buf() };
+        let mut repository = Self {
+            data,
+            path: path.to_path_buf(),
+        };
         repository.save().await?;
         Ok(repository)
     }
@@ -32,20 +35,24 @@ impl<Struct: Serialize + DeserializeOwned> FileRepository<Struct> {
     pub async fn from_file_path(path: &Path) -> Result<Self, FileRepositoryError> {
         FileRepository::<Struct>::try_read_file(path)
             .await
-            .map(|(_, data)| Self { data, path: path.to_path_buf() })
+            .map(|(_, data)| Self {
+                data,
+                path: path.to_path_buf(),
+            })
     }
 
     pub async fn save(&mut self) -> Result<(), FileRepositoryError> {
         let yaml_data = serde_yaml::to_string(&self.data)
             .map_err(|err| FileRepositoryError::SaveFail(err.to_string()))?;
         let mut file = File::create(&self.path)
-        .await
-        .map_err(FileRepositoryError::CreationFail)?;
-        file
-            .write_all(yaml_data.as_bytes())
+            .await
+            .map_err(FileRepositoryError::CreationFail)?;
+        file.write_all(yaml_data.as_bytes())
             .await
             .map_err(|err| FileRepositoryError::SaveFail(err.to_string()))?;
-        file.flush().await.map_err(|err| FileRepositoryError::SaveFail(err.to_string()))?;
+        file.flush()
+            .await
+            .map_err(|err| FileRepositoryError::SaveFail(err.to_string()))?;
         Ok(())
     }
 

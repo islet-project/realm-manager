@@ -444,9 +444,9 @@ mod test {
 
     #[test]
     fn handle_invalid_response() {
-        const RESP: Response = Response::Error(ProtocolError::ApplicationsAlreadyProvisioned());
+        let resp = Response::Error(ProtocolError::InvalidRequest("".to_string()));
         assert!(matches!(
-            RealmClientHandler::handle_invalid_response(RESP),
+            RealmClientHandler::handle_invalid_response(resp),
             RealmClientError::RealmDaemonError(_)
         ))
     }
@@ -620,10 +620,7 @@ mod test {
         let mut realm_client_handler = create_realm_client_handler(None, None);
         let cid = 0;
         assert!(realm_client_handler.sender.is_none());
-        assert!(realm_client_handler
-            .provision_applications(create_example_realm_provisioning_config(), cid)
-            .await
-            .is_ok());
+        assert!(realm_client_handler.try_connect(cid).await.is_ok());
         assert!(realm_client_handler.sender.is_some());
     }
 
@@ -641,7 +638,7 @@ mod test {
         let mut realm_client_handler = create_realm_client_handler(Some(realm_connector), None);
         let cid = 0;
         assert!(realm_client_handler
-            .provision_applications(create_example_realm_provisioning_config(), cid)
+            .try_connect_and_provision_apps(cid, create_example_realm_provisioning_config())
             .await
             .is_err());
         assert!(realm_client_handler.sender.is_none());

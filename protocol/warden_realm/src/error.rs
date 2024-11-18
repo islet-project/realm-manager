@@ -1,4 +1,4 @@
-use serde::{Serialize, Deserialize};
+use serde::{Deserialize, Serialize};
 
 #[derive(Debug, Serialize, Deserialize)]
 pub enum ProtocolError {
@@ -11,5 +11,5 @@ pub enum ProtocolError {
     SystemPowerActionFailed(String),
     GetIfAddrsError(String),
     ProvisioningError(String),
-    AttestationTokenReadingError(String)
+    AttestationTokenReadingError(String),
 }

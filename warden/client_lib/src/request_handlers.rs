@@ -557,6 +557,7 @@ mod test {
 
     pub fn create_example_realm_config() -> RealmConfig {
         RealmConfig {
+            id: None,
             machine: String::new(),
             cpu: CpuConfig {
                 cpu: String::new(),
@@ -575,6 +576,7 @@ mod test {
                 kernel_cmd_params: None,
                 kernel_initramfs_path: None,
             },
+            metadata: None,
         }
     }
 

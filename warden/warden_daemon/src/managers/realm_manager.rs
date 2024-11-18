@@ -448,7 +448,7 @@ mod test {
     async fn realm_start_launching_acknowledgment_error() {
         let mut client_mock = MockRealmClient::new();
         client_mock
-            .expect_provision_applications()
+            .expect_try_connect_and_provision_apps()
             .return_once(|_, _| Err(RealmClientError::RealmConnectionFail(String::new())));
         let mut realm_manager = create_realm_manager(None, Some(client_mock));
         assert!(realm_manager.start().await.is_err());
@@ -797,8 +797,11 @@ mod test {
         vm_manager.expect_shutdown().returning(|| Ok(()));
         let mut realm_client_handler = realm_client_handler.unwrap_or_default();
         realm_client_handler
-            .expect_provision_applications()
+            .expect_try_connect_and_provision_apps()
             .returning(|_, _| Ok(()));
+        realm_client_handler
+            .expect_provision_applications()
+            .returning(|_| Ok(()));
         realm_client_handler
             .expect_start_application()
             .returning(|_| Ok(()));
