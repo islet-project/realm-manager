@@ -123,7 +123,7 @@ dependencies = [
  "ir-client",
  "keyutils",
  "log",
- "nix 0.29.0",
+ "nix 0.27.1",
  "oci-spec 0.7.0",
  "p384",
  "ratls",
@@ -227,27 +227,9 @@ dependencies = [
  "bitflags 2.6.0",
  "cexpr",
  "clang-sys",
- "itertools 0.12.1",
+ "itertools",
  "lazy_static",
  "lazycell",
- "proc-macro2",
- "quote",
- "regex",
- "rustc-hash 1.1.0",
- "shlex",
- "syn",
-]
-
-[[package]]
-name = "bindgen"
-version = "0.70.1"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "f49d8fed880d473ea71efb9bf597651e77201bdd4893efe54c9e5d65ae04ce6f"
-dependencies = [
- "bitflags 2.6.0",
- "cexpr",
- "clang-sys",
- "itertools 0.13.0",
  "log",
  "prettyplease",
  "proc-macro2",
@@ -256,6 +238,7 @@ dependencies = [
  "rustc-hash 1.1.0",
  "shlex",
  "syn",
+ "which",
 ]
 
 [[package]]
@@ -658,7 +641,7 @@ name = "devicemapper-sys"
 version = "0.3.0"
 source = "git+https://github.com/islet-project/devicemapper-rs#430aa9afba713649d3b514d31c7497a2508f3a41"
 dependencies = [
- "bindgen 0.69.5",
+ "bindgen",
 ]
 
 [[package]]
@@ -1048,6 +1031,15 @@ dependencies = [
 ]
 
 [[package]]
+name = "home"
+version = "0.5.9"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "e3d1354bf6b7235cb4a0576c2619fd4ed18183f689b12b006a0ee7329eeff9a5"
+dependencies = [
+ "windows-sys 0.52.0",
+]
+
+[[package]]
 name = "http"
 version = "1.1.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -1346,7 +1338,7 @@ checksum = "ddc24109865250148c2e0f3d25d4f0f479571723792d3802153c60922a4fb708"
 [[package]]
 name = "ir-client"
 version = "0.3.0"
-source = "git+https://github.com/islet-project/image-registry#29e7d0f97014bdcc30b5b09c0b04224d34512009"
+source = "git+https://github.com/islet-project/image-registry#26696aeac1197b00fda096bd56a482de20e1a839"
 dependencies = [
  "async-compression",
  "clap",
@@ -1383,15 +1375,6 @@ name = "itertools"
 version = "0.12.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "ba291022dbbd398a455acf126c1e341954079855bc60dfdda641363bd6922569"
-dependencies = [
- "either",
-]
-
-[[package]]
-name = "itertools"
-version = "0.13.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "413ee7dfc52ee1a4949ceeb7dbc8a33f2d6c088194d9f922fb8318faf1f01186"
 dependencies = [
  "either",
 ]
@@ -1474,7 +1457,7 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "4979f22fdb869068da03c9f7528f8297c6fd2606bc3a4affe42e6a823fdb8da4"
 dependencies = [
  "cfg-if",
- "windows-targets 0.52.6",
+ "windows-targets 0.48.5",
 ]
 
 [[package]]
@@ -1592,7 +1575,6 @@ dependencies = [
  "cfg-if",
  "cfg_aliases",
  "libc",
- "memoffset",
 ]
 
 [[package]]
@@ -2064,7 +2046,7 @@ dependencies = [
 [[package]]
 name = "ratls"
 version = "0.1.0"
-source = "git+https://github.com/islet-project/remote-attestation#b6eaeb054fa6fc8db8eda453eebc5fe52265efde"
+source = "git+https://github.com/islet-project/ratls#3c852a38ed6c80d3561baadff11e6ccc21693b73"
 dependencies = [
  "base64",
  "bcder",
@@ -2243,15 +2225,15 @@ dependencies = [
 [[package]]
 name = "rust-rsi"
 version = "0.1.0"
-source = "git+https://github.com/islet-project/remote-attestation#b6eaeb054fa6fc8db8eda453eebc5fe52265efde"
+source = "git+https://github.com/islet-project/rust-rsi#a035888de43b3357fbc29321f4fb2c8be19cae2d"
 dependencies = [
- "bindgen 0.70.1",
+ "bindgen",
  "cc",
  "ciborium",
  "coset",
  "ecdsa",
  "hex",
- "nix 0.29.0",
+ "nix 0.27.1",
  "p256",
  "p384",
  "sha2",
@@ -3075,6 +3057,18 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "841c67bff177718f1d4dfefde8d8f0e78f9b6589319ba88312f567fc5841a958"
 dependencies = [
  "rustls-pki-types",
+]
+
+[[package]]
+name = "which"
+version = "4.4.2"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "87ba24419a2078cd2b0f2ede2691b6c66d8e47836da3b6db8265ebad47afbfc7"
+dependencies = [
+ "either",
+ "home",
+ "once_cell",
+ "rustix",
 ]
 
 [[package]]

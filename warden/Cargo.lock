@@ -1267,7 +1267,7 @@ dependencies = [
 [[package]]
 name = "rust-rsi"
 version = "0.1.0"
-source = "git+https://github.com/islet-project/remote-attestation#b6eaeb054fa6fc8db8eda453eebc5fe52265efde"
+source = "git+https://github.com/islet-project/rust-rsi#a035888de43b3357fbc29321f4fb2c8be19cae2d"
 dependencies = [
  "bindgen",
  "cc",

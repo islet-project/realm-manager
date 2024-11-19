@@ -27,8 +27,8 @@ QEMU_DIR             = $(TOOLS_DIR)/qemu
 UTIL_LINUX_UPSTREAM  = https://github.com/util-linux/util-linux.git
 UTIL_LINUX_DIR       = $(TOOLS_DIR)/util-linux
 
-RSICTL_UPSTREAM      = https://github.com/islet-project/remote-attestation.git
-RSICTL_DIR           = $(TOOLS_DIR)/remote-attestation
+RSICTL_UPSTREAM      = https://github.com/islet-project/rsictl.git
+RSICTL_DIR           = $(TOOLS_DIR)/rsictl
 
 RSI_KO_DIR           = $(ROOT_DIR)/linux-rsi
 
@@ -174,7 +174,7 @@ compile-rsi-ko: compile-kernel $(RSI_KO_DIR)
 
 compile-rsictl: $(RSICTL_DIR)
 	@echo "$(GREEN_COLOR)Building rsictl.$(NC)"
-	@cd "$(RSICTL_DIR)/tools/rsictl" && cargo build --target=aarch64-unknown-linux-gnu
+	@cd "$(RSICTL_DIR)" && cargo build --target=aarch64-unknown-linux-gnu
 
 
 compile-app-manager:
@@ -202,7 +202,7 @@ ifdef RELEASE
 else
 	@cp -v "$(STRACE_DIR)/src/strace" "$(INITRAMFS_DIR)/usr/bin"
 	@cp -v "$(GDB_DIR)/build/gdbserver/gdbserver" "$(INITRAMFS_DIR)/usr/bin"
-	@cp -v "$(RSICTL_DIR)/tools/rsictl/target/aarch64-unknown-linux-gnu/debug/rsictl" "$(INITRAMFS_DIR)/usr/bin/"
+	@cp -v "$(RSICTL_DIR)/target/aarch64-unknown-linux-gnu/debug/rsictl" "$(INITRAMFS_DIR)/usr/bin/"
 	@cp -v "$(APP_MANAGER_DIR)/target/aarch64-unknown-linux-gnu/debug/app-manager" "$(INITRAMFS_DIR)/usr/bin/"
 endif
 
