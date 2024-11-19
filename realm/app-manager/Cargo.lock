@@ -126,8 +126,8 @@ dependencies = [
  "nix 0.29.0",
  "oci-spec 0.7.0",
  "p384",
- "ratls 0.1.0 (git+https://github.com/islet-project/remote-attestation?branch=dev/m.szaknis/fix_veraison)",
- "rust-rsi 0.1.0 (git+https://github.com/islet-project/remote-attestation?branch=disable-challenge-veraison)",
+ "ratls",
+ "rust-rsi",
  "serde",
  "serde_json",
  "serde_yaml",
@@ -1358,7 +1358,7 @@ dependencies = [
  "mime",
  "oci-spec 0.6.8",
  "pin-project",
- "ratls 0.1.0 (git+https://github.com/islet-project/remote-attestation)",
+ "ratls",
  "regex",
  "reqwest",
  "rustls",
@@ -2064,29 +2064,6 @@ dependencies = [
 [[package]]
 name = "ratls"
 version = "0.1.0"
-source = "git+https://github.com/islet-project/remote-attestation?branch=dev/m.szaknis/fix_veraison#3b054e288e12b5a3c763ce185d76dcd2408db8ba"
-dependencies = [
- "base64",
- "bcder",
- "env_logger",
- "lazy_static",
- "log",
- "pkcs8",
- "rand",
- "rcgen",
- "rsa",
- "rust-rsi 0.1.0 (git+https://github.com/islet-project/remote-attestation?branch=dev/m.szaknis/fix_veraison)",
- "rustls",
- "rustls-pemfile",
- "rustls-webpki",
- "sha2",
- "simple_asn1",
- "x509-certificate",
-]
-
-[[package]]
-name = "ratls"
-version = "0.1.0"
 source = "git+https://github.com/islet-project/remote-attestation#b6eaeb054fa6fc8db8eda453eebc5fe52265efde"
 dependencies = [
  "base64",
@@ -2098,7 +2075,7 @@ dependencies = [
  "rand",
  "rcgen",
  "rsa",
- "rust-rsi 0.1.0 (git+https://github.com/islet-project/remote-attestation)",
+ "rust-rsi",
  "rustls",
  "rustls-pemfile",
  "rustls-webpki",
@@ -2261,40 +2238,6 @@ dependencies = [
  "spki",
  "subtle",
  "zeroize",
-]
-
-[[package]]
-name = "rust-rsi"
-version = "0.1.0"
-source = "git+https://github.com/islet-project/remote-attestation?branch=dev/m.szaknis/fix_veraison#3b054e288e12b5a3c763ce185d76dcd2408db8ba"
-dependencies = [
- "bindgen 0.70.1",
- "cc",
- "ciborium",
- "coset",
- "ecdsa",
- "hex",
- "nix 0.29.0",
- "p256",
- "p384",
- "sha2",
-]
-
-[[package]]
-name = "rust-rsi"
-version = "0.1.0"
-source = "git+https://github.com/islet-project/remote-attestation?branch=disable-challenge-veraison#d1ca821b521afef022eb2854c5896b878e915abf"
-dependencies = [
- "bindgen 0.70.1",
- "cc",
- "ciborium",
- "coset",
- "ecdsa",
- "hex",
- "nix 0.29.0",
- "p256",
- "p384",
- "sha2",
 ]
 
 [[package]]
