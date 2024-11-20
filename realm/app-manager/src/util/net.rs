@@ -18,7 +18,7 @@ use super::Result;
 
 pub fn convert_sock_addr(storage: SockaddrStorage) -> Option<IpAddr> {
     match storage.family() {
-        Some(AddressFamily::Inet) => storage.as_sockaddr_in().map(|addr| IpAddr::V4(addr.ip())),
+        Some(AddressFamily::Inet) => storage.as_sockaddr_in().map(|addr| IpAddr::V4(addr.ip().into())),
         Some(AddressFamily::Inet6) => storage.as_sockaddr_in6().map(|addr| IpAddr::V6(addr.ip())),
         _ => None,
     }

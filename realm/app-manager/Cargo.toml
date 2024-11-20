@@ -28,11 +28,11 @@ utils = { path = "../../utils" }
 clap = { version = "*", features = ["derive"] }
 simple_logger = "*"
 ir-client = { git = "https://github.com/islet-project/image-registry" }
-ratls = { git = "https://github.com/islet-project/remote-attestation" }
+ratls = { git = "https://github.com/islet-project/ratls" }
 oci-spec = "*"
 hkdf = "*"
 hex-literal = "*"
-rust-rsi = { git = "https://github.com/islet-project/remote-attestation" }
+rust-rsi = { git = "https://github.com/islet-project/rust-rsi" }
 p384 = { version = "*", features = [ "ecdsa" ] }
 
 [profile.release]

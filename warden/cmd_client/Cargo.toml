@@ -13,5 +13,5 @@ clap = { version = "4.5.9", features = ["derive"] }
 uuid = { version = "1.10.0", features = ["v4"] }
 client_lib = { path = "../client_lib"}
 warden_client = { path = "../../protocol/warden_client" }
-rust-rsi = { git = "https://github.com/islet-project/remote-attestation" }
+rust-rsi = { git = "https://github.com/islet-project/rust-rsi" }
 hex = "0.4.3"
