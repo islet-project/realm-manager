@@ -59,6 +59,9 @@ pub enum ManagerError {
 
     #[error("Invalid challenge size expected 64 bytes")]
     InvalidChallengeSize(),
+
+    #[error("Application are of different vendors")]
+    DifferentVendors()
 }
 
 pub struct Manager {
@@ -147,10 +150,11 @@ impl Manager {
             let keyseal = self.make_keyseal()?;
             let params = self.config.crypto.clone();
             let info = app_info.clone();
+            let fstype = self.config.fs_type;
 
             set.spawn(async move {
                 let mut app = Application::new(info, app_dir)?;
-                let handler = app.setup(params, launcher, keyseal).await.map_err(|e| {
+                let handler = app.setup(params, launcher, keyseal, fstype).await.map_err(|e| {
                     error!("Application installation error: {:?}", e);
                     e
                 })?;
@@ -164,6 +168,16 @@ impl Manager {
             let id = *app.id();
             self.apps.insert(id, (app, handler));
             info!("Finished installing {}", id);
+        }
+
+        if self.config.ensure_same_app_vendor {
+            let it = self.apps.values();
+            if it.clone().zip(it.skip(1))
+                .map(|(a, b)| a.0.vendor_data() != b.0.vendor_data())
+                    .any(|x| x) {
+                error!("Installed applications are of different vendors");
+                return Err(ManagerError::DifferentVendors().into());
+            }
         }
 
         for info in apps_info.iter() {

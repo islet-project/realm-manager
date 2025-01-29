@@ -33,6 +33,7 @@ pub struct Application {
     keyring: KernelKeyring,
     devices: Vec<CryptDevice>,
     measurements: Vec<u8>,
+    vendor_data: Vec<Vec<u8>>
 }
 
 impl Application {
@@ -44,11 +45,16 @@ impl Application {
             keyring: KernelKeyring::new(keyutils::SpecialKeyring::User)?,
             devices: Vec::new(),
             measurements: Vec::new(),
+            vendor_data: Vec::new()
         })
     }
 
     pub fn measurements(&self) -> &[u8] {
         self.measurements.as_slice()
+    }
+
+    pub fn vendor_data(&self) -> &[Vec<u8>] {
+        self.vendor_data.as_slice()
     }
 
     async fn decrypt_partition(
@@ -136,6 +142,7 @@ impl Application {
         params: CryptoParams,
         mut launcher: Box<dyn Launcher + Send + Sync>,
         keyseal: Box<dyn KeySealing + Send + Sync>,
+        fstype: Filesystem
     ) -> Result<Box<dyn ApplicationHandler + Send + Sync>> {
         let decrypted_partinions_dir = self.workdir.join("crypt");
         let app_image_key = self.derive_key_for(
@@ -154,14 +161,11 @@ impl Application {
             .await?;
         self.devices.push(device);
 
-        // TODO: Parametrize this
-        const FS: Filesystem = Filesystem::Ext2;
-
         let app_image_dir = self.workdir.join("image");
         self.try_mount_or_format_partition(
             &app_image_crypt_device,
             &app_image_dir,
-            &FS,
+            &fstype,
             Some("image"),
         )
         .await?;
@@ -177,6 +181,8 @@ impl Application {
                 &self.info.version,
             )
             .await?;
+
+        self.vendor_data = application_metadata.vendor_data.clone();
 
         for i in application_metadata.vendor_data.iter() {
             self.measurements.extend(i.iter());
@@ -213,7 +219,7 @@ impl Application {
         self.try_mount_or_format_partition(
             &app_data_crypt_device,
             &app_data_dir,
-            &FS,
+            &fstype,
             Some("data"),
         )
         .await?;

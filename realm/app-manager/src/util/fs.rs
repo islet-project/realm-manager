@@ -6,6 +6,7 @@ use std::path::{Path, PathBuf};
 
 use nix::errno::Errno;
 use nix::libc::{c_char, dev_t, mode_t};
+use serde::{Deserialize, Serialize};
 use thiserror::Error;
 use tokio::task::block_in_place;
 use tokio::{fs, process::Command};
@@ -54,7 +55,7 @@ pub enum FsError {
     RenameError(#[source] std::io::Error),
 }
 
-#[allow(dead_code)]
+#[derive(Debug, Deserialize, Serialize, Clone, Copy)]
 pub enum Filesystem {
     Ext2,
     Ext3,
