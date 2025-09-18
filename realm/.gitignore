@@ -1,4 +1,6 @@
+out
 linux
+linux-rsi
 initramfs/usr/bin
 initramfs/usr/sbin
 initramfs/lib/modules

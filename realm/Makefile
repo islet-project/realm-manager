@@ -30,7 +30,9 @@ UTIL_LINUX_DIR       = $(TOOLS_DIR)/util-linux
 RSICTL_UPSTREAM      = https://github.com/islet-project/rsictl.git
 RSICTL_DIR           = $(TOOLS_DIR)/rsictl
 
+RSI_KO_UPSTREAM      = https://github.com/islet-project/linux-rsi
 RSI_KO_DIR           = $(ROOT_DIR)/linux-rsi
+RSI_KO_REV           = v1.0-rel0
 
 APP_MANAGER_DIR      = $(ROOT_DIR)/app-manager
 
@@ -72,6 +74,11 @@ fetch-linux-kernel:
 	@[ -d "$(KERNEL_DIR)" ] || (\
 		git clone --depth=1 --branch $(KERNEL_REV) $(KERNEL_UPSTREAM) $(KERNEL_DIR))
 
+fetch-rsi-ko:
+	@echo "$(GREEN_COLOR)Fetching Linux RSI kernel driver source.$(NC)"
+	@[ -d "$(RSI_KO_DIR)" ] || (\
+		git clone --depth=1 --branch $(RSI_KO_REV) $(RSI_KO_UPSTREAM) $(RSI_KO_DIR))
+
 fetch-busybox:
 	@echo "$(GREEN_COLOR)Fetching busybox source.$(NC)"
 	@[ -d "$(BUSYBOX_DIR)" ] || git clone -b $(BUSYBOX_REV) --depth=1 $(BUSYBOX_UPSTREAM) $(BUSYBOX_DIR)
@@ -102,7 +109,7 @@ fetch-rsictl:
 	@[ -d "$(RSICTL_DIR)" ] || git clone --depth=1 $(RSICTL_UPSTREAM) $(RSICTL_DIR)
 
 
-deps: toolchains fetch-linux-kernel fetch-busybox fetch-strace fetch-gdb fetch-qemu fetch-util-linux fetch-rsictl
+deps: toolchains fetch-linux-kernel fetch-rsi-ko fetch-busybox fetch-strace fetch-gdb fetch-qemu fetch-util-linux fetch-rsictl
 
 compile-busybox: $(BUSYBOX_DIR)
 	@echo "$(GREEN_COLOR)Building busybox.$(NC)"
@@ -170,7 +177,7 @@ compile-rsi-ko: compile-kernel $(RSI_KO_DIR)
 		cd "$(KERNEL_DIR)" && "$(KERNEL_DIR)/scripts/kconfig/merge_config.sh" -m "$(KERNEL_DIR)/.config" "$(CONFIG_DIR)/kernel.config"; \
 		ARCH=arm64 CROSS_COMPILE=aarch64-none-linux-gnu- $(MAKE) -C "$(KERNEL_DIR)" -j $(shell nproc); \
 	fi;
-	@$(MAKE) -C $(RSI_KO_DIR)
+	@KERNEL_DIR=${KERNEL_DIR} $(MAKE) -C $(RSI_KO_DIR) module
 
 compile-rsictl: $(RSICTL_DIR)
 	@echo "$(GREEN_COLOR)Building rsictl.$(NC)"
