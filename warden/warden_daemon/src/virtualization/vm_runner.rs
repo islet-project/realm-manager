@@ -73,7 +73,7 @@ impl<T: CommandRunner + Sized + Send + Sync> VmManager for VmRunner<T> {
             return Err(VmManagerError::VmAlreadyLaunched);
         }
 
-        let vm_handler = VmHandler::new(command.get_program(), command.get_args(), self.realm_id)
+        let vm_handler = VmHandler::new(command, self.realm_id)
             .await
             .map_err(|err| VmManagerError::Launch(err.to_string()))?;
         self.vm = Some(vm_handler);

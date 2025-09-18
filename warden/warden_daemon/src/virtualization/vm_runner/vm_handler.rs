@@ -1,7 +1,7 @@
 use std::{
     ffi::OsStr,
     io,
-    process::{CommandArgs, ExitStatus, Stdio},
+    process::{self, CommandArgs, ExitStatus, Stdio},
 };
 
 use log::error;
@@ -39,11 +39,10 @@ pub struct VmHandler {
 
 impl VmHandler {
     pub async fn new(
-        program: &OsStr,
-        args: CommandArgs<'_>,
+        command: process::Command,
         vm_id: Uuid,
     ) -> Result<VmHandler, VmHandlerError> {
-        let command = Self::prepare_command(program, args);
+        let command = Self::prepare_command(command.get_program(), command.get_args());
         let (mut vm_process, status) = Self::spawn_vm_process(command)?;
         let (std_out, std_err) = Self::create_output_readers(&mut vm_process, vm_id)?;
 
