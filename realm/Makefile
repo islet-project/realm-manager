@@ -18,7 +18,7 @@ BUSYBOX_REV          = 1_36_stable
 STRACE_UPSTREAM      = https://github.com/strace/strace.git
 STRACE_DIR           = $(TOOLS_DIR)/strace
 
-GDB_UPSTREAM         = https://ftp.gnu.org/gnu/gdb/gdb-14.1.tar.xz
+GDB_UPSTREAM         = https://sourceware.org/pub/gdb/releases/gdb-14.1.tar.xz
 GDB_DIR              = $(TOOLS_DIR)/gdb
 
 QEMU_UPSTREAM        = https://github.com/qemu/qemu.git
