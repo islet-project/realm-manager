@@ -7,9 +7,9 @@ TOOLS_DIR            = $(ROOT_DIR)/tools
 GNU_TOOLCHAIN_URL    = https://developer.arm.com/-/media/Files/downloads/gnu/13.2.rel1/binrel/arm-gnu-toolchain-13.2.rel1-x86_64-aarch64-none-linux-gnu.tar.xz
 GNU_TOOLCHAIN_DIR    = $(TOOLCHAIN_DIR)/aarch64-none-linux-gnu/bin
 
-KERNEL_UPSTREAM      = https://git.gitlab.arm.com/linux-arm/linux-cca.git
+KERNEL_UPSTREAM      = https://github.com/islet-project/3rd-linux
 KERNEL_DIR           = $(ROOT_DIR)/linux
-KERNEL_REV           = cca-full/rmm-v1.0-eac5
+KERNEL_REV           = cca-guest/v6
 
 BUSYBOX_UPSTREAM     = https://github.com/mirror/busybox.git
 BUSYBOX_DIR          = $(TOOLS_DIR)/busybox
