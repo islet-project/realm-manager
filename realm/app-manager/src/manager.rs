@@ -226,7 +226,7 @@ impl Manager {
             }
 
             for chunk in data.chunks(rust_rsi::MAX_MEASUR_LEN as usize) {
-                debug!("Extending {:?} with {:?}", rem, chunk);
+                debug!("Extending {:02X?} with {:02X?}", rem, chunk);
                 rust_rsi::measurement_extend(*rem as u32, chunk)
                     .map_err(ManagerError::RemExtensionError)?;
             }
@@ -359,7 +359,7 @@ impl Manager {
     }
 
     async fn handle_received_request(&mut self, request: Request) -> Response {
-        debug!("Received request: {:?}", request);
+        debug!("Received request: {:02X?}", request);
 
         match self.handle_request(request).await {
             Ok(response) => response,
@@ -375,7 +375,7 @@ impl Manager {
                 Err(e) => Response::Error(ProtocolError::InvalidRequest(format!("{:?}", e))),
             };
 
-            debug!("Sending response: {:?}", response);
+            debug!("Sending response: {:02X?}", response);
             if let Err(e) = self.send_msg(response).await {
                 error!("Failed to send data back to host ({})", e);
                 info!("Shutting down");

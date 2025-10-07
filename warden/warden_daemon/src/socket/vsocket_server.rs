@@ -102,7 +102,7 @@ impl VSockClient {
 #[async_trait]
 impl RealmSender for VSockClient {
     async fn send(&mut self, request: Request) -> Result<(), RealmSenderError> {
-        debug!("Sending request to realm: {:#?}", request);
+        debug!("Sending request to realm: {:02X?}", request);
         self.stream
             .send(request)
             .await
@@ -111,7 +111,7 @@ impl RealmSender for VSockClient {
     async fn receive_response(&mut self, timeout: Duration) -> Result<Response, RealmSenderError> {
         select! {
             response = self.stream.recv() => {
-                debug!("Received realm's response: {:#?}", response);
+                debug!("Received realm's response: {:02X?}", response);
                 response.map_err(|err| {
                     match err {
                         JsonFramedError::SerdeReadError(err) if err.kind() == ErrorKind::ConnectionReset => RealmSenderError::Disconnection,

@@ -136,7 +136,7 @@ impl OciLauncher {
 
     fn verify_signature(&self, annotations: &RequiredAnnotations, config: &[u8]) -> Result<()> {
         debug!(
-            "Verifying vendor public key: {:?}",
+            "Verifying vendor public key: {:02X?}",
             annotations.vendor_pubkey
         );
         self.ca_pub.verify(
@@ -148,7 +148,7 @@ impl OciLauncher {
         let vendor_key = EcdsaKey::import(&annotations.vendor_pubkey)?;
 
         debug!(
-            "Verifying application signature {:?}",
+            "Verifying application signature {:02X?}",
             annotations.signature
         );
         vendor_key.verify(config, &annotations.signature)?;
