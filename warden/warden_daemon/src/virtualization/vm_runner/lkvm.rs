@@ -28,6 +28,7 @@ impl LkvmRunner {
     pub fn configure_cca_settings(&mut self) {
         self.command.arg("--debug");
         self.command.arg("--realm");
+        self.command.arg("--restricted_mem");
         self.command.arg("--measurement-algo=sha256");
     }
     fn configure_metadata(&mut self, metadata: &Option<PathBuf>) {
