@@ -1,7 +1,6 @@
 use std::collections::HashMap;
 use std::net::IpAddr;
 
-use log::error;
 use nix::errno::Errno;
 use nix::sys::socket::{AddressFamily, SockaddrLike, SockaddrStorage};
 use thiserror::Error;

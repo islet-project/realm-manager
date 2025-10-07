@@ -30,7 +30,7 @@ impl DeviceHandle {
         Self { dm, info }
     }
 
-    pub fn dev_id(&self) -> Result<DevId> {
+    pub fn dev_id(&self) -> Result<DevId<'_>> {
         Ok(self
             .info
             .name()

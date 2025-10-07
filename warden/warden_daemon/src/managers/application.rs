@@ -15,9 +15,6 @@ pub enum ApplicationError {
     DiskOpertaion(String),
 }
 
-#[derive(Debug, Error, PartialEq, PartialOrd, Serialize, Deserialize)]
-pub enum ApplicationClientError {}
-
 #[async_trait]
 pub trait Application {
     async fn stop(&mut self) -> Result<(), ApplicationError>;

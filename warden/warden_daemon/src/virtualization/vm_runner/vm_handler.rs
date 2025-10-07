@@ -4,7 +4,6 @@ use std::{
     process::{self, CommandArgs, ExitStatus, Stdio},
 };
 
-use log::error;
 use thiserror::Error;
 use tokio::{
     io::{AsyncBufReadExt, BufReader},
