@@ -125,7 +125,7 @@ compile-strace: $(STRACE_DIR)
 			./configure --build x86_64-pc-linux-gnu --host aarch64-none-linux-gnu \
 				LDFLAGS="-static -pthread" --enable-mpers=check; \
 	fi;
-	@$(MAKE) -C "$(STRACE_DIR)" -j $(shell proc)
+	@$(MAKE) -C "$(STRACE_DIR)" -j $(shell nproc)
 
 compile-gdbserver: $(GDB_DIR)
 	@echo "$(GREEN_COLOR)Building gdbserver.$(NC)"

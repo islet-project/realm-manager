@@ -37,7 +37,7 @@ fetch-dnsmasq:
 
 compile-dnsmasq:
 	@echo "$(GREEN_COLOR)Building dnsmasq.$(NC)"
-	@$(MAKE) -C $(DNSMASQ_DIR) LDFLAGS="-static -static-libgcc -static-libstdc++" CC=$(CC) -j $(shell proc)
+	@$(MAKE) -C $(DNSMASQ_DIR) LDFLAGS="-static -static-libgcc -static-libstdc++" CC=$(CC) -j $(shell nproc)
 
 cleanup:
 	@echo "$(GREEN_COLOR)Cleaning dnsmasq.$(NC)"
