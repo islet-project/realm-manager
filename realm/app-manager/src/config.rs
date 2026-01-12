@@ -9,7 +9,7 @@ use serde::{Deserialize, Serialize};
 use thiserror::Error;
 
 use crate::dm::crypt::CryptoParams;
-use crate::util::fs::read_to_string;
+use crate::util::fs::{read_to_string, Filesystem};
 
 #[derive(Debug, Error)]
 pub enum ConfigError {
@@ -112,6 +112,9 @@ pub struct Config {
 
     pub autostartall: bool,
     pub extend: Option<ExtendREM>,
+
+    pub ensure_same_app_vendor: bool,
+    pub fs_type: Filesystem
 }
 
 impl Config {
